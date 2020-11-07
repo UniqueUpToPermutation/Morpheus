@@ -1,0 +1,12 @@
+[submodule "DiligentEngine"]
+	path = DiligentEngine
+	url = https://github.com/DiligentGraphics/DiligentEngine.git
+[submodule "entt"]
+	path = entt
+	url = https://github.com/skypjack/entt.git
+[submodule "json"]
+	path = json
+	url = https://github.com/nlohmann/json.git
+[submodule "assimp"]
+	path = assimp
+	url = https://github.com/assimp/assimp.git

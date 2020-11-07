@@ -1,0 +1,414 @@
+#include <Engine/PipelineResource.hpp>
+#include <Engine/Engine.hpp>
+#include <Engine/ResourceManager.hpp>
+
+#include <fstream>
+
+namespace Morpheus {
+	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(const std::string& str) {
+		if (str == "SWAP_CHAIN_COLOR_BUFFER_FORMAT") {
+			return mManager->GetParent()->GetSwapChain()
+				->GetDesc().ColorBufferFormat;
+		} else if (str == "SWAP_CHAIN_DEPTH_BUFFER_FORMAT") {
+			return mManager->GetParent()->GetSwapChain()
+				->GetDesc().DepthBufferFormat;
+		}
+		else if (str == "TEX_FORMAT_RGBA8_UNORM") {
+			return DG::TEX_FORMAT_RGBA8_UNORM;
+		}
+		else if (str == "TEX_FORMAT_RGBA16_FLOAT") {
+			return DG::TEX_FORMAT_RGBA16_FLOAT;
+		}
+		else if (str == "TEX_FORMAT_RGBA32_FLOAT") {
+			return DG::TEX_FORMAT_RGBA32_FLOAT;
+		}
+		else if (str == "TEX_FORMAT_R8_UNORM") {
+			return DG::TEX_FORMAT_R8_UNORM;
+		}
+		else if (str == "TEX_FORMAT_R16_FLOAT") {
+			return DG::TEX_FORMAT_R16_FLOAT;
+		}
+		else if (str == "TEX_FORMAT_R32_FLOAT") {
+			return DG::TEX_FORMAT_R32_FLOAT;
+		}
+		else if (str == "TEX_FORMAT_RG8_UNORM") {
+			return DG::TEX_FORMAT_RG8_UNORM;
+		}
+		else if (str == "TEX_FORMAT_RG16_FLOAT") {
+			return DG::TEX_FORMAT_RG16_FLOAT;
+		}
+		else if (str == "TEX_FORMAT_RG32_FLOAT") {
+			return DG::TEX_FORMAT_RG32_FLOAT;
+		}
+		else {
+			throw std::runtime_error("Unrecognized texture format!");
+		}
+	}
+
+	DG::PRIMITIVE_TOPOLOGY PipelineLoader::ReadPrimitiveTopology(const std::string& str) {
+		if (str == "PRIMITIVE_TOPOLOGY_TRIANGLE_LIST") {
+			return DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		}
+		else if (str == "PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP") {
+			return DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+		}
+		else if (str == "PRIMTIIVE_TOPOLOGY_LINE_LIST") {
+			return DG::PRIMITIVE_TOPOLOGY_LINE_LIST;
+		}
+		else if (str == "PRIMITIVE_TOPOLOGY_LINE_STRIP") {
+			return DG::PRIMITIVE_TOPOLOGY_LINE_STRIP;
+		}
+		else if (str == "PRIMITIVE_TOPOLOGY_POINT_LIST") {
+			return DG::PRIMITIVE_TOPOLOGY_POINT_LIST;
+		}
+		else {
+			throw std::runtime_error("Unrecognized primitive topology!");
+		}
+	}
+
+	DG::CULL_MODE PipelineLoader::ReadCullMode(const std::string& str) {
+		if (str == "CULL_MODE_NONE") {
+			return DG::CULL_MODE_NONE;
+		} else if (str == "CULL_MODE_BACK") {
+			return DG::CULL_MODE_BACK;
+		} else if (str == "CULL_MODE_FRONT") {
+			return DG::CULL_MODE_FRONT;
+		} else {
+			throw std::runtime_error("Cull mode not recognized!");
+		}
+	}
+
+	DG::FILL_MODE PipelineLoader::ReadFillMode(const std::string& str) {
+		if (str == "FILL_MODE_SOLID") {
+			return DG::FILL_MODE_SOLID;
+		} else if (str == "FILL_MODE_WIREFRAME") {
+			return DG::FILL_MODE_WIREFRAME;
+		} else {
+			throw std::runtime_error("Fill mode not recognized!");
+		}
+	}
+
+	DG::STENCIL_OP PipelineLoader::ReadStencilOp(const std::string& str) {
+		if (str == "STENCIL_OP_DECR_SAT") {
+			return DG::STENCIL_OP_DECR_SAT;
+		} else if (str == "STENCIL_OP_INCR_SAT") {
+			return DG::STENCIL_OP_INCR_SAT;
+		} else if (str == "STENCIL_OP_DECR_WRAP") {
+			return DG::STENCIL_OP_DECR_WRAP;
+		} else if (str == "STENCIL_OP_INVERT") {
+			return DG::STENCIL_OP_INVERT;
+		} else if (str == "STENCIL_OP_KEEP") {
+			return DG::STENCIL_OP_KEEP;
+		} else if (str == "STENCIL_OP_REPLACE") {
+			return DG::STENCIL_OP_REPLACE;
+		} else if (str == "STENCIL_OP_ZERO") {
+			return DG::STENCIL_OP_ZERO;
+		} else {
+			throw std::runtime_error("Stencil op not recognized!");
+		}
+	}
+
+	DG::COMPARISON_FUNCTION PipelineLoader::ReadComparisonFunc(const std::string& str) {
+		if (str == "COMPARISON_FUNC_ALWAYS") {
+			return DG::COMPARISON_FUNC_ALWAYS;
+		} else if (str == "COMPARISON_FUNC_EQUAL") {
+			return DG::COMPARISON_FUNC_EQUAL;
+		} else if (str == "COMPARISON_FUNC_GREATER") {
+			return DG::COMPARISON_FUNC_GREATER;
+		} else if (str == "COMPARISON_FUNC_GREATER_EQUAL") {
+			return DG::COMPARISON_FUNC_GREATER_EQUAL;
+		} else if (str == "COMPARISON_FUNC_LESS") {
+			return DG::COMPARISON_FUNC_LESS;
+		} else if (str == "COMPARISON_FUNC_LESS_EQUAL") {
+			return DG::COMPARISON_FUNC_LESS_EQUAL;
+		} else if (str == "COMPARISON_FUNC_NEVER") {
+			return DG::COMPARISON_FUNC_NEVER;
+		} else if (str == "COMPARISON_FUNC_NOT_EQUAL") {
+			return DG::COMPARISON_FUNC_NOT_EQUAL;
+		} else {
+			throw std::runtime_error("Comparison function not recognized!");
+		}
+	}
+
+	void PipelineLoader::ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc) {
+		if (json.contains("StencilFunc")) {
+			desc->StencilFunc = ReadComparisonFunc(json.value("StencilFunc", ""));
+		}
+		if (json.contains("StencilDepthFailOp")) {
+			desc->StencilDepthFailOp = ReadStencilOp(json.value("StencilDepthFailOp", ""));
+		}
+		if (json.contains("StencilFailOp")) {
+			desc->StencilFailOp = ReadStencilOp(json.value("StenilFailOp", ""));
+		}
+		if (json.contains("StencilPassOp")) {
+			desc->StencilPassOp = ReadStencilOp(json.value("StencilPassOp", ""));
+		}
+	}
+
+	DG::SHADER_TYPE PipelineLoader::ReadShaderType(const std::string& str) {
+		if (str == "SHADER_TYPE_AMPLIFICATION") {
+			return DG::SHADER_TYPE_AMPLIFICATION;
+		} else if (str == "SHADER_TYPE_COMPUTE") {
+			return DG::SHADER_TYPE_COMPUTE;
+		} else if (str == "SHADER_TYPE_DOMAIN") {
+			return DG::SHADER_TYPE_DOMAIN;
+		} else if (str == "SHADER_TYPE_GEOMETRY") {
+			return DG::SHADER_TYPE_GEOMETRY;
+		} else if (str == "SHADER_TYPE_HULL") {
+			return DG::SHADER_TYPE_HULL;
+		} else if (str == "SHADER_TYPE_LAST") {
+			return DG::SHADER_TYPE_LAST;
+		} else if (str == "SHADER_TYPE_MESH") {
+			return DG::SHADER_TYPE_MESH;
+		} else if (str == "SHADER_TYPE_PIXEL") {
+			return DG::SHADER_TYPE_PIXEL;
+		} else if (str == "SHADER_TYPE_VERTEX") {
+			return DG::SHADER_TYPE_VERTEX;
+		} else {
+			throw std::runtime_error("Shader type not recognized!");
+		}
+	}
+
+	void PipelineLoader::ReadRasterizerDesc(const nlohmann::json& json, 
+		DG::RasterizerStateDesc* desc) {
+		desc->AntialiasedLineEnable = json.value("AntialiasedLineEnable", desc->AntialiasedLineEnable);
+		desc->CullMode = ReadCullMode(json.value("CullMode", "CULL_MODE_BACK"));
+		desc->DepthBias = json.value("DepthBias", desc->DepthBias);
+		desc->DepthBiasClamp = json.value("DepthBiasClamp", desc->DepthBiasClamp);
+		desc->DepthClipEnable = json.value("DepthClipEnable", desc->DepthClipEnable);
+		desc->FillMode = ReadFillMode(json.value("FillMode", "FILL_MODE_SOLID"));
+		desc->FrontCounterClockwise = json.value("FrontCounterClockwise", desc->FrontCounterClockwise);
+		desc->ScissorEnable = json.value("ScissorEnable", desc->ScissorEnable);
+		desc->SlopeScaledDepthBias = json.value("SlopeScaledDepthBias", desc->SlopeScaledDepthBias);
+	}
+
+	void PipelineLoader::ReadDepthStencilDesc(const nlohmann::json& json, 
+		DG::DepthStencilStateDesc* desc) {
+		desc->DepthEnable = json.value("DepthEnable", desc->DepthEnable);
+		desc->StencilEnable = json.value("StencilEnable", desc->StencilEnable);
+		desc->StencilReadMask = json.value("StencilReadMask", desc->StencilReadMask);
+		desc->StencilWriteMask = json.value("StencilWriteMask", desc->StencilWriteMask);
+		if (json.contains("BackFace")) {
+			ReadStencilOpDesc(json["BackFace"], &desc->BackFace);
+		}
+		if (json.contains("FrontFace")) {
+			ReadStencilOpDesc(json["FrontFace"], &desc->FrontFace);
+		}
+		if (json.contains("DepthFunc")) {
+			desc->DepthFunc = ReadComparisonFunc(json.value("DepthFunc", ""));
+		}
+	}
+
+	PipelineResource* PipelineLoader::Load(const std::string& source) {
+		std::cout << "Loading " << source << "..." << std::endl;
+
+		std::ifstream stream;
+		stream.exceptions(std::ios::failbit | std::ios::badbit);
+		stream.open(source);
+
+		nlohmann::json json;
+		stream >> json;
+
+		stream.close();
+
+		std::string path = ".";
+		auto path_cutoff = source.rfind('/');
+		if (path_cutoff != std::string::npos) {
+			path = source.substr(0, path_cutoff);
+		}
+
+		return Load(json, path);
+	}
+
+	PipelineResource* PipelineLoader::Load(const nlohmann::json& json,
+		const std::string& path) {
+		auto type = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
+
+		std::vector<DG::IShader*> shaders;
+		PipelineResource* resource;
+
+		if (type == "PIPELINE_TYPE_GRAPHICS") {
+			DG::GraphicsPipelineStateCreateInfo info = 
+				ReadGraphicsInfo(json);
+
+			auto shaderLoad = [&json, &path, &shaders, this](
+				DG::IShader** result,
+				const std::string& shaderMacro) {
+				if (json.contains(shaderMacro)) {
+					auto json_macro = json[shaderMacro];
+					auto shad = LoadShader(json_macro, path);
+					shaders.emplace_back(shad);
+					*result = shad;
+				}
+			};
+
+			// Load shaders
+			shaderLoad(&info.pVS, "VS");
+			shaderLoad(&info.pPS, "PS");
+			shaderLoad(&info.pMS, "MS");
+			shaderLoad(&info.pHS, "HS");
+			shaderLoad(&info.pGS, "GS");
+			shaderLoad(&info.pDS, "DS");
+			shaderLoad(&info.pAS, "AS");
+
+			DG::IPipelineState* state = nullptr;
+			mManager->GetParent()->GetDevice()
+				->CreateGraphicsPipelineState(info, &state);
+
+			resource = new PipelineResource(mManager, state);
+
+		} else if (type == "PIPELINE_TYPE_COMPUTE") {
+			DG::ComputePipelineStateCreateInfo info = 
+				ReadComputeInfo(json);
+			return nullptr;
+		} else {
+			throw std::runtime_error("Pipeline type not recognized!");
+		}
+
+		for (auto shader : shaders) {
+			shader->Release();
+		}
+
+		return resource;
+	}
+
+	DG::ComputePipelineStateCreateInfo PipelineLoader::ReadComputeInfo(const nlohmann::json& json) {
+		throw std::runtime_error("Not implemented yet!");
+	}
+
+	DG::GraphicsPipelineStateCreateInfo PipelineLoader::ReadGraphicsInfo(const nlohmann::json& json) {
+		DG::GraphicsPipelineStateCreateInfo info;
+
+		std::string name = json.value("Name", "Unnammed Pipeline");
+
+		info.PSODesc.Name = name.c_str();
+
+		std::string pipelineType = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
+		
+		if (pipelineType == "PIPELINE_TYPE_GRAPHICS") {
+			info.PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+		} else if (pipelineType == "PIPELINE_TYPE_COMPUTE") {
+			info.PSODesc.PipelineType = DG::PIPELINE_TYPE_COMPUTE;
+		}
+
+		info.GraphicsPipeline.NumRenderTargets = json.value("NumRenderTargets", 
+			info.GraphicsPipeline.NumRenderTargets);
+		
+		if (json.contains("RTVFormats")) {
+			auto rtv_formats = json["RTVFormats"];
+			assert(rtv_formats.is_array());
+			std::vector<std::string> formats;
+			rtv_formats.get_to(formats);
+
+			for (uint i = 0; i < formats.size(); ++i) {
+				auto& format = formats[i];
+				info.GraphicsPipeline.RTVFormats[i] = ReadTextureFormat(format);
+			}
+		}
+
+		if (json.contains("DSVFormat")) {
+			std::string format;
+			json["DSVFormat"].get_to(format);
+
+			info.GraphicsPipeline.DSVFormat = ReadTextureFormat(format);
+		}
+
+		std::string primitiveTopology = json.value("PrimitiveTopology", 
+			"PRIMITIVE_TOPOLOGY_TRIANGLE_LIST");
+		info.GraphicsPipeline.PrimitiveTopology = 
+			ReadPrimitiveTopology(primitiveTopology);
+
+		if (json.contains("DepthStencilDesc")) {
+			ReadDepthStencilDesc(json["DepthStencilDesc"], 
+				&info.GraphicsPipeline.DepthStencilDesc);
+		}
+
+		if (json.contains("RasterizerDesc")) {
+			ReadRasterizerDesc(json["RasterizerDesc"],
+				&info.GraphicsPipeline.RasterizerDesc);
+		}
+
+		return info;
+	}
+
+	DG::IShader* PipelineLoader::LoadShader(
+		const nlohmann::json& shaderConfig,
+		const std::string& path) {
+		DG::ShaderCreateInfo info;
+		info.Desc.ShaderType = ReadShaderType(shaderConfig.value("ShaderType", ""));
+		std::string name = shaderConfig.value("Name", "Unnammed Shader");
+		info.Desc.Name = name.c_str();
+		
+		std::string entryPoint = shaderConfig.value("EntryPoint", "main");
+		info.EntryPoint = entryPoint.c_str();
+
+		std::string source = shaderConfig.value("Source", "");
+
+		std::cout << "Loading " << source << "..." << std::endl;
+
+		std::ifstream stream;
+		stream.exceptions(std::ios::failbit | std::ios::badbit);
+		stream.open(path + "/" + source);
+
+		std::string stream_contents((std::istreambuf_iterator<char>(stream)),
+			std::istreambuf_iterator<char>());
+
+		stream.close();
+
+		info.Source = stream_contents.c_str();
+		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
+
+		DG::IShader* shader = nullptr;
+		mManager->GetParent()->GetDevice()->CreateShader(info, &shader);
+		return shader;
+	}
+
+	ResourceCache<PipelineResource>::~ResourceCache() {
+		for (auto& item : mCachedResources) {
+			item.second->ResetRefCount();
+			delete item.second;
+		}
+	}
+
+	PipelineResource::~PipelineResource() {
+		mState->Release();
+	}
+
+	Resource* ResourceCache<PipelineResource>::Load(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
+		auto src = params_cast->mSource;
+
+		auto it = mCachedResources.find(src);
+		if (it != mCachedResources.end()) {
+			return it->second;
+		}
+
+		PipelineResource* resource = mLoader.Load(src);
+		mCachedResources[src] = resource;
+		return resource;
+	}
+
+	void ResourceCache<PipelineResource>::Add(Resource* resource, const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
+		auto src = params_cast->mSource;
+
+		auto it = mCachedResources.find(src);
+		if (it != mCachedResources.end()) {
+			Unload(it->second);
+		}
+		mCachedResources[src] = dynamic_cast<PipelineResource*>(resource);
+	}
+
+	void ResourceCache<PipelineResource>::Unload(Resource* resource) {
+		auto pipeline = dynamic_cast<PipelineResource*>(resource);
+
+		auto it = mCachedResources.find(pipeline->GetSource());
+		if (it != mCachedResources.end()) {
+			if (it->second == pipeline) {
+				mCachedResources.erase(it);
+			}
+		}
+
+		delete resource;
+	}
+}
