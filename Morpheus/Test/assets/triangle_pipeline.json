@@ -1,0 +1,41 @@
+{
+	"Name" : "Simple Triangle PSO",
+	"PipelineType" : "PIPELINE_TYPE_GRAPHICS",
+	"NumRenderTargets" : 1,
+
+	"RTVFormats" : [
+		"SWAP_CHAIN_COLOR_BUFFER_FORMAT"
+	],
+
+	"DSVFormat" : "SWAP_CHAIN_DEPTH_BUFFER_FORMAT",
+	
+	"PrimitiveTopology" : "PRIMITIVE_TOPOLOGY_TRIANGLE_LIST",
+
+	"RasterizerDesc" : {
+		"CullMode" : "CULL_MODE_NONE"
+	},
+
+	"DepthStencilDesc" : {
+		"DepthEnable" : false
+	},
+
+	"VS" : {
+		"ShaderType" : "SHADER_TYPE_VERTEX",
+		"Name" : "Triangle vertex shader",
+		"Source" : "triangle.vsh",
+		"EntryPoint" : "main"
+	},
+
+	"PS" : {
+		"ShaderType" : "SHADER_TYPE_PIXEL",
+		"Name" : "Triangle pixel shader",
+		"Source" : "triangle.psh",
+		"EntryPoint" : "main"
+	},
+
+	"InputLayout" : [
+	],
+
+	"Attributes" : {
+	}
+}
