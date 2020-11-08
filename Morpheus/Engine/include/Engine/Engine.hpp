@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 
+#include "BasicMath.hpp"
 #include "NativeAppBase.hpp"
 #include "RefCntAutoPtr.hpp"
 #include "EngineFactory.h"
@@ -161,6 +162,9 @@ namespace Morpheus {
 
 	public:
 
+		DG::float4x4 GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const;
+		DG::float4x4 GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const;
+
 		virtual bool IsReady() const override final
 		{
 			return mPlatform && 
@@ -191,6 +195,9 @@ namespace Morpheus {
 		}
 		inline entt::registry* GetRegistry() {
 			return &mEntityRegistry;
+		}
+		inline Renderer* GetRenderer() {
+			return mRenderer;
 		}
 		inline ResourceManager* GetResourceManager() {
 			return mResourceManager;

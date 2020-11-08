@@ -8,4 +8,20 @@ namespace Morpheus {
 			mManager->RequestUnload(this);
 		}
 	}
+
+	PipelineResource* Resource::ToPipeline() {
+		return nullptr;
+	}
+
+	GeometryResource* Resource::ToGeometry() {
+		return nullptr;
+	}
+
+	MaterialResource* Resource::ToMaterial() {
+		return nullptr;
+	}
+
+	TextureResource* Resource::ToTexture() {
+		return nullptr;
+	}
 }

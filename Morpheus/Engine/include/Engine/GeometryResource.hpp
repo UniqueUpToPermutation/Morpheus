@@ -2,9 +2,14 @@
 
 #include <Engine/Resource.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/Geometry.hpp>
 #include <unordered_map>
 
 namespace DG = Diligent;
+
+namespace Assimp {
+	class Importer;
+}
 
 namespace Morpheus {
 	class GeometryResource : public Resource {
@@ -19,9 +24,16 @@ namespace Morpheus {
 		DG::DrawIndexedAttribs mIndexedAttribs;
 		DG::DrawAttribs mDrawAttribs;
 
+		BoundingBox mBoundingBox;
+
+		std::string mSource;
+
 	public:
 
-		GeometryResource();
+		GeometryResource(ResourceManager* manager,
+			DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
+			uint vertexBufferOffset, PipelineResource* pipeline, 
+			const BoundingBox& aabb);
 		~GeometryResource();
 
 		inline DG::IBuffer* GetVertexBuffer() {
@@ -32,7 +44,7 @@ namespace Morpheus {
 			return mIndexBuffer;
 		}
 
-		inline uint GetVertexBufferOffset() {
+		inline uint GetVertexBufferOffset() const {
 			return mVertexBufferOffset;
 		}
 
@@ -40,13 +52,30 @@ namespace Morpheus {
 			return mPipeline;
 		}
 
-		inline DG::DrawIndexedAttribs GetIndexedDrawAttribs() {
+		inline DG::DrawIndexedAttribs GetIndexedDrawAttribs() const {
 			return mIndexedAttribs;
 		}
 
-		inline DG::DrawAttribs GetDrawAttribs() {
+		inline DG::DrawAttribs GetDrawAttribs() const {
 			return mDrawAttribs;
 		}
+
+		inline BoundingBox GetBoundingBox() const {
+			return mBoundingBox;
+		}
+
+		entt::id_type GetType() const override {
+			return resource_type::type<GeometryResource>;
+		}
+
+		inline std::string GetSource() const {
+			return mSource;
+		}
+
+		GeometryResource* ToGeometry() override;
+
+		friend class GeometryLoader;
+		friend class ResourceCache<GeometryResource>;
 	};
 
 	template <>
@@ -61,14 +90,32 @@ namespace Morpheus {
 		}
 	};
 
+	class GeometryLoader {
+	private:
+		Assimp::Importer* mImporter;
+		ResourceManager* mManager;
+
+	public:
+		GeometryLoader(ResourceManager* manager);
+		~GeometryLoader();
+
+		GeometryResource* Load(const std::string& source, PipelineResource* pipeline);
+	};
+
 	template <>
 	class ResourceCache<GeometryResource> : public IResourceCache {
 	private:
 		std::unordered_map<std::string, GeometryResource*> mResources;
+		ResourceManager* mManager;
+		GeometryLoader mLoader;
 
 	public:
+		ResourceCache(ResourceManager* manager);
+		~ResourceCache();
+
 		Resource* Load(const void* params) override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
+		void Clear() override;
 	};
 }

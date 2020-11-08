@@ -5,6 +5,10 @@
 #include <fstream>
 
 namespace Morpheus {
+	PipelineResource* PipelineResource::ToPipeline() {
+		return this;
+	}
+
 	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(const std::string& str) {
 		if (str == "SWAP_CHAIN_COLOR_BUFFER_FORMAT") {
 			return mManager->GetParent()->GetSwapChain()
@@ -169,6 +173,204 @@ namespace Morpheus {
 		}
 	}
 
+	std::vector<DG::LayoutElement> PipelineLoader::ReadLayoutElements(const nlohmann::json& json) {
+		if (!json.is_array()) {
+			throw std::runtime_error("Layout element json is not array!");
+		}
+
+		std::vector<DG::LayoutElement> result;
+
+		for (const auto& item : json) {
+			result.emplace_back(ReadLayoutElement(item));
+		}
+
+		return result;
+	}
+
+	DG::LayoutElement PipelineLoader::ReadLayoutElement(const nlohmann::json& json) {
+		DG::LayoutElement elem;
+		elem.InputIndex = json.value("InputIndex", elem.InputIndex);
+		elem.BufferSlot = json.value("BufferSlot", elem.BufferSlot);
+		elem.NumComponents = json.value("NumComponents", elem.NumComponents);
+		elem.ValueType = ReadValueType(json["ValueType"]);
+		elem.IsNormalized = json.value("IsNormalized", false);
+		return elem;
+	}
+
+	DG::VALUE_TYPE PipelineLoader::ReadValueType(const nlohmann::json& json) {
+		std::string valueType;
+		json.get_to(valueType);
+
+		if (valueType == "VT_FLOAT16") {
+			return DG::VT_FLOAT16;
+		} else if (valueType == "VT_FLOAT32") {
+			return DG::VT_FLOAT32;
+		} else if (valueType == "VT_INT32") {
+			return DG::VT_INT32;
+		} else if (valueType == "VT_INT16") {
+			return DG::VT_INT16;
+		} else if (valueType == "VT_INT8") {
+			return DG::VT_INT8;
+		} else if (valueType == "VT_UINT32") {
+			return DG::VT_UINT32;
+		} else if (valueType == "VT_UINT16") {
+			return DG::VT_UINT16;
+		} else if (valueType == "VT_UINT8") {
+			return DG::VT_UINT8;
+		} else {
+			throw std::runtime_error("ValueType not recognized!");
+		}
+	}
+
+	VertexAttributeIndices PipelineLoader::ReadVertexAttributes(const nlohmann::json& json) {
+		VertexAttributeIndices attribs;
+		attribs.mPosition 	= json.value("Position", attribs.mPosition);
+		attribs.mUV 		= json.value("UV", attribs.mUV);
+		attribs.mNormal 	= json.value("Normal", attribs.mNormal);
+		attribs.mTangent 	= json.value("Tangent", attribs.mTangent);
+		attribs.mBitangent 	= json.value("Bitangent", attribs.mBitangent);
+		return attribs;
+	}
+
+	DG::SHADER_RESOURCE_VARIABLE_TYPE PipelineLoader::ReadShaderResourceVariableType(const nlohmann::json& json) {
+		std::string defaultVarType;
+		json.get_to(defaultVarType);
+		if (defaultVarType == "SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC") {
+			return DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC;
+		} else if (defaultVarType == "SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE") {
+			return DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE;
+		} else if (defaultVarType == "SHADER_RESOURCE_VARIABLE_TYPE_STATIC") {
+			return DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+		} else {
+			throw std::runtime_error("Unrecognized shader resource variable type!");
+		}
+	}
+
+	DG::SHADER_TYPE PipelineLoader::ReadShaderStages(const nlohmann::json& json) {
+		DG::SHADER_TYPE t = (DG::SHADER_TYPE)0u;
+		for (const auto& item : json) {
+			DG::SHADER_TYPE t_ = ReadShaderType(item);
+			t |= t_;
+		}
+		return t;
+	}
+
+	DG::TEXTURE_ADDRESS_MODE PipelineLoader::ReadTextureAddressMode(const nlohmann::json& json) {
+		std::string s;
+		json.get_to(s);
+
+		if (s == "TEXTURE_ADDRESS_WRAP")
+			return DG::TEXTURE_ADDRESS_WRAP;
+		else if (s == "TEXTURE_ADDRESS_MIRROR")
+			return DG::TEXTURE_ADDRESS_MIRROR;
+		else if (s == "TEXTURE_ADDRESS_MIRROR_ONCE")
+			return DG::TEXTURE_ADDRESS_MIRROR_ONCE;
+		else if (s == "TEXTURE_ADDRESS_CLAMP")
+			return DG::TEXTURE_ADDRESS_CLAMP;
+		else if (s == "TEXTURE_ADDRESS_BORDER")
+			return DG::TEXTURE_ADDRESS_BORDER;
+		else 
+			throw std::runtime_error("Unrecognized texture address mode!");
+	}
+
+	DG::FILTER_TYPE PipelineLoader::ReadFilterType(const nlohmann::json& json) {
+		std::string s;
+		json.get_to(s);
+
+		if (s == "RendererDefault") {
+			return mManager->GetParent()->GetRenderer()->GetDefaultFilter();
+		} else if (s == "FILTER_TYPE_LINEAR") {
+			return DG::FILTER_TYPE_LINEAR;
+		} else if (s == "FILTER_TYPE_ANISOTROPIC") {
+			return DG::FILTER_TYPE_ANISOTROPIC;
+		} else if (s == "FILTER_TYPE_POINT") {
+			return DG::FILTER_TYPE_POINT;
+		} else {
+			throw std::runtime_error("Unrecognized filter type!");
+		}
+	}
+
+	DG::SamplerDesc PipelineLoader::ReadSamplerDesc(const nlohmann::json& json) {
+		DG::SamplerDesc desc;
+
+		if (json.contains("AddressU")) {
+			desc.AddressU = ReadTextureAddressMode(json["AddressU"]);
+		}
+		if (json.contains("AddressV")) {
+			desc.AddressV = ReadTextureAddressMode(json["AddressV"]);
+		}
+		if (json.contains("AddressW")) {
+			desc.AddressW = ReadTextureAddressMode(json["AddressW"]);
+		}
+
+		if (json.contains("MinFilter")) {
+			desc.MinFilter = ReadFilterType(json["MinFilter"]);
+		}
+		if (json.contains("MagFilter")) {
+			desc.MagFilter = ReadFilterType(json["MagFilter"]);
+		}
+		if (json.contains("MipFilter")) {
+			desc.MipFilter = ReadFilterType(json["MipFilter"]);
+		}
+
+		return desc;
+	}
+
+	DG::PipelineResourceLayoutDesc PipelineLoader::ReadResourceLayout(const nlohmann::json& json,
+		std::vector<DG::ShaderResourceVariableDesc>* variables,
+		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
+		std::vector<std::string>* strings) {
+		DG::PipelineResourceLayoutDesc resourceLayout;
+
+		resourceLayout.DefaultVariableType;
+
+		if (json.contains("DefaultVariableType")) {
+			resourceLayout.DefaultVariableType = ReadShaderResourceVariableType(json["DefaultVariableType"]);
+		}
+
+		if (json.contains("Variables")) {
+			const auto& var_json = json["Variables"];
+
+			for (const auto& item : var_json) {
+				DG::ShaderResourceVariableDesc varDesc;
+				std::string name;
+				item["Name"].get_to(name);
+				strings->emplace_back(name);
+				varDesc.Name = (*strings)[strings->size() - 1].c_str();
+				varDesc.Type = ReadShaderResourceVariableType(json["Type"]);
+				if (item["ShaderStages"].is_array())
+					varDesc.ShaderStages = ReadShaderStages(item["ShaderStages"]);
+				else 
+					varDesc.ShaderStages = ReadShaderType(item["ShaderStages"]);
+
+				variables->emplace_back(varDesc);
+			}
+		}
+
+		if (json.contains("ImmutableSamplers")) {
+			const auto& var_json = json["ImmutableSamplers"];
+
+			for (const auto& item : var_json) {
+				DG::ImmutableSamplerDesc sampDesc;
+
+				std::string name;
+				item["Name"].get_to(name);
+				strings->emplace_back(name);
+				sampDesc.SamplerOrTextureName = (*strings)[strings->size() - 1].c_str();
+
+				sampDesc.Desc = ReadSamplerDesc(item);
+				sampDesc.Desc.MaxAnisotropy = mManager->GetParent()->GetRenderer()->GetMaxAnisotropy();
+				
+				if (item["ShaderStages"].is_array())
+					sampDesc.ShaderStages = ReadShaderStages(item["ShaderStages"]);
+				else 
+					sampDesc.ShaderStages = ReadShaderType(item["ShaderStages"]);
+			}
+		}
+
+		return resourceLayout;
+	}
+
 	void PipelineLoader::ReadRasterizerDesc(const nlohmann::json& json, 
 		DG::RasterizerStateDesc* desc) {
 		desc->AntialiasedLineEnable = json.value("AntialiasedLineEnable", desc->AntialiasedLineEnable);
@@ -228,8 +430,15 @@ namespace Morpheus {
 		PipelineResource* resource;
 
 		if (type == "PIPELINE_TYPE_GRAPHICS") {
+			std::vector<DG::LayoutElement> layoutElements;
+			std::vector<DG::ShaderResourceVariableDesc> variables;
+			std::vector<DG::ImmutableSamplerDesc> immutableSamplers;
+			std::vector<std::string> strings;
+
+			// Read the pipeline description
 			DG::GraphicsPipelineStateCreateInfo info = 
-				ReadGraphicsInfo(json);
+				ReadGraphicsInfo(json, &layoutElements, 
+				&variables, &immutableSamplers, &strings);
 
 			auto shaderLoad = [&json, &path, &shaders, this](
 				DG::IShader** result,
@@ -241,6 +450,11 @@ namespace Morpheus {
 					*result = shad;
 				}
 			};
+
+			VertexAttributeIndices attribIndices;
+			if (json.contains("Attributes")) {
+				attribIndices = ReadVertexAttributes(json["Attributes"]);
+			}
 
 			// Load shaders
 			shaderLoad(&info.pVS, "VS");
@@ -255,7 +469,16 @@ namespace Morpheus {
 			mManager->GetParent()->GetDevice()
 				->CreateGraphicsPipelineState(info, &state);
 
-			resource = new PipelineResource(mManager, state);
+			// Get globals buffer, if it exists
+			std::string globalsBuffer = json.value("GlobalsBuffer", "Globals");
+			auto variable = state->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, globalsBuffer.c_str());
+			if (variable) {	
+				auto globalBuffer = mManager->GetParent()->GetRenderer()->GetGlobalsBuffer();
+				variable->Set(globalBuffer);
+			}
+
+			resource = new PipelineResource(mManager, state, 
+				layoutElements, attribIndices);
 
 		} else if (type == "PIPELINE_TYPE_COMPUTE") {
 			DG::ComputePipelineStateCreateInfo info = 
@@ -276,12 +499,18 @@ namespace Morpheus {
 		throw std::runtime_error("Not implemented yet!");
 	}
 
-	DG::GraphicsPipelineStateCreateInfo PipelineLoader::ReadGraphicsInfo(const nlohmann::json& json) {
+	DG::GraphicsPipelineStateCreateInfo PipelineLoader::ReadGraphicsInfo(const nlohmann::json& json,
+		std::vector<DG::LayoutElement>* layoutElements,
+		std::vector<DG::ShaderResourceVariableDesc>* variables,
+		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
+		std::vector<std::string>* strings) {
+
 		DG::GraphicsPipelineStateCreateInfo info;
 
 		std::string name = json.value("Name", "Unnammed Pipeline");
+		strings->emplace_back(name);
 
-		info.PSODesc.Name = name.c_str();
+		info.PSODesc.Name = (*strings)[strings->size() - 1].c_str();
 
 		std::string pipelineType = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
 		
@@ -328,6 +557,21 @@ namespace Morpheus {
 				&info.GraphicsPipeline.RasterizerDesc);
 		}
 
+		if (json.contains("InputLayout")) {
+			*layoutElements = ReadLayoutElements(json["InputLayout"]);
+			if (layoutElements->size() > 0) {
+				info.GraphicsPipeline.InputLayout.LayoutElements = layoutElements->data();
+				info.GraphicsPipeline.InputLayout.NumElements = layoutElements->size();
+			}
+		}
+
+		if (json.contains("ResourceLayout")) {
+			info.PSODesc.ResourceLayout = ReadResourceLayout(json["ResourceLayout"],
+				variables,
+				immutableSamplers,
+				strings);
+		}
+
 		return info;
 	}
 
@@ -364,10 +608,7 @@ namespace Morpheus {
 	}
 
 	ResourceCache<PipelineResource>::~ResourceCache() {
-		for (auto& item : mCachedResources) {
-			item.second->ResetRefCount();
-			delete item.second;
-		}
+		Clear();
 	}
 
 	PipelineResource::~PipelineResource() {
@@ -392,11 +633,16 @@ namespace Morpheus {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
 
+		auto pipeline = dynamic_cast<PipelineResource*>(resource);
+
 		auto it = mCachedResources.find(src);
 		if (it != mCachedResources.end()) {
-			Unload(it->second);
+			if (it->second != pipeline)
+				Unload(it->second);
+			else
+				return;
 		}
-		mCachedResources[src] = dynamic_cast<PipelineResource*>(resource);
+		mCachedResources[src] = pipeline;
 	}
 
 	void ResourceCache<PipelineResource>::Unload(Resource* resource) {
@@ -410,5 +656,12 @@ namespace Morpheus {
 		}
 
 		delete resource;
+	}
+
+	void ResourceCache<PipelineResource>::Clear() {
+		for (auto& item : mCachedResources) {
+			item.second->ResetRefCount();
+			delete item.second;
+		}
 	}
 }

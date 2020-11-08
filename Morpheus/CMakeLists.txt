@@ -43,7 +43,8 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
         # will fail to resolve Diligent::CreateApplication() function.
         Diligent-NativeAppBase
         Diligent-BuildSettings
-       	Morpheus-Engine
+		Morpheus-Engine
+		${ASSIMP_LIBRARIES}
     )
     set_common_target_properties(${APP_NAME})
 

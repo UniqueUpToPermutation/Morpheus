@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.6)
 
 project(Morpheus-Engine)
 
+find_package(assimp REQUIRED)
+
 if(PLATFORM_WIN32)
     set(SOURCE 
         src/Win32/SampleAppWin32.cpp
@@ -106,6 +108,8 @@ list(APPEND SOURCE
 	src/PipelineResource.cpp
 	src/SceneHeirarchy.cpp
 	src/DefaultRenderer.cpp
+	src/GeometryResource.cpp
+	src/Camera.cpp
 )
 
 list(APPEND INCLUDE
@@ -151,7 +155,8 @@ PUBLIC
     Diligent-TargetPlatform
     Diligent-Imgui
     ${ENGINE_LIBRARIES}
-    Diligent-NativeAppBase
+	Diligent-NativeAppBase
+	${ASSIMP_LIBRARIES}
 )
 
 if(PLATFORM_UNIVERSAL_WINDOWS)

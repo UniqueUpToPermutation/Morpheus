@@ -69,6 +69,68 @@ namespace Morpheus
 		mRenderer->Initialize();
 	}
 
+	DG::float4x4 Engine::GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const
+	{
+		const auto& SCDesc = mSwapChain->GetDesc();
+		switch (SCDesc.PreTransform)
+		{
+			case  DG::SURFACE_TRANSFORM_ROTATE_90:
+				// The image content is rotated 90 degrees clockwise.
+				return DG::float4x4::RotationArbitrary(f3CameraViewAxis, -DG::PI_F / 2.f);
+
+			case  DG::SURFACE_TRANSFORM_ROTATE_180:
+				// The image content is rotated 180 degrees clockwise.
+				return DG::float4x4::RotationArbitrary(f3CameraViewAxis, -DG::PI_F);
+
+			case  DG::SURFACE_TRANSFORM_ROTATE_270:
+				// The image content is rotated 270 degrees clockwise.
+				return DG::float4x4::RotationArbitrary(f3CameraViewAxis, -DG::PI_F * 3.f / 2.f);
+
+			case  DG::SURFACE_TRANSFORM_OPTIMAL:
+				UNEXPECTED("SURFACE_TRANSFORM_OPTIMAL is only valid as parameter during swap chain initialization.");
+				return DG::float4x4::Identity();
+
+			case DG::SURFACE_TRANSFORM_HORIZONTAL_MIRROR:
+			case DG::SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90:
+			case DG::SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180:
+			case DG::SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270:
+				UNEXPECTED("Mirror transforms are not supported");
+				return DG::float4x4::Identity();
+
+			default:
+				return DG::float4x4::Identity();
+		}
+	}
+
+	float4x4 Engine::GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const
+	{
+		const auto& SCDesc = mSwapChain->GetDesc();
+
+		float AspectRatio = static_cast<float>(SCDesc.Width) / static_cast<float>(SCDesc.Height);
+		float XScale, YScale;
+		if (SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_90 ||
+			SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_270 ||
+			SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90 ||
+			SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270)
+		{
+			// When the screen is rotated, vertical FOV becomes horizontal FOV
+			XScale = 1.f / std::tan(FOV / 2.f);
+			// Aspect ratio is inversed
+			YScale = XScale * AspectRatio;
+		}
+		else
+		{
+			YScale = 1.f / std::tan(FOV / 2.f);
+			XScale = YScale / AspectRatio;
+		}
+
+		float4x4 Proj;
+		Proj._11 = XScale;
+		Proj._22 = YScale;
+		Proj.SetNearFarClipPlanes(NearPlane, FarPlane, mDevice->GetDeviceCaps().IsGLDevice());
+		return Proj;
+	}
+
 	void Engine::Shutdown() {
 		if (mSceneHeirarchy) {
 			delete mSceneHeirarchy;

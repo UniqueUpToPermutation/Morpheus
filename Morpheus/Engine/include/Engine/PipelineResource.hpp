@@ -14,17 +14,34 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	struct VertexAttributeIndices {
+	public:
+		int mPosition	= -1;
+		int mUV			= -1;
+		int mNormal 	= -1;
+		int mTangent 	= -1;
+		int mBitangent	= -1;
+	};
+
 	class PipelineResource : public Resource {
 	private:
 		DG::IPipelineState* mState;
 		std::string mSource;
+		std::vector<DG::LayoutElement> mVertexLayout;
+		VertexAttributeIndices mAttributeIndices;
 
 	public:
 		~PipelineResource();
 
 		inline PipelineResource(ResourceManager* manager, 
-			DG::IPipelineState* state) : Resource(manager),
-			mState(state) {
+			DG::IPipelineState* state,
+			std::vector<DG::LayoutElement> layoutElements,
+			VertexAttributeIndices attributeIndices) : 
+			Resource(manager),
+			mState(state), 
+			mVertexLayout(layoutElements),
+			mAttributeIndices(attributeIndices) {
 		}
 
 		inline DG::IPipelineState* GetState() {
@@ -39,9 +56,19 @@ namespace Morpheus {
 			return mSource;
 		}
 
-		virtual entt::id_type GetType() const {
+		entt::id_type GetType() const override {
 			return resource_type::type<PipelineResource>;
 		}
+
+		inline std::vector<DG::LayoutElement> GetVertexLayout() const {
+			return mVertexLayout;
+		}
+
+		inline VertexAttributeIndices GetAttributeIndices() const {
+			return mAttributeIndices;
+		}
+
+		PipelineResource* ToPipeline() override;
 
 		friend class PipelineLoader;
 		friend class ResourceCache<PipelineResource>;
@@ -77,11 +104,28 @@ namespace Morpheus {
 		DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
 		void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
 		DG::SHADER_TYPE ReadShaderType(const std::string& str);
+		std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
+		DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
+		DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);
+		VertexAttributeIndices ReadVertexAttributes(const nlohmann::json& json);
+		DG::SHADER_RESOURCE_VARIABLE_TYPE ReadShaderResourceVariableType(const nlohmann::json& json);
+		DG::PipelineResourceLayoutDesc ReadResourceLayout(const nlohmann::json& json,
+			std::vector<DG::ShaderResourceVariableDesc>* variables,
+			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
+			std::vector<std::string>* strings);
+		DG::SamplerDesc ReadSamplerDesc(const nlohmann::json& json);
+		DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
+		DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
+		DG::FILTER_TYPE ReadFilterType(const nlohmann::json& json);
 
 		PipelineResource* Load(const std::string& source);
 		PipelineResource* Load(const nlohmann::json& json, const std::string& path);
 		DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
-		DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(const nlohmann::json& json);
+		DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(const nlohmann::json& json, 
+			std::vector<DG::LayoutElement>* layoutElements,
+			std::vector<DG::ShaderResourceVariableDesc>* variables,
+			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
+			std::vector<std::string>* strings);
 		DG::IShader* LoadShader(const nlohmann::json& shaderConfig,
 			const std::string& path);
 	};
@@ -103,5 +147,6 @@ namespace Morpheus {
 		Resource* Load(const void* params) override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
+		void Clear() override;
 	};
 }

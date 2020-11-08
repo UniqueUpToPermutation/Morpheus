@@ -5,7 +5,6 @@
 namespace Morpheus {
 	class TextureResource;
 	class PipelineResource;
-	class ShaderResource;
 	class MaterialResource;
 	class GeometryResource;
 	class ResourceManager;
@@ -14,7 +13,6 @@ namespace Morpheus {
 		entt::identifier<
 			TextureResource,
 			PipelineResource,
-			ShaderResource,
 			MaterialResource,
 			GeometryResource>;
 
@@ -25,6 +23,7 @@ namespace Morpheus {
 		virtual Resource* Load(const void* params) = 0;
 		virtual void Add(Resource* resource, const void* params) = 0;
 		virtual void Unload(Resource* resource) = 0;
+		virtual void Clear() = 0;
 		virtual ~IResourceCache() {
 		}
 	};
@@ -34,6 +33,9 @@ namespace Morpheus {
 
 	template <typename T>
 	struct LoadParams;
+
+	template <typename T>
+	struct ResourceConvert;
 
 	class Resource {
 	private:
@@ -60,5 +62,43 @@ namespace Morpheus {
 		}
 
 		virtual entt::id_type GetType() const = 0;
+
+		virtual PipelineResource* ToPipeline();
+		virtual GeometryResource* ToGeometry();
+		virtual MaterialResource* ToMaterial();
+		virtual TextureResource* ToTexture();
+
+		template <typename T>
+		inline T* To() {
+			return ResourceConvert<T>::Convert(this);
+		}
+	};
+
+	template <>
+	struct ResourceConvert<PipelineResource> {
+		static inline PipelineResource* Convert(Resource* resource) {
+			return resource->ToPipeline();
+		}
+	};
+
+	template <>
+	struct ResourceConvert<GeometryResource> {
+		static inline GeometryResource* Convert(Resource* resource) {
+			return resource->ToGeometry();
+		}
+	};
+
+	template <>
+	struct ResourceConvert<MaterialResource> {
+		static inline MaterialResource* Convert(Resource* resource) {
+			return resource->ToMaterial();
+		}
+	};
+
+	template <>
+	struct ResourceConvert<TextureResource> {
+		static inline TextureResource* Convert(Resource* resource) {
+			return resource->ToTexture();
+		}
 	};
 }

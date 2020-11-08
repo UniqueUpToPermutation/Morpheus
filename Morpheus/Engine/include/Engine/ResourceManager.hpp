@@ -50,7 +50,7 @@ namespace Morpheus {
 			auto result = it->second->Load(&params);
 			result->AddRef(); // Increment references
 
-			return dynamic_cast<T*>(result);
+			return result->template To<T>();
 		}
 
 		template <typename T>

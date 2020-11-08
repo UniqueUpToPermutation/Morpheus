@@ -16,5 +16,10 @@ namespace Morpheus {
 		virtual void RequestConfiguration(DG::EngineMtlCreateInfo* info) = 0;
 		virtual void Initialize() = 0;
 		virtual void Render() = 0;
+
+		// This buffer will be bound as a constant to all pipelines
+		virtual DG::IBuffer* GetGlobalsBuffer() = 0;
+		virtual DG::FILTER_TYPE GetDefaultFilter() = 0;
+		virtual uint GetMaxAnisotropy() = 0;
 	};
 }
