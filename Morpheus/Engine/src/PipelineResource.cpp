@@ -319,7 +319,7 @@ namespace Morpheus {
 	DG::PipelineResourceLayoutDesc PipelineLoader::ReadResourceLayout(const nlohmann::json& json,
 		std::vector<DG::ShaderResourceVariableDesc>* variables,
 		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-		std::vector<std::string>* strings) {
+		std::vector<char*>* strings) {
 		DG::PipelineResourceLayoutDesc resourceLayout;
 
 		resourceLayout.DefaultVariableType;
@@ -334,10 +334,19 @@ namespace Morpheus {
 			for (const auto& item : var_json) {
 				DG::ShaderResourceVariableDesc varDesc;
 				std::string name;
+
 				item["Name"].get_to(name);
-				strings->emplace_back(name);
-				varDesc.Name = (*strings)[strings->size() - 1].c_str();
-				varDesc.Type = ReadShaderResourceVariableType(json["Type"]);
+
+				char* str = new char[name.size() + 1];
+				memcpy(str, name.c_str(), name.size() + 1);
+
+				strings->emplace_back(str);
+				varDesc.Name = str;
+				if (item.contains("Type")) {
+					varDesc.Type = ReadShaderResourceVariableType(item["Type"]);
+				} else {
+					varDesc.Type = resourceLayout.DefaultVariableType;
+				}
 				if (item["ShaderStages"].is_array())
 					varDesc.ShaderStages = ReadShaderStages(item["ShaderStages"]);
 				else 
@@ -355,9 +364,13 @@ namespace Morpheus {
 
 				std::string name;
 				item["Name"].get_to(name);
-				strings->emplace_back(name);
-				sampDesc.SamplerOrTextureName = (*strings)[strings->size() - 1].c_str();
+				
+				char* str = new char[name.size() + 1];
+				memcpy(str, name.c_str(), name.size() + 1);
 
+				strings->emplace_back(str);
+
+				sampDesc.SamplerOrTextureName = str;
 				sampDesc.Desc = ReadSamplerDesc(item);
 				sampDesc.Desc.MaxAnisotropy = mManager->GetParent()->GetRenderer()->GetMaxAnisotropy();
 				
@@ -365,8 +378,16 @@ namespace Morpheus {
 					sampDesc.ShaderStages = ReadShaderStages(item["ShaderStages"]);
 				else 
 					sampDesc.ShaderStages = ReadShaderType(item["ShaderStages"]);
+
+				immutableSamplers->emplace_back(sampDesc);
 			}
 		}
+
+		resourceLayout.ImmutableSamplers = immutableSamplers->data();
+		resourceLayout.NumImmutableSamplers = immutableSamplers->size();
+
+		resourceLayout.Variables = variables->data();
+		resourceLayout.NumVariables = variables->size();
 
 		return resourceLayout;
 	}
@@ -433,7 +454,7 @@ namespace Morpheus {
 			std::vector<DG::LayoutElement> layoutElements;
 			std::vector<DG::ShaderResourceVariableDesc> variables;
 			std::vector<DG::ImmutableSamplerDesc> immutableSamplers;
-			std::vector<std::string> strings;
+			std::vector<char*> strings;
 
 			// Read the pipeline description
 			DG::GraphicsPipelineStateCreateInfo info = 
@@ -480,6 +501,10 @@ namespace Morpheus {
 			resource = new PipelineResource(mManager, state, 
 				layoutElements, attribIndices);
 
+			for (auto it : strings) {
+				delete[] it;
+			}
+
 		} else if (type == "PIPELINE_TYPE_COMPUTE") {
 			DG::ComputePipelineStateCreateInfo info = 
 				ReadComputeInfo(json);
@@ -503,14 +528,17 @@ namespace Morpheus {
 		std::vector<DG::LayoutElement>* layoutElements,
 		std::vector<DG::ShaderResourceVariableDesc>* variables,
 		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-		std::vector<std::string>* strings) {
+		std::vector<char*>* strings) {
 
 		DG::GraphicsPipelineStateCreateInfo info;
 
 		std::string name = json.value("Name", "Unnammed Pipeline");
-		strings->emplace_back(name);
 
-		info.PSODesc.Name = (*strings)[strings->size() - 1].c_str();
+		char* str = new char[name.size() + 1];
+		memcpy(str, name.c_str(), name.size() + 1);
+		strings->emplace_back(str);
+
+		info.PSODesc.Name = str;
 
 		std::string pipelineType = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
 		
@@ -633,7 +661,7 @@ namespace Morpheus {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
 
-		auto pipeline = dynamic_cast<PipelineResource*>(resource);
+		auto pipeline = resource->ToPipeline();
 
 		auto it = mCachedResources.find(src);
 		if (it != mCachedResources.end()) {
@@ -646,7 +674,7 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<PipelineResource>::Unload(Resource* resource) {
-		auto pipeline = dynamic_cast<PipelineResource*>(resource);
+		auto pipeline = resource->ToPipeline();
 
 		auto it = mCachedResources.find(pipeline->GetSource());
 		if (it != mCachedResources.end()) {

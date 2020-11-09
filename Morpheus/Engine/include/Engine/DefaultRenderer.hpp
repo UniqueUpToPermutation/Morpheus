@@ -46,6 +46,7 @@ namespace Morpheus {
 
 		PipelineResource* mPipeline;
 		GeometryResource* mGeometry;
+		TextureResource* mTexture;
 		DG::IShaderResourceBinding* mSRB;
 
 	public:

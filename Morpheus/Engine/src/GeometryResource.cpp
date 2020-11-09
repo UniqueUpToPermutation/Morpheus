@@ -384,7 +384,7 @@ namespace Morpheus {
 		
 		auto it = mResources.find(params_cast->mSource);
 
-		auto geometryResource = dynamic_cast<GeometryResource*>(resource);
+		auto geometryResource = resource->ToGeometry();
 
 		if (it != mResources.end()) {
 			if (it->second != geometryResource)
@@ -397,7 +397,7 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<GeometryResource>::Unload(Resource* resource) {
-		auto geo = dynamic_cast<GeometryResource*>(resource);
+		auto geo = resource->ToGeometry();
 
 		auto it = mResources.find(geo->GetSource());
 		if (it != mResources.end()) {

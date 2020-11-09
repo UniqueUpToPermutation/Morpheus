@@ -110,6 +110,8 @@ list(APPEND SOURCE
 	src/DefaultRenderer.cpp
 	src/GeometryResource.cpp
 	src/Camera.cpp
+	src/TextureResource.cpp
+	src/MaterialResource.cpp
 )
 
 list(APPEND INCLUDE

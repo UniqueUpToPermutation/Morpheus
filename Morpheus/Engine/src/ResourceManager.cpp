@@ -1,6 +1,7 @@
 #include <Engine/ResourceManager.hpp>
 #include <Engine/PipelineResource.hpp>
 #include <Engine/GeometryResource.hpp>
+#include <Engine/TextureResource.hpp>
 
 namespace Morpheus {
 	void ResourceManager::CollectGarbage() {
@@ -28,6 +29,11 @@ namespace Morpheus {
 
 		mResourceCaches[resource_type::type<GeometryResource>] = 
 			geoCache;
+
+		auto textureCache = new ResourceCache<TextureResource>(this);
+
+		mResourceCaches[resource_type::type<TextureResource>] = 
+			textureCache;
 	}
 
 	ResourceManager::~ResourceManager() {

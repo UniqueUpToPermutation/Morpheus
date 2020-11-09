@@ -3,6 +3,7 @@
 #include <Engine/DefaultRenderer.hpp>
 #include <Engine/PipelineResource.hpp>
 #include <Engine/GeometryResource.hpp>
+#include <Engine/TextureResource.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -111,18 +112,22 @@ namespace Morpheus {
 	DefaultRenderer::~DefaultRenderer() {
 		mGeometry->Release();
 		mPipeline->Release();
+		mTexture->Release();
 		mSRB->Release();
 	}
 
 	void DefaultRenderer::Initialize() {
-		mPipeline = mEngine->GetResourceManager()->Load<PipelineResource>("mesh_pipeline.json");
+		mPipeline = mEngine->GetResourceManager()->Load<PipelineResource>("mesh_pipeline_textured.json");
 
 		LoadParams<GeometryResource> resourceParams;
 		resourceParams.mPipelineResource = mPipeline;
 		resourceParams.mSource = "test.obj";
 		mGeometry = mEngine->GetResourceManager()->Load<GeometryResource>(resourceParams);
 
+		mTexture = mEngine->GetResourceManager()->Load<TextureResource>("brick.jpg");
+
 		mPipeline->GetState()->CreateShaderResourceBinding(&mSRB, true);
+		mSRB->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mTexture->GetShaderView());
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
@@ -151,7 +156,7 @@ namespace Morpheus {
 
 		rot += 0.02f;
 
-		mCamera.mEye = DG::float3(0.0f, 6.0f, -6.0f);
+		mCamera.mEye = DG::float3(0.0f, 4.0f, -4.0f);
 		mCamera.mLookAt = DG::float3(0.0f, 0.0f, 0.0f);
 
 		float4x4 world = float4x4::RotationY(rot);

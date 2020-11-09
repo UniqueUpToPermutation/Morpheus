@@ -112,7 +112,7 @@ namespace Morpheus {
 		DG::PipelineResourceLayoutDesc ReadResourceLayout(const nlohmann::json& json,
 			std::vector<DG::ShaderResourceVariableDesc>* variables,
 			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-			std::vector<std::string>* strings);
+			std::vector<char*>* strings);
 		DG::SamplerDesc ReadSamplerDesc(const nlohmann::json& json);
 		DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
 		DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
@@ -125,7 +125,7 @@ namespace Morpheus {
 			std::vector<DG::LayoutElement>* layoutElements,
 			std::vector<DG::ShaderResourceVariableDesc>* variables,
 			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-			std::vector<std::string>* strings);
+			std::vector<char*>* strings);
 		DG::IShader* LoadShader(const nlohmann::json& shaderConfig,
 			const std::string& path);
 	};
