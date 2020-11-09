@@ -85,6 +85,8 @@ namespace Morpheus {
 		}
 	};
 
+	DG::SHADER_TYPE ReadShaderType(const std::string& str);
+
 	class PipelineLoader {
 	private:
 		ResourceManager* mManager;
@@ -103,7 +105,6 @@ namespace Morpheus {
 		DG::STENCIL_OP ReadStencilOp(const std::string& str);
 		DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
 		void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
-		DG::SHADER_TYPE ReadShaderType(const std::string& str);
 		std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
 		DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
 		DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);

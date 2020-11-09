@@ -1,0 +1,11 @@
+{
+	"Pipeline" : "mesh_pipeline_textured.json",
+
+	"Textures" : [
+		{
+			"Binding" 		: "mTexture",
+			"ShaderType" 	: "SHADER_TYPE_PIXEL",
+			"Source"		: "brick.jpg"
+		}
+	]
+}

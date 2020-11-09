@@ -149,7 +149,7 @@ namespace Morpheus {
 		}
 	}
 
-	DG::SHADER_TYPE PipelineLoader::ReadShaderType(const std::string& str) {
+	DG::SHADER_TYPE ReadShaderType(const std::string& str) {
 		if (str == "SHADER_TYPE_AMPLIFICATION") {
 			return DG::SHADER_TYPE_AMPLIFICATION;
 		} else if (str == "SHADER_TYPE_COMPUTE") {

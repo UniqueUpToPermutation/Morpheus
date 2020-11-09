@@ -4,6 +4,7 @@
 #include <Engine/PipelineResource.hpp>
 #include <Engine/GeometryResource.hpp>
 #include <Engine/TextureResource.hpp>
+#include <Engine/MaterialResource.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -112,8 +113,7 @@ namespace Morpheus {
 	DefaultRenderer::~DefaultRenderer() {
 		mGeometry->Release();
 		mPipeline->Release();
-		mTexture->Release();
-		mSRB->Release();
+		mMaterial->Release();
 	}
 
 	void DefaultRenderer::Initialize() {
@@ -124,10 +124,7 @@ namespace Morpheus {
 		resourceParams.mSource = "test.obj";
 		mGeometry = mEngine->GetResourceManager()->Load<GeometryResource>(resourceParams);
 
-		mTexture = mEngine->GetResourceManager()->Load<TextureResource>("brick.jpg");
-
-		mPipeline->GetState()->CreateShaderResourceBinding(&mSRB, true);
-		mSRB->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mTexture->GetShaderView());
+		mMaterial = mEngine->GetResourceManager()->Load<MaterialResource>("material.json");
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
@@ -169,7 +166,8 @@ namespace Morpheus {
 			mCamera.GetEye(), 0.0f);
 
 		context->SetPipelineState(mPipeline->GetState());
-		context->CommitShaderResources(mSRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		context->CommitShaderResources(mMaterial->GetResourceBinding(), 
+			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		Uint32   offset   = 0;
 		IBuffer* pBuffs[] = { mGeometry->GetVertexBuffer() };
