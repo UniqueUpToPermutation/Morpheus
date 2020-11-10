@@ -194,6 +194,13 @@ namespace Morpheus {
 		elem.NumComponents = json.value("NumComponents", elem.NumComponents);
 		elem.ValueType = ReadValueType(json["ValueType"]);
 		elem.IsNormalized = json.value("IsNormalized", false);
+
+		if (json.contains("Frequency")) {
+			std::string str;
+			json["Frequency"].get_to(str);
+			elem.Frequency = ReadInputElementFrequency(str);
+		}
+
 		return elem;
 	}
 
@@ -285,6 +292,16 @@ namespace Morpheus {
 			return DG::FILTER_TYPE_ANISOTROPIC;
 		} else if (s == "FILTER_TYPE_POINT") {
 			return DG::FILTER_TYPE_POINT;
+		} else {
+			throw std::runtime_error("Unrecognized filter type!");
+		}
+	}
+
+	DG::INPUT_ELEMENT_FREQUENCY PipelineLoader::ReadInputElementFrequency(const std::string& str) {
+		if (str == "INPUT_ELEMENT_FREQUENCY_PER_VERTEX") {
+			return DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX;
+		} else if (str == "INPUT_ELEMENT_FREQUENCY_PER_INSTANCE") {
+			return DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE;
 		} else {
 			throw std::runtime_error("Unrecognized filter type!");
 		}

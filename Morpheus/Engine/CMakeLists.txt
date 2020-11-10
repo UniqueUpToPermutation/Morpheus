@@ -112,6 +112,7 @@ list(APPEND SOURCE
 	src/Camera.cpp
 	src/TextureResource.cpp
 	src/MaterialResource.cpp
+	src/StaticMeshResource.cpp
 )
 
 list(APPEND INCLUDE

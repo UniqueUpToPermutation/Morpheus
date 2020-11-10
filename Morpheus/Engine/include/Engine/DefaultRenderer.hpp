@@ -3,19 +3,16 @@
 
 namespace DG = Diligent;
 
+#define DEFAULT_INSTANCE_BATCH_SIZE 1024
+
 namespace Morpheus {
 
 	struct DefaultRendererGlobals
 	{
-		DG::float4x4 mWorld;
 		DG::float4x4 mView;
 		DG::float4x4 mProjection;
-		DG::float4x4 mWorldViewProjection;
-		DG::float4x4 mWorldView;
-		DG::float4x4 mWorldViewProjectionInverse;
+		DG::float4x4 mViewProjection;
 		DG::float4x4 mViewProjectionInverse;
-		DG::float4x4 mWorldInverseTranspose;
-		DG::float4x4 mWorldViewInverseTranspose;
 		DG::float3 mEye;
 		float mTime;
 	};
@@ -28,7 +25,6 @@ namespace Morpheus {
 		~GlobalsBuffer();
 
 		void Update(DG::IDeviceContext* context,
-			const DG::float4x4& world,
 			const DG::float4x4& view,
 			const DG::float4x4& projection,
 			const DG::float3& eye,
@@ -38,18 +34,19 @@ namespace Morpheus {
 			return mGlobalsBuffer;
 		}
 	};
+
 	class DefaultRenderer : public Renderer {
 	private:
 		PerspectiveLookAtCamera mCamera;
 		Engine* mEngine;
 		GlobalsBuffer mGlobalsBuffer;
+		DG::IBuffer* mInstanceBuffer;
 
-		PipelineResource* mPipeline;
-		GeometryResource* mGeometry;
-		MaterialResource* mMaterial;
+		StaticMeshResource* mStaticMesh;
 
 	public:
-		DefaultRenderer(Engine* engine);
+		DefaultRenderer(Engine* engine, 
+			uint instanceBatchSize = DEFAULT_INSTANCE_BATCH_SIZE);
 		~DefaultRenderer();
 		
 		void RequestConfiguration(DG::EngineD3D11CreateInfo* info) override;

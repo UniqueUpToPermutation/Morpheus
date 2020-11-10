@@ -24,4 +24,8 @@ namespace Morpheus {
 	TextureResource* Resource::ToTexture() {
 		return nullptr;
 	}
+
+	StaticMeshResource* Resource::ToStaticMesh() {
+		return nullptr;
+	}
 }

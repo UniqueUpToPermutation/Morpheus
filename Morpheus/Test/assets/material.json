@@ -1,5 +1,5 @@
 {
-	"Pipeline" : "mesh_pipeline_textured.json",
+	"Pipeline" : "mesh_pipeline_final.json",
 
 	"Textures" : [
 		{

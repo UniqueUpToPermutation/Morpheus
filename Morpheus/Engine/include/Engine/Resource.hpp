@@ -7,6 +7,7 @@ namespace Morpheus {
 	class PipelineResource;
 	class MaterialResource;
 	class GeometryResource;
+	class StaticMeshResource;
 	class ResourceManager;
 
 	using resource_type = 
@@ -14,7 +15,8 @@ namespace Morpheus {
 			TextureResource,
 			PipelineResource,
 			MaterialResource,
-			GeometryResource>;
+			GeometryResource,
+			StaticMeshResource>;
 
 	class Resource;
 
@@ -67,6 +69,7 @@ namespace Morpheus {
 		virtual GeometryResource* ToGeometry();
 		virtual MaterialResource* ToMaterial();
 		virtual TextureResource* ToTexture();
+		virtual StaticMeshResource* ToStaticMesh();
 
 		template <typename T>
 		inline T* To() {
@@ -99,6 +102,13 @@ namespace Morpheus {
 	struct ResourceConvert<TextureResource> {
 		static inline TextureResource* Convert(Resource* resource) {
 			return resource->ToTexture();
+		}
+	};
+
+	template <>
+	struct ResourceConvert<StaticMeshResource> {
+		static inline StaticMeshResource* Convert(Resource* resource) {
+			return resource->ToStaticMesh();
 		}
 	};
 }

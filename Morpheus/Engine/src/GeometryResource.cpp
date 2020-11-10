@@ -76,8 +76,11 @@ namespace Morpheus {
 		offsets.emplace_back(0);
 
 		for (auto& layoutItem : layout) {
-			offsets.emplace_back(offsets[offsets.size() - 1] + 
-				GetSize(layoutItem.ValueType) * layoutItem.NumComponents);
+			uint size = GetSize(layoutItem.ValueType) * layoutItem.NumComponents;
+			if (layoutItem.BufferSlot == 0) 
+				offsets.emplace_back(offsets[offsets.size() - 1] + size);
+			else 
+				offsets.emplace_back(offsets[offsets.size() - 1]);
 		}
 
 		uint stride = offsets[offsets.size() - 1];

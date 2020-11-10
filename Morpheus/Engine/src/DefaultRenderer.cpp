@@ -5,6 +5,7 @@
 #include <Engine/GeometryResource.hpp>
 #include <Engine/TextureResource.hpp>
 #include <Engine/MaterialResource.hpp>
+#include <Engine/StaticMeshResource.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -70,7 +71,6 @@ namespace Morpheus {
 	}
 
 	void GlobalsBuffer::Update(IDeviceContext* context,
-		const float4x4& world,
 		const float4x4& view,
 		const float4x4& projection,
 		const float3& eye,
@@ -78,17 +78,12 @@ namespace Morpheus {
 
 		// Map the memory of the buffer and write out global transform data
 		MapHelper<DefaultRendererGlobals> globals(context, mGlobalsBuffer, MAP_WRITE, MAP_FLAG_DISCARD);
-		globals->mWorld = world.Transpose();
 		globals->mView = view.Transpose();
 		globals->mProjection = projection.Transpose();
 		globals->mEye = eye;
 		globals->mTime = time;
-		globals->mWorldViewProjection = (world * view * projection).Transpose();
-		globals->mWorldView = (world * view).Transpose();
-		globals->mWorldViewProjectionInverse = (globals->mWorldViewProjection.Inverse()).Transpose();
+		globals->mViewProjection = (view * projection).Transpose();
 		globals->mViewProjectionInverse = (view * projection).Inverse().Transpose();
-		globals->mWorldInverseTranspose = world.Inverse();
-		globals->mWorldViewInverseTranspose = globals->mWorldView.Inverse();
 	}
 
 	void DefaultRenderer::RequestConfiguration(DG::EngineD3D11CreateInfo* info) {
@@ -106,25 +101,29 @@ namespace Morpheus {
 	void DefaultRenderer::RequestConfiguration(DG::EngineMtlCreateInfo* info) {
 	}
 
-	DefaultRenderer::DefaultRenderer(Engine* engine) :
-		mEngine(engine), mGlobalsBuffer(engine->GetDevice()) {
+	DefaultRenderer::DefaultRenderer(Engine* engine,
+		uint instanceBatchSize) :
+		mInstanceBuffer(nullptr),
+		mEngine(engine), 
+		mGlobalsBuffer(engine->GetDevice()) {
+
+		DG::BufferDesc desc;
+		desc.Name = "Renderer Instance Buffer";
+		desc.Usage = DG::USAGE_DYNAMIC;
+		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
+		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
+		desc.uiSizeInBytes = sizeof(DG::float4x4) * instanceBatchSize;
+
+		mEngine->GetDevice()->CreateBuffer(desc, nullptr, &mInstanceBuffer);
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
-		mGeometry->Release();
-		mPipeline->Release();
-		mMaterial->Release();
+		mStaticMesh->Release();
+		mInstanceBuffer->Release();
 	}
 
 	void DefaultRenderer::Initialize() {
-		mPipeline = mEngine->GetResourceManager()->Load<PipelineResource>("mesh_pipeline_textured.json");
-
-		LoadParams<GeometryResource> resourceParams;
-		resourceParams.mPipelineResource = mPipeline;
-		resourceParams.mSource = "test.obj";
-		mGeometry = mEngine->GetResourceManager()->Load<GeometryResource>(resourceParams);
-
-		mMaterial = mEngine->GetResourceManager()->Load<MaterialResource>("material.json");
+		mStaticMesh = mEngine->GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
@@ -153,31 +152,55 @@ namespace Morpheus {
 
 		rot += 0.02f;
 
-		mCamera.mEye = DG::float3(0.0f, 4.0f, -4.0f);
+		mCamera.mEye = DG::float3(0.0f, 16.0f, -16.0f);
 		mCamera.mLookAt = DG::float3(0.0f, 0.0f, 0.0f);
 
-		float4x4 world = float4x4::RotationY(rot);
+		
 		float4x4 view = mCamera.GetView();
 		float4x4 projection = mCamera.GetProjection(mEngine);
 
 		// Update the globals buffer with global stuff
 		mGlobalsBuffer.Update(context, 
-			world, view, projection,
+			view, projection,
 			mCamera.GetEye(), 0.0f);
 
-		context->SetPipelineState(mPipeline->GetState());
-		context->CommitShaderResources(mMaterial->GetResourceBinding(), 
+		auto material = mStaticMesh->GetMaterial();
+		auto pipeline = material->GetPipeline();
+		auto geometry = mStaticMesh->GetGeometry();
+
+		context->SetPipelineState(pipeline->GetState());
+		context->CommitShaderResources(material->GetResourceBinding(), 
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-		Uint32   offset   = 0;
-		IBuffer* pBuffs[] = { mGeometry->GetVertexBuffer() };
-		context->SetVertexBuffers(0, 1, pBuffs, &offset, 
+		std::vector<DG::float4x4> instances;
+		for (int x = -5; x <= 5; ++x) {
+			for (int y = -5; y <= 5; ++y) {
+				float4x4 rot_mat = float4x4::RotationY(rot);
+				float4x4 trans_mat = float4x4::Translation(DG::float3(3.0f * x, 0.0f, 3.0f * y));
+
+				instances.emplace_back(rot_mat * trans_mat);
+			}
+		}
+
+		void* mappedData;
+		context->MapBuffer(mInstanceBuffer, 
+			DG::MAP_WRITE, DG::MAP_FLAG_DISCARD, 
+			mappedData);
+
+		memcpy(mappedData, instances.data(), sizeof(DG::float4x4) * instances.size());
+
+		context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
+
+		Uint32   offsets[]  = { 0, 0 };
+		IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
+		context->SetVertexBuffers(0, 2, pBuffs, offsets, 
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
-		context->SetIndexBuffer( mGeometry->GetIndexBuffer(), 0, 
+		context->SetIndexBuffer( geometry->GetIndexBuffer(), 0, 
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-		DrawIndexedAttribs attribs = mGeometry->GetIndexedDrawAttribs();
+		DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
 		attribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
+		attribs.NumInstances = instances.size();
 		context->DrawIndexed(attribs);
 
 		// Restore default render target in case the sample has changed it

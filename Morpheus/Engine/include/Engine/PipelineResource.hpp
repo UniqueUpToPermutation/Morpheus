@@ -118,6 +118,7 @@ namespace Morpheus {
 		DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
 		DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
 		DG::FILTER_TYPE ReadFilterType(const nlohmann::json& json);
+		DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
 
 		PipelineResource* Load(const std::string& source);
 		PipelineResource* Load(const nlohmann::json& json, const std::string& path);

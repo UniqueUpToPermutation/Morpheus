@@ -3,6 +3,7 @@
 #include <Engine/GeometryResource.hpp>
 #include <Engine/TextureResource.hpp>
 #include <Engine/MaterialResource.hpp>
+#include <Engine/StaticMeshResource.hpp>
 
 namespace Morpheus {
 	void ResourceManager::CollectGarbage() {
@@ -40,6 +41,11 @@ namespace Morpheus {
 
 		mResourceCaches[resource_type::type<MaterialResource>] = 
 			materialCache;
+
+		auto staticMeshCache = new ResourceCache<StaticMeshResource>(this);
+
+		mResourceCaches[resource_type::type<StaticMeshResource>] = 
+			staticMeshCache;
 	}
 
 	ResourceManager::~ResourceManager() {
