@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Resource.hpp>
+#include <Engine/ShaderLoader.hpp>
 #include <nlohmann/json.hpp>
 
 #include "EngineFactory.h"
@@ -90,10 +91,12 @@ namespace Morpheus {
 	class PipelineLoader {
 	private:
 		ResourceManager* mManager;
+		ShaderLoader mShaderLoader;
 
 	public:
 		inline PipelineLoader(ResourceManager* manager) :
-			mManager(manager) {
+			mManager(manager), 
+			mShaderLoader(manager) {
 		}
 
 		DG::TEXTURE_FORMAT ReadTextureFormat(const std::string& str);

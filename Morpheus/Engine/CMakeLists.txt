@@ -2,6 +2,14 @@ cmake_minimum_required (VERSION 3.6)
 
 project(Morpheus-Engine)
 
+# Include package for embedding shaders in source code
+add_subdirectory(shaders/cpp)
+# Embed shaders
+add_custom_command(
+	OUTPUT shader_rc.cpp
+	COMMAND embedfile ${CMAKE_CURRENT_SOURCE_DIR}/shaders shader_rc.cpp
+	DEPENDS shaders/*)
+
 find_package(assimp REQUIRED)
 
 if(PLATFORM_WIN32)
@@ -113,6 +121,8 @@ list(APPEND SOURCE
 	src/TextureResource.cpp
 	src/MaterialResource.cpp
 	src/StaticMeshResource.cpp
+	src/ShaderLoader.cpp
+	shader_rc.cpp
 )
 
 list(APPEND INCLUDE

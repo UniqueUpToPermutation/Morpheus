@@ -1,5 +1,5 @@
 {
-	"Pipeline" : "mesh_pipeline_final.json",
+	"Pipeline" : "internal/BasicPipeline.json",
 
 	"Textures" : [
 		{

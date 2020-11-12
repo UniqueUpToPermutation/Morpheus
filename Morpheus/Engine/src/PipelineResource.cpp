@@ -1,6 +1,7 @@
 #include <Engine/PipelineResource.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/ResourceManager.hpp>
+#include <Engine/ShaderLoader.hpp>
 
 #include <fstream>
 
@@ -440,16 +441,13 @@ namespace Morpheus {
 	}
 
 	PipelineResource* PipelineLoader::Load(const std::string& source) {
+
 		std::cout << "Loading " << source << "..." << std::endl;
 
-		std::ifstream stream;
-		stream.exceptions(std::ios::failbit | std::ios::badbit);
-		stream.open(source);
-
 		nlohmann::json json;
-		stream >> json;
-
-		stream.close();
+		if (!mShaderLoader.TryLoadJson(source, json)) {
+			throw std::runtime_error("Failed to load pipeline json file!");
+		}
 
 		std::string path = ".";
 		auto path_cutoff = source.rfind('/');
@@ -635,16 +633,10 @@ namespace Morpheus {
 
 		std::cout << "Loading " << source << "..." << std::endl;
 
-		std::ifstream stream;
-		stream.exceptions(std::ios::failbit | std::ios::badbit);
-		stream.open(path + "/" + source);
+		ShaderPreprocessorOutput output;
+		mShaderLoader.Load(path + "/" + source, &output);
 
-		std::string stream_contents((std::istreambuf_iterator<char>(stream)),
-			std::istreambuf_iterator<char>());
-
-		stream.close();
-
-		info.Source = stream_contents.c_str();
+		info.Source = output.mContent.c_str();
 		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
 
 		DG::IShader* shader = nullptr;

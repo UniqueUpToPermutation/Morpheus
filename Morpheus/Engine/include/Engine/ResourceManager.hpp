@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include <Engine/Resource.hpp>
+#include <Engine/ShaderLoader.hpp>
 
 namespace Morpheus {
 
@@ -13,6 +14,7 @@ namespace Morpheus {
 	private:
 		std::unordered_map<entt::id_type, IResourceCache*> mResourceCaches;
 		std::vector<Resource*> mDisposalList;
+		ShaderPreprocessorConfig mShaderPreprocessorConfig;
 
 		Engine* mParent;
 
@@ -20,6 +22,10 @@ namespace Morpheus {
 
 		ResourceManager(Engine* parent);
 		~ResourceManager();
+
+		inline ShaderPreprocessorConfig* GetShaderPreprocessorConfig() {
+			return &mShaderPreprocessorConfig;
+		}
 
 		template <typename T>
 		inline T* Add(Resource* resource, const LoadParams<T>& params) {

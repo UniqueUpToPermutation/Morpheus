@@ -92,7 +92,6 @@ namespace Morpheus {
 
 	class GeometryLoader {
 	private:
-		Assimp::Importer* mImporter;
 		ResourceManager* mManager;
 
 	public:

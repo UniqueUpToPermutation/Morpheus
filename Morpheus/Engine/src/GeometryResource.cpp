@@ -36,12 +36,10 @@ namespace Morpheus {
 	}
 
 	GeometryLoader::GeometryLoader(ResourceManager* manager) :
-		mManager(manager), 
-		mImporter(new Importer()) {
+		mManager(manager) {
 	}
 
 	GeometryLoader::~GeometryLoader() {
-		delete mImporter;
 	}
 
 	uint GetSize(DG::VALUE_TYPE v) {
@@ -69,6 +67,8 @@ namespace Morpheus {
 
 	GeometryResource* GeometryLoader::Load(const std::string& source, PipelineResource* pipeline) {
 		cout << "Loading geometry " << source << "..." << endl;
+
+		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
 
 		VertexAttributeIndices attributes = pipeline->GetAttributeIndices();
 		std::vector<DG::LayoutElement> layout = pipeline->GetVertexLayout();
@@ -130,7 +130,7 @@ namespace Morpheus {
 			bitangentOffset = offsets[attributes.mBitangent];	
 		}
 
-		const aiScene* pScene = mImporter->ReadFile(source.c_str(),
+		const aiScene* pScene = importer->ReadFile(source.c_str(),
 			aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
 			aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality);
 
