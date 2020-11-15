@@ -118,21 +118,109 @@ namespace Morpheus {
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
-		mStaticMesh->Release();
 		mInstanceBuffer->Release();
 	}
 
 	void DefaultRenderer::Initialize() {
-		mStaticMesh = mEngine->GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
 		return mGlobalsBuffer.GetBuffer();
 	}
 
-	float rot = 0.0f;
+	void DefaultRenderer::RenderStaticMeshes(DefaultRenderCache* cache) {
+		auto pipelineComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
+			return c1.mStaticMesh->GetPipeline() < c2.mStaticMesh->GetPipeline();
+		};
 
-	void DefaultRenderer::Render() {
+		auto materialComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
+			return c1.mStaticMesh->GetMaterial() < c2.mStaticMesh->GetMaterial();
+		};
+
+		auto meshComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
+			return c1.mStaticMesh < c2.mStaticMesh;
+		};
+
+		std::sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), pipelineComp);
+		std::stable_sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), materialComp);
+		std::stable_sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), meshComp);
+
+		PipelineResource* currentPipeline = nullptr;
+		MaterialResource* currentMaterial = nullptr;
+		StaticMeshResource* currentMesh = nullptr;
+
+		int currentIdx = 0;
+
+		auto context = mEngine->GetImmediateContext();
+
+		int meshCount = cache->mStaticMeshes.size();
+
+		while (currentIdx < meshCount) {
+			// First upload transforms to GPU buffer
+			void* mappedData;
+			context->MapBuffer(mInstanceBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD, 
+				mappedData);
+
+			DG::float4x4* ptr = reinterpret_cast<DG::float4x4*>(mappedData);
+			int maxInstances = mInstanceBuffer->GetDesc().uiSizeInBytes / sizeof(DG::float4x4);
+			int currentInstanceIdx = 0;
+
+			for (; currentIdx + currentInstanceIdx < meshCount && currentInstanceIdx < maxInstances;
+				++currentInstanceIdx) {
+				ptr[currentInstanceIdx] = cache->mStaticMeshes[currentIdx + currentInstanceIdx].mTransform->GetCache();
+			}
+
+			context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
+
+			int instanceBatchTotal = currentInstanceIdx;
+			for (currentInstanceIdx = 0; currentInstanceIdx < instanceBatchTotal;) {
+				auto mesh = cache->mStaticMeshes[currentIdx + currentInstanceIdx].mStaticMesh->GetMesh();
+				auto material = mesh->GetMaterial();
+				auto pipeline = material->GetPipeline();
+
+				// Change pipeline
+				if (pipeline != currentPipeline) {
+					context->SetPipelineState(pipeline->GetState());
+					currentPipeline = pipeline;
+				}
+
+				// Change material
+				if (material != currentMaterial) {
+					context->CommitShaderResources(material->GetResourceBinding(), 
+						RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+					currentMaterial = material;
+				}
+
+				// Render all of these static meshes in a batch
+				auto geometry = mesh->GetGeometry();
+				Uint32  offsets[]  = { 0, 0 };
+				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
+				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
+					RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
+				context->SetIndexBuffer( geometry->GetIndexBuffer(), 0, 
+					RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+				// Count the number of instances of this specific mesh to render
+				int instanceCount = 1;
+				for (; currentInstanceIdx + instanceCount < instanceBatchTotal 
+					&& cache->mStaticMeshes[currentIdx + currentInstanceIdx + instanceCount].mStaticMesh->GetMesh() == mesh;
+					++instanceCount);
+
+				DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
+				attribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
+				attribs.NumInstances = instanceCount;
+				context->DrawIndexed(attribs);
+
+				currentInstanceIdx += instanceCount;
+			}
+
+			currentIdx += instanceBatchTotal;
+		}
+	}
+
+	void DefaultRenderer::Render(RenderCache* cache, Camera* camera) {
+		DefaultRenderCache* cacheCast = dynamic_cast<DefaultRenderCache*>(cache);
+
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
 
@@ -150,58 +238,18 @@ namespace Morpheus {
 		context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-		rot += 0.02f;
+		if (camera && cacheCast) {
+			float4x4 view = camera->GetView();
+			float4x4 projection = camera->GetProjection(mEngine);
 
-		mCamera.mEye = DG::float3(0.0f, 16.0f, -16.0f);
-		mCamera.mLookAt = DG::float3(0.0f, 0.0f, 0.0f);
+			// Update the globals buffer with global stuff
+			mGlobalsBuffer.Update(context, 
+				view, projection,
+				camera->GetEye(), 0.0f);
 
-		
-		float4x4 view = mCamera.GetView();
-		float4x4 projection = mCamera.GetProjection(mEngine);
-
-		// Update the globals buffer with global stuff
-		mGlobalsBuffer.Update(context, 
-			view, projection,
-			mCamera.GetEye(), 0.0f);
-
-		auto material = mStaticMesh->GetMaterial();
-		auto pipeline = material->GetPipeline();
-		auto geometry = mStaticMesh->GetGeometry();
-
-		context->SetPipelineState(pipeline->GetState());
-		context->CommitShaderResources(material->GetResourceBinding(), 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		std::vector<DG::float4x4> instances;
-		for (int x = -5; x <= 5; ++x) {
-			for (int y = -5; y <= 5; ++y) {
-				float4x4 rot_mat = float4x4::RotationY(rot);
-				float4x4 trans_mat = float4x4::Translation(DG::float3(3.0f * x, 0.0f, 3.0f * y));
-
-				instances.emplace_back(rot_mat * trans_mat);
-			}
+			// Render all static meshes in the scene
+			RenderStaticMeshes(cacheCast);
 		}
-
-		void* mappedData;
-		context->MapBuffer(mInstanceBuffer, 
-			DG::MAP_WRITE, DG::MAP_FLAG_DISCARD, 
-			mappedData);
-
-		memcpy(mappedData, instances.data(), sizeof(DG::float4x4) * instances.size());
-
-		context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
-
-		Uint32   offsets[]  = { 0, 0 };
-		IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
-		context->SetVertexBuffers(0, 2, pBuffs, offsets, 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
-		context->SetIndexBuffer( geometry->GetIndexBuffer(), 0, 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
-		attribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
-		attribs.NumInstances = instances.size();
-		context->DrawIndexed(attribs);
 
 		// Restore default render target in case the sample has changed it
 		context->SetRenderTargets(1, &pRTV, pDSV,
@@ -229,5 +277,45 @@ namespace Morpheus {
 
 	uint DefaultRenderer::GetMaxAnisotropy() {
 		return 0;
+	}
+
+	RenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
+		std::stack<Transform*> transformStack;
+		transformStack.emplace(&mIdentityTransform);
+
+		mIdentityTransform.UpdateCache();
+		
+		DefaultRenderCache* cache = new DefaultRenderCache();
+
+		for (auto it = scene->GetDoubleIterator(); it; ++it) {
+			if (it.GetDirection() == IteratorDirection::DOWN) {
+				auto transform = it->TryGetComponent<Transform>();
+				auto staticMesh = it->TryGetComponent<StaticMeshComponent>();
+
+				// Node has a transform; update cache
+				if (transform) {
+					transform->UpdateCache(transformStack.top());
+					transformStack.emplace(transform);
+				}
+
+				// If a static mesh is on this node
+				if (staticMesh) {
+					StaticMeshCache meshCache;
+					meshCache.mStaticMesh = staticMesh;
+					meshCache.mTransform = transformStack.top();
+					cache->mStaticMeshes.emplace_back(meshCache);
+				}
+			}
+			else if (it.GetDirection() == IteratorDirection::UP) {
+				auto transform = it->TryGetComponent<Transform>();
+
+				// Pop the transform of this node on the way up
+				if (transform) {
+					transformStack.pop();
+				}
+			}
+		}
+
+		return cache;
 	}
 }

@@ -11,18 +11,22 @@ namespace Morpheus {
 		GeometryResource* mGeometry;
 		std::string mSource;
 
+		void Init(MaterialResource* material,
+			GeometryResource* geometry);
+
 	public:
 		entt::id_type GetType() const override;
 
+		StaticMeshResource(ResourceManager* manager);
 		StaticMeshResource(ResourceManager* manager, 
 			MaterialResource* material,
-			GeometryResource* geometry) : 
-			Resource(manager),
-			mMaterial(material),
-			mGeometry(geometry) {
-		}
+			GeometryResource* geometry);
 
 		~StaticMeshResource();
+
+		inline bool IsReady() const {
+			return mMaterial != nullptr && mGeometry != nullptr;
+		}
 
 		inline MaterialResource* GetMaterial() {
 			return mMaterial;
@@ -62,8 +66,8 @@ namespace Morpheus {
 			mManager(manager) {
 		}
 
-		StaticMeshResource* Load(const std::string& source);
-		StaticMeshResource* Load(const nlohmann::json& item, const std::string& path);
+		void Load(const std::string& source, StaticMeshResource* loadinto);
+		void Load(const nlohmann::json& item, const std::string& path, StaticMeshResource* loadinto);
 	};
 
 	template <>
@@ -72,6 +76,7 @@ namespace Morpheus {
 		std::unordered_map<std::string, StaticMeshResource*> mResources;
 		ResourceManager* mManager;
 		StaticMeshLoader mLoader;
+		std::vector<std::pair<StaticMeshResource*, LoadParams<StaticMeshResource>>> mDeferredResources;
 
 	public:
 		inline ResourceCache(ResourceManager* manager) :
@@ -80,6 +85,8 @@ namespace Morpheus {
 		}
 
 		Resource* Load(const void* params) override;
+		Resource* DeferredLoad(const void* params) override;
+		void ProcessDeferred() override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;

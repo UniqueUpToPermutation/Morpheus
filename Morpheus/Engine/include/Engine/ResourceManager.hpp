@@ -65,6 +65,33 @@ namespace Morpheus {
 			return Load<T>(params);
 		}
 
+		template <typename T>
+		inline T* DeferredLoad(const LoadParams<T>& params) {
+			auto resource_id = resource_type::type<T>;
+			auto it = mResourceCaches.find(resource_id);
+
+			if (it == mResourceCaches.end()) {
+				throw std::runtime_error("Could not find resource cache for resource type!");
+			}
+
+			auto result = it->second->DeferredLoad(&params);
+			result->AddRef(); // Increment references
+
+			return result->template To<T>();
+		}
+
+		template <typename T>
+		inline T* DeferredLoad(const std::string& source) {
+			auto params = LoadParams<T>::FromString(source);
+			return DeferredLoad<T>(params);
+		}
+
+		inline void ProcessDeferred() {
+			for (auto cache : mResourceCaches) {
+				cache.second->ProcessDeferred();
+			}
+		}
+
 		inline void RequestUnload(Resource* resource) {
 			mDisposalList.emplace_back(resource);
 		}

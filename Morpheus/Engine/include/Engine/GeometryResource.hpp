@@ -28,13 +28,23 @@ namespace Morpheus {
 
 		std::string mSource;
 
+		void Init(DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
+			uint vertexBufferOffset, PipelineResource* pipeline, 
+			const BoundingBox& aabb);
+
 	public:
+
+		GeometryResource(ResourceManager* manager);
 
 		GeometryResource(ResourceManager* manager,
 			DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
 			uint vertexBufferOffset, PipelineResource* pipeline, 
 			const BoundingBox& aabb);
 		~GeometryResource();
+
+		inline bool IsReady() const {
+			return mVertexBuffer != nullptr;
+		}
 
 		inline DG::IBuffer* GetVertexBuffer() {
 			return mVertexBuffer;
@@ -98,7 +108,8 @@ namespace Morpheus {
 		GeometryLoader(ResourceManager* manager);
 		~GeometryLoader();
 
-		GeometryResource* Load(const std::string& source, PipelineResource* pipeline);
+		void Load(const std::string& source, PipelineResource* pipeline, 
+			GeometryResource* loadinto);
 	};
 
 	template <>
@@ -107,12 +118,15 @@ namespace Morpheus {
 		std::unordered_map<std::string, GeometryResource*> mResources;
 		ResourceManager* mManager;
 		GeometryLoader mLoader;
+		std::vector<std::pair<GeometryResource*, LoadParams<GeometryResource>>> mDeferredResources;
 
 	public:
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
 		Resource* Load(const void* params) override;
+		Resource* DeferredLoad(const void* params) override;
+		void ProcessDeferred() override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;

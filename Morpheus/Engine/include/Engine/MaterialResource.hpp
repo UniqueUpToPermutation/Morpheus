@@ -22,14 +22,24 @@ namespace Morpheus {
 		std::vector<TextureResource*> mTextures;
 		std::string mSource;
 
+		void Init(DG::IShaderResourceBinding* binding, 
+			PipelineResource* pipeline,
+			const std::vector<TextureResource*>& textures,
+			const std::string& source);
+
 	public:
 
+		MaterialResource(ResourceManager* manager);
 		MaterialResource(ResourceManager* manager,
 			DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
 			const std::string& source);
 		~MaterialResource();
+
+		inline bool IsReady() const {
+			return mResourceBinding != nullptr;
+		}
 
 		MaterialResource* ToMaterial() override;
 
@@ -52,6 +62,9 @@ namespace Morpheus {
 		entt::id_type GetType() const override {
 			return resource_type::type<MaterialResource>;
 		}
+
+		friend class MaterialLoader;
+		friend class ResourceCache<MaterialResource>;
 	};
 
 	template <>
@@ -73,9 +86,13 @@ namespace Morpheus {
 	public:
 		MaterialLoader(ResourceManager* manager);
 
-		MaterialResource* Load(const std::string& source);
-		MaterialResource* Load(const nlohmann::json& json, 
-			const std::string& source, const std::string& path);
+		void Load(const std::string& source, 
+			MaterialResource* loadinto);
+
+		void Load(const nlohmann::json& json, 
+			const std::string& source, 
+			const std::string& path,
+			MaterialResource* loadInto);
 	};
 
 	template <>
@@ -84,12 +101,15 @@ namespace Morpheus {
 		std::unordered_map<std::string, MaterialResource*> mResources;
 		ResourceManager* mManager;
 		MaterialLoader mLoader;
+		std::vector<std::pair<MaterialResource*, LoadParams<MaterialResource>>> mDeferredResources;
 
 	public:
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
 		Resource* Load(const void* params) override;
+		Resource* DeferredLoad(const void* params) override;
+		void ProcessDeferred() override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;

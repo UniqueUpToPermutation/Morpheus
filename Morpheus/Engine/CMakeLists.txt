@@ -122,6 +122,7 @@ list(APPEND SOURCE
 	src/MaterialResource.cpp
 	src/StaticMeshResource.cpp
 	src/ShaderLoader.cpp
+	src/Transform.cpp
 	shader_rc.cpp
 )
 

@@ -23,9 +23,17 @@ namespace Morpheus {
 			Resource(manager), mTexture(texture) {
 		}
 
+		inline TextureResource(ResourceManager* manager) :
+			Resource(manager), mTexture(nullptr) {
+		}
+
 		~TextureResource();
 
 		TextureResource* ToTexture() override;
+
+		inline bool IsReady() const {
+			return mTexture != nullptr;
+		}
 
 		inline DG::ITexture* GetTexture() {
 			return mTexture;
@@ -65,7 +73,7 @@ namespace Morpheus {
 	public:
 		TextureLoader(ResourceManager* manager);
 
-		TextureResource* Load(const std::string& source);
+		void Load(const std::string& source, TextureResource* texture);
 	};
 
 	template <>
@@ -74,12 +82,15 @@ namespace Morpheus {
 		std::unordered_map<std::string, TextureResource*> mResources;
 		ResourceManager* mManager;
 		TextureLoader mLoader;
+		std::vector<std::pair<TextureResource*, LoadParams<TextureResource>>> mDeferredResources;
 
 	public:
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
 		Resource* Load(const void* params) override;
+		Resource* DeferredLoad(const void* params) override;
+		void ProcessDeferred() override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;

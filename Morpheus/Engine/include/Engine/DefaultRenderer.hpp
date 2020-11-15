@@ -1,5 +1,7 @@
 #include <Engine/Renderer.hpp>
 #include <Engine/Camera.hpp>
+#include <Engine/StaticMeshComponent.hpp>
+#include <Engine/Transform.hpp>
 
 namespace DG = Diligent;
 
@@ -35,14 +37,28 @@ namespace Morpheus {
 		}
 	};
 
+	struct StaticMeshCache {
+		StaticMeshComponent* mStaticMesh;
+		Transform* mTransform;
+	};
+
+	class DefaultRenderCache : public RenderCache {
+	public:
+		std::vector<StaticMeshCache> mStaticMeshes;
+		
+		~DefaultRenderCache() {
+		}
+	};
+
 	class DefaultRenderer : public Renderer {
 	private:
 		PerspectiveLookAtCamera mCamera;
 		Engine* mEngine;
 		GlobalsBuffer mGlobalsBuffer;
 		DG::IBuffer* mInstanceBuffer;
+		Transform mIdentityTransform;
 
-		StaticMeshResource* mStaticMesh;
+		void RenderStaticMeshes(DefaultRenderCache* cache);
 
 	public:
 		DefaultRenderer(Engine* engine, 
@@ -56,10 +72,12 @@ namespace Morpheus {
 		void RequestConfiguration(DG::EngineMtlCreateInfo* info) override;
 
 		void Initialize();
-		void Render() override;
+		void Render(RenderCache* cache, Camera* camera) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() override;
 		uint GetMaxAnisotropy() override;
+
+		RenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
 	};
 }

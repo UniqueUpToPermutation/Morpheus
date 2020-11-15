@@ -10,6 +10,14 @@ namespace Morpheus {
 		return this;
 	}
 
+	void PipelineResource::Init(DG::IPipelineState* state,
+		std::vector<DG::LayoutElement> layoutElements,
+		VertexAttributeIndices attributeIndices) {
+		mState = state;
+		mVertexLayout = layoutElements;
+		mAttributeIndices = attributeIndices;
+	}
+
 	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(const std::string& str) {
 		if (str == "SWAP_CHAIN_COLOR_BUFFER_FORMAT") {
 			return mManager->GetParent()->GetSwapChain()
@@ -440,7 +448,7 @@ namespace Morpheus {
 		}
 	}
 
-	PipelineResource* PipelineLoader::Load(const std::string& source) {
+	void PipelineLoader::Load(const std::string& source, PipelineResource* resource) {
 
 		std::cout << "Loading " << source << "..." << std::endl;
 
@@ -455,15 +463,14 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		return Load(json, path);
+		Load(json, path, resource);
 	}
 
-	PipelineResource* PipelineLoader::Load(const nlohmann::json& json,
-		const std::string& path) {
+	void PipelineLoader::Load(const nlohmann::json& json,
+		const std::string& path, PipelineResource* resource) {
 		auto type = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
 
 		std::vector<DG::IShader*> shaders;
-		PipelineResource* resource;
 
 		if (type == "PIPELINE_TYPE_GRAPHICS") {
 			std::vector<DG::LayoutElement> layoutElements;
@@ -513,8 +520,7 @@ namespace Morpheus {
 				variable->Set(globalBuffer);
 			}
 
-			resource = new PipelineResource(mManager, state, 
-				layoutElements, attribIndices);
+			resource->Init(state, layoutElements, attribIndices);
 
 			for (auto it : strings) {
 				delete[] it;
@@ -523,7 +529,7 @@ namespace Morpheus {
 		} else if (type == "PIPELINE_TYPE_COMPUTE") {
 			DG::ComputePipelineStateCreateInfo info = 
 				ReadComputeInfo(json);
-			return nullptr;
+			throw std::runtime_error("Not implemented!");
 		} else {
 			throw std::runtime_error("Pipeline type not recognized!");
 		}
@@ -531,8 +537,6 @@ namespace Morpheus {
 		for (auto shader : shaders) {
 			shader->Release();
 		}
-
-		return resource;
 	}
 
 	DG::ComputePipelineStateCreateInfo PipelineLoader::ReadComputeInfo(const nlohmann::json& json) {
@@ -661,9 +665,34 @@ namespace Morpheus {
 			return it->second;
 		}
 
-		PipelineResource* resource = mLoader.Load(src);
+		PipelineResource* resource = new PipelineResource(mManager);
+		mLoader.Load(src, resource);
 		mCachedResources[src] = resource;
 		return resource;
+	}
+
+	Resource* ResourceCache<PipelineResource>::DeferredLoad(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
+		auto src = params_cast->mSource;
+
+		auto it = mCachedResources.find(src);
+		if (it != mCachedResources.end()) {
+			return it->second;
+		}
+
+		PipelineResource* resource = new PipelineResource(mManager);
+		mCachedResources[src] = resource;
+		// Load this later
+		mDefferedResources.push_back(std::make_pair(resource, *params_cast));
+		return resource;
+	}
+
+	void ResourceCache<PipelineResource>::ProcessDeferred() {
+		for (auto& resource : mDefferedResources) {
+			mLoader.Load(resource.second.mSource, resource.first);
+		}
+
+		mDefferedResources.clear();
 	}
 
 	void ResourceCache<PipelineResource>::Add(Resource* resource, const void* params) {

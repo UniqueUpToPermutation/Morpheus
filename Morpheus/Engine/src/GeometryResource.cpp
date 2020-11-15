@@ -10,17 +10,30 @@ using namespace std;
 
 namespace Morpheus {
 
+	void GeometryResource::Init(DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
+		uint vertexBufferOffset, PipelineResource* pipeline, 
+		const BoundingBox& aabb) {
+		mVertexBuffer = vertexBuffer;
+		mIndexBuffer = indexBuffer;
+		mVertexBufferOffset = vertexBufferOffset;
+		mPipeline = pipeline;
+		mBoundingBox = aabb;
+		pipeline->AddRef();
+	}
+
 	GeometryResource::GeometryResource(ResourceManager* manager, 
 		DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
 		uint vertexBufferOffset, PipelineResource* pipeline, 
 		const BoundingBox& aabb) : 
+		Resource(manager) {
+		Init(vertexBuffer, indexBuffer, vertexBufferOffset, pipeline, aabb);
+	}
+
+	GeometryResource::GeometryResource(ResourceManager* manager) :
 		Resource(manager),
-		mVertexBuffer(vertexBuffer),
-		mIndexBuffer(indexBuffer),
-		mVertexBufferOffset(vertexBufferOffset),
-		mPipeline(pipeline),
-		mBoundingBox(aabb) {
-		pipeline->AddRef();
+		mVertexBuffer(nullptr),
+		mIndexBuffer(nullptr),
+		mPipeline(nullptr) {
 	}
 
 	GeometryResource::~GeometryResource() {
@@ -65,7 +78,7 @@ namespace Morpheus {
 		}
 	}
 
-	GeometryResource* GeometryLoader::Load(const std::string& source, PipelineResource* pipeline) {
+	void GeometryLoader::Load(const std::string& source, PipelineResource* pipeline, GeometryResource* resource) {
 		cout << "Loading geometry " << source << "..." << endl;
 
 		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
@@ -136,7 +149,6 @@ namespace Morpheus {
 
 		if (!pScene) {
 			cout << "Error: failed to load " << source << endl;
-			return nullptr;
 		}
 
 		uint nVerts;
@@ -144,7 +156,6 @@ namespace Morpheus {
 
 		if (!pScene->HasMeshes()) {
 			cout << "Error: " << source << " has no meshes!" << endl;
-			return nullptr;
 		}
 
 		if (pScene->mNumMeshes > 1) {
@@ -327,14 +338,10 @@ namespace Morpheus {
 		DG::IBuffer* indexBuffer = nullptr;
 		device->CreateBuffer(indexBufferDesc, &IBData, &indexBuffer);
 
-		GeometryResource* resource = new GeometryResource(mManager, 
-			vertexBuffer, indexBuffer, 0, pipeline, aabb);
-
+		resource->Init(vertexBuffer, indexBuffer, 0, pipeline, aabb);
 		resource->mSource = source;
 		resource->mIndexedAttribs.IndexType = DG::VT_UINT32;
 		resource->mIndexedAttribs.NumIndices = indx_buffer.size();
-
-		return resource;
 	}
 
 	void ResourceCache<GeometryResource>::Clear() {
@@ -370,16 +377,55 @@ namespace Morpheus {
 				pipeline = mManager->Load<PipelineResource>(params_cast->mPipelineSource);
 			}
 
-			auto result = mLoader.Load(params_cast->mSource, pipeline);
+			auto resource = new GeometryResource(mManager);
+			mLoader.Load(params_cast->mSource, pipeline, resource);
 
 			if (!params_cast->mPipelineResource) {
 				// If we loaded the pipeline, we should release it
 				pipeline->Release();
 			}
 
-			mResources[params_cast->mSource] = result;
-			return result;
+			mResources[params_cast->mSource] = resource;
+			return resource;
 		}
+	}
+
+	Resource* ResourceCache<GeometryResource>::DeferredLoad(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
+		
+		auto it = mResources.find(params_cast->mSource);
+
+		if (it != mResources.end()) {
+			return it->second;
+		} else {
+			auto resource = new GeometryResource(mManager);
+			mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
+
+			mResources[params_cast->mSource] = resource;
+			return resource;
+		}
+	}
+
+	void ResourceCache<GeometryResource>::ProcessDeferred() {
+		for (auto& resource : mDeferredResources) {
+			PipelineResource* pipeline = nullptr;
+			auto& params = resource.second;
+
+			if (params.mPipelineResource) {
+				pipeline = params.mPipelineResource;
+			} else {
+				pipeline = mManager->Load<PipelineResource>(params.mPipelineSource);
+			}
+
+			mLoader.Load(params.mSource, pipeline, resource.first);
+
+			if (!params.mPipelineResource) {
+				// If we loaded the pipeline, we should release it
+				pipeline->Release();
+			}
+		}
+
+		mDeferredResources.clear();
 	}
 
 	void ResourceCache<GeometryResource>::Add(Resource* resource, const void* params) {

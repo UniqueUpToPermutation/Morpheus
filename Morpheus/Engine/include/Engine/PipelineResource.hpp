@@ -32,17 +32,28 @@ namespace Morpheus {
 		std::vector<DG::LayoutElement> mVertexLayout;
 		VertexAttributeIndices mAttributeIndices;
 
+		void Init(DG::IPipelineState* state,
+			std::vector<DG::LayoutElement> layoutElements,
+			VertexAttributeIndices attributeIndices);
+
 	public:
 		~PipelineResource();
+
+		inline PipelineResource(ResourceManager* manager) :
+			Resource(manager),
+			mState(nullptr) {
+		}
 
 		inline PipelineResource(ResourceManager* manager, 
 			DG::IPipelineState* state,
 			std::vector<DG::LayoutElement> layoutElements,
 			VertexAttributeIndices attributeIndices) : 
-			Resource(manager),
-			mState(state), 
-			mVertexLayout(layoutElements),
-			mAttributeIndices(attributeIndices) {
+			Resource(manager) {
+			Init(state, layoutElements, attributeIndices);
+		}
+
+		inline bool IsReady() const {
+			return mState != nullptr;
 		}
 
 		inline DG::IPipelineState* GetState() {
@@ -123,8 +134,8 @@ namespace Morpheus {
 		DG::FILTER_TYPE ReadFilterType(const nlohmann::json& json);
 		DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
 
-		PipelineResource* Load(const std::string& source);
-		PipelineResource* Load(const nlohmann::json& json, const std::string& path);
+		void Load(const std::string& source, PipelineResource* into);
+		void Load(const nlohmann::json& json, const std::string& path, PipelineResource* into);
 		DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
 		DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(const nlohmann::json& json, 
 			std::vector<DG::LayoutElement>* layoutElements,
@@ -139,6 +150,7 @@ namespace Morpheus {
 	class ResourceCache<PipelineResource> : public IResourceCache {
 	private:
 		std::unordered_map<std::string, PipelineResource*> mCachedResources;
+		std::vector<std::pair<PipelineResource*, LoadParams<PipelineResource>>> mDefferedResources;
 		PipelineLoader mLoader;
 		ResourceManager* mManager;
 
@@ -150,6 +162,8 @@ namespace Morpheus {
 		~ResourceCache();
 
 		Resource* Load(const void* params) override;
+		Resource* DeferredLoad(const void* params) override;
+		void ProcessDeferred() override;
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;

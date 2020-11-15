@@ -16,7 +16,7 @@ namespace Morpheus {
 	TextureLoader::TextureLoader(ResourceManager* manager) : mManager(manager) {
 	}
 
-	TextureResource* TextureLoader::Load(const std::string& source) {
+	void TextureLoader::Load(const std::string& source, TextureResource* resource) {
 		DG::TextureLoadInfo loadInfo;
 		loadInfo.IsSRGB = true;
 		DG::ITexture* tex = nullptr;
@@ -25,9 +25,8 @@ namespace Morpheus {
 
 		CreateTextureFromFile(source.c_str(), loadInfo, mManager->GetParent()->GetDevice(), &tex);
 		
-		TextureResource* resource = new TextureResource(mManager, tex);
+		resource->mTexture = tex;
 		resource->mSource = source;
-		return resource;
 	}
 
 	ResourceCache<TextureResource>::ResourceCache(ResourceManager* manager) :
@@ -46,10 +45,34 @@ namespace Morpheus {
 		if (it != mResources.end()) {
 			return it->second;
 		} else {
-			auto result = mLoader.Load(params_cast->mSource);
+			auto result = new TextureResource(mManager);
+			mLoader.Load(params_cast->mSource, result);
 			mResources[params_cast->mSource] = result;
 			return result;
 		}
+	}
+
+	Resource* ResourceCache<TextureResource>::DeferredLoad(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
+		
+		auto it = mResources.find(params_cast->mSource);
+
+		if (it != mResources.end()) {
+			return it->second;
+		} else {
+			auto result = new TextureResource(mManager);
+			mDeferredResources.emplace_back(std::make_pair(result, *params_cast));
+			mResources[params_cast->mSource] = result;
+			return result;
+		}
+	}
+
+	void ResourceCache<TextureResource>::ProcessDeferred() {
+		for (auto resource : mDeferredResources) {
+			mLoader.Load(resource.second.mSource, resource.first);
+		}
+
+		mDeferredResources.clear();
 	}
 
 	void ResourceCache<TextureResource>::Add(Resource* resource, const void* params) {

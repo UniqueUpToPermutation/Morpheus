@@ -1,6 +1,12 @@
 #include <Engine/SceneHeirarchy.hpp>
+#include <Engine/CameraComponent.hpp>
+#include <Engine/Engine.hpp>
 
 namespace Morpheus {
+	SceneHeirarchy::SceneHeirarchy(Engine* engine, uint initialReserve) :
+		SceneHeirarchy(engine->GetRegistry(), initialReserve) {
+	}
+
 	SceneHeirarchy::SceneHeirarchy(entt::registry* registry, uint initialReserve) :
 		mRegistry(registry) {
 		mNodes.reserve(initialReserve);
@@ -11,8 +17,28 @@ namespace Morpheus {
 	}
 
 	void SceneHeirarchy::Clear() {
-		for (auto id = mRootsBegin; id != -1; id = mNodes[id].mNext)
-			Destroy(EntityNode(this, id));
+		for (auto id = mRootsBegin; id != -1;) {
+			auto to_destroy = id;
+			id = mNodes[id].mNext;
+			Destroy(EntityNode(this, to_destroy));
+		}
+
+		if (mRenderCache) {
+			delete mRenderCache;
+			mRenderCache = nullptr;
+		}
+	}
+
+	void SceneHeirarchy::SetCurrentCamera(CameraComponent* component) {
+		mCurrentCamera = component->GetCamera();
+	}
+
+	void SceneHeirarchy::BuildRenderCache(Renderer* renderer) {
+		if (mRenderCache) {
+			delete mRenderCache;
+		}
+
+		mRenderCache = renderer->BuildRenderCache(this);
 	}
 
 	EntityNode SceneHeirarchy::AddChild(EntityNode entityParent, entt::entity entityChild) {
@@ -96,10 +122,14 @@ namespace Morpheus {
 		entity_node.mFirstChild = -1;
 		entity_node.mPrev = -1;
 		entity_node.mNext = new_parent_node.mFirstChild;
+
 		if (new_parent_node.mFirstChild != -1) {
 			mNodes[new_parent_node.mFirstChild].mPrev = entity.mNode;
+		} else {
+			new_parent_node.mLastChild = entity.mNode;
 		}
-		new_parent_node.mFirstChild =  entity.mNode;
+
+		new_parent_node.mFirstChild = entity.mNode;
 		entity_node.mParent = newParent.mNode;
 	}
 
@@ -111,16 +141,30 @@ namespace Morpheus {
 		auto next = node.mNext;
 		auto parent = node.mParent;
 
-		if (prev >= 0) {
-			mNodes[prev].mNext = next;
-		} else {
-			mNodes[parent].mFirstChild = next;
-		}
+		if (parent >= 0) {
+			if (prev >= 0) {
+				mNodes[prev].mNext = next;
+			} else {
+				mNodes[parent].mFirstChild = next;
+			}
 
-		if (next >= 0) {
-			mNodes[next].mPrev = prev;
+			if (next >= 0) {
+				mNodes[next].mPrev = prev;
+			} else {
+				mNodes[parent].mLastChild = prev;
+			}
 		} else {
-			mNodes[parent].mLastChild = prev;
+			if (prev >= 0) {
+				mNodes[prev].mNext = next;
+			} else {
+				mRootsBegin = next;
+			}
+
+			if (next >= 0) {
+				mNodes[next].mPrev = prev;
+			} else {
+				mRootsEnd = prev;
+			}
 		}
 
 		auto firstChild = node.mFirstChild;
@@ -132,6 +176,10 @@ namespace Morpheus {
 		// Free up this node
 		node.mNext = mFirstFree;
 		mFirstFree = entity.mNode;
+	}
+
+	EntityNode SceneHeirarchy::GetRoot() {
+		return EntityNode(this, mRootsBegin);
 	}
 
 	EntityNode SceneHeirarchy::CreateNode(entt::entity entity) {
@@ -184,6 +232,17 @@ namespace Morpheus {
 
 			return result;
 		}
+	}
+
+	EntityNode SceneHeirarchy::CreateNode() {
+		auto e = mRegistry->create();
+		return CreateNode(e);
+	}
+
+	EntityNode SceneHeirarchy::CreateChild(EntityNode parent) {
+		EntityNode node = CreateNode();
+		parent.AddChild(node);
+		return node;
 	}
 
 	void SceneHeirarchy::Isolate(int node) {

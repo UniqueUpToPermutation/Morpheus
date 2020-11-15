@@ -23,6 +23,8 @@ namespace Morpheus {
 	class IResourceCache {
 	public:
 		virtual Resource* Load(const void* params) = 0;
+		virtual Resource* DeferredLoad(const void* params) = 0;
+		virtual void ProcessDeferred() = 0;
 		virtual void Add(Resource* resource, const void* params) = 0;
 		virtual void Unload(Resource* resource) = 0;
 		virtual void Clear() = 0;
@@ -61,6 +63,10 @@ namespace Morpheus {
 		
 		inline void ResetRefCount() {
 			mRefCount = 0;
+		}
+
+		inline int GetRefCount() const {
+			return mRefCount;
 		}
 
 		virtual entt::id_type GetType() const = 0;

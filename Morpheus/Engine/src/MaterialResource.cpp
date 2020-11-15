@@ -7,16 +7,30 @@
 
 namespace Morpheus {
 
+	MaterialResource::MaterialResource(ResourceManager* manager) :
+		Resource(manager),
+		mResourceBinding(nullptr),
+		mPipeline(nullptr) {
+	}
+
 	MaterialResource::MaterialResource(ResourceManager* manager,
 		DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
 		const std::string& source) : 
-		Resource(manager),
-		mResourceBinding(binding),
-		mPipeline(pipeline),
-		mTextures(textures),
-		mSource(source) {
+		Resource(manager) {
+		Init(binding, pipeline, textures, source);
+	}
+
+	void MaterialResource::Init(DG::IShaderResourceBinding* binding, 
+		PipelineResource* pipeline,
+		const std::vector<TextureResource*>& textures,
+		const std::string& source) {
+
+		mResourceBinding = binding;
+		mPipeline = pipeline;
+		mTextures = textures;
+		mSource = source;
 	}
 
 	MaterialResource::~MaterialResource() {
@@ -36,7 +50,7 @@ namespace Morpheus {
 		mManager(manager) {
 	}
 
-	MaterialResource* MaterialLoader::Load(const std::string& source) {
+	void MaterialLoader::Load(const std::string& source, MaterialResource* loadinto) {
 		std::cout << "Loading " << source << "..." << std::endl;
 
 		std::ifstream stream;
@@ -54,11 +68,12 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		return Load(json, source, path);
+		Load(json, source, path, loadinto);
 	}
 
-	MaterialResource* MaterialLoader::Load(const nlohmann::json& json, 
-		const std::string& source, const std::string& path) {
+	void MaterialLoader::Load(const nlohmann::json& json, 
+		const std::string& source, const std::string& path,
+		MaterialResource* loadinto) {
 
 		std::string pipeline_str;
 		json["Pipeline"].get_to(pipeline_str);
@@ -92,12 +107,7 @@ namespace Morpheus {
 			}
 		}
 
-		MaterialResource* resource = new MaterialResource(mManager,
-			binding,
-			pipeline,
-			textures,
-			source);
-		return resource;
+		loadinto->Init(binding, pipeline, textures, source);
 	}
 
 	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) 
@@ -117,9 +127,33 @@ namespace Morpheus {
 			return it->second;
 		}
 
-		MaterialResource* resource = mLoader.Load(src);
+		MaterialResource* resource = new MaterialResource(mManager);
+		mLoader.Load(src, resource);
 		mResources[src] = resource;
 		return resource;
+	}
+
+	Resource* ResourceCache<MaterialResource>::DeferredLoad(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
+		auto src = params_cast->mSource;
+
+		auto it = mResources.find(src);
+		if (it != mResources.end()) {
+			return it->second;
+		}
+
+		MaterialResource* resource = new MaterialResource(mManager);
+		mResources[src] = resource;
+		mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
+		return resource;
+	}
+
+	void ResourceCache<MaterialResource>::ProcessDeferred() {
+		for (auto resource : mDeferredResources) {
+			mLoader.Load(resource.second.mSource, resource.first);
+		}
+
+		mDeferredResources.clear();
 	}
 
 	void ResourceCache<MaterialResource>::Add(Resource* resource, const void* params) {

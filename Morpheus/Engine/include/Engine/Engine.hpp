@@ -30,6 +30,10 @@ namespace Diligent
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	class Renderer;
+	class SceneHeirarchy;
+
 	class Engine : public DG::NativeAppBase {
 	public:
 		Engine();
@@ -173,6 +177,12 @@ namespace Morpheus {
 				mDevice && 
 				mSwapChain && 
 				mImmediateContext;
+		}
+
+		void SetScene(SceneHeirarchy* scene, bool bUnloadOld = true);
+
+		inline SceneHeirarchy* GetScene() {
+			return mSceneHeirarchy;
 		}
 
 		inline DG::IEngineFactory* GetEngineFactory() {

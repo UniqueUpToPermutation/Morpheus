@@ -1,6 +1,7 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/DefaultRenderer.hpp>
+#include <Engine/CameraComponent.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -131,11 +132,30 @@ namespace Morpheus
 		return Proj;
 	}
 
+	void Engine::SetScene(SceneHeirarchy* scene, bool bUnloadOld) {
+		if (bUnloadOld && mSceneHeirarchy)
+			delete mSceneHeirarchy;
+
+		mSceneHeirarchy = scene;
+
+		if (mSceneHeirarchy) {
+			if (mSceneHeirarchy->GetRenderCache() == nullptr) {
+				std::cout << "Warning: RenderCache has not been built. Building now. This may take some time..." << std::endl;
+				mSceneHeirarchy->mRenderCache = mRenderer->BuildRenderCache(mSceneHeirarchy);
+			}
+		}
+
+		std::cout << "Collecting garbage" << std::endl;
+		mResourceManager->CollectGarbage();
+	}
+
 	void Engine::Shutdown() {
 		if (mSceneHeirarchy) {
 			delete mSceneHeirarchy;
 			mSceneHeirarchy = nullptr; 
 		}
+
+		mEntityRegistry.clear();
 
 		if (mRenderer) {
 			delete mRenderer;
@@ -944,7 +964,15 @@ namespace Morpheus
 
 	void Engine::Render()
 	{
-		mRenderer->Render();
+		RenderCache* cache = nullptr;
+		Camera* camera = nullptr;
+
+		if (mSceneHeirarchy) {
+			cache = mSceneHeirarchy->GetRenderCache();
+			camera = mSceneHeirarchy->GetCurrentCamera();
+		}
+
+		mRenderer->Render(cache, camera);
 	}
 
 	void Engine::CompareGoldenImage(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)

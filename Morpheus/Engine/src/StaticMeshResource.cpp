@@ -10,11 +10,29 @@ namespace Morpheus {
 		mGeometry->Release();
 	}
 
+	StaticMeshResource::StaticMeshResource(ResourceManager* manager) :
+		Resource(manager),
+		mMaterial(nullptr),
+		mGeometry(nullptr) {
+	}
+
+	StaticMeshResource::StaticMeshResource(ResourceManager* manager, 
+		MaterialResource* material,
+		GeometryResource* geometry) :
+		Resource(manager) {
+		Init(material, geometry);
+	}
+
+	void StaticMeshResource::Init(MaterialResource* material, GeometryResource* geometry) {
+		mMaterial = material;
+		mGeometry = geometry;
+	}
+
 	entt::id_type StaticMeshResource::GetType() const {
 		return resource_type::type<StaticMeshResource>;
 	}
 
-	StaticMeshResource* StaticMeshLoader::Load(const std::string& source) {
+	void StaticMeshLoader::Load(const std::string& source, StaticMeshResource* loadinto) {
 		std::cout << "Loading " << source << "..." << std::endl;
 
 		std::ifstream stream;
@@ -32,12 +50,11 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		auto mesh = Load(json, path);
-		mesh->mSource = source;
-		return mesh;
+		Load(json, path, loadinto);
+		loadinto->mSource = source;
 	}
 
-	StaticMeshResource* StaticMeshLoader::Load(const nlohmann::json& item, const std::string& path) {
+	void StaticMeshLoader::Load(const nlohmann::json& item, const std::string& path, StaticMeshResource* staticMesh) {
 		std::string materialSrc;
 		item["Material"].get_to(materialSrc);
 
@@ -49,8 +66,7 @@ namespace Morpheus {
 
 		GeometryResource* geometry = mManager->Load<GeometryResource>(params);
 
-		StaticMeshResource* staticMesh = new StaticMeshResource(mManager, material, geometry);
-		return staticMesh;
+		staticMesh->Init(material, geometry);
 	}
 
 	StaticMeshResource* StaticMeshResource::ToStaticMesh() {
@@ -65,10 +81,34 @@ namespace Morpheus {
 		if (it != mResources.end()) {
 			return it->second;
 		} else {
-			auto result = mLoader.Load(params_cast->mSource);
-			mResources[params_cast->mSource] = result;
-			return result;
+			StaticMeshResource* resource = new StaticMeshResource(mManager);
+			mLoader.Load(params_cast->mSource, resource);
+			mResources[params_cast->mSource] = resource;
+			return resource;
 		}
+	}
+
+	Resource* ResourceCache<StaticMeshResource>::DeferredLoad(const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<StaticMeshResource>*>(params);
+		
+		auto it = mResources.find(params_cast->mSource);
+
+		if (it != mResources.end()) {
+			return it->second;
+		} else {
+			StaticMeshResource* resource = new StaticMeshResource(mManager);
+			mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
+			mResources[params_cast->mSource] = resource;
+			return resource;
+		}
+	}
+
+	void ResourceCache<StaticMeshResource>::ProcessDeferred() {
+		for (auto resource : mDeferredResources) {
+			mLoader.Load(resource.second.mSource, resource.first);
+		}
+
+		mDeferredResources.clear();
 	}
 
 	void ResourceCache<StaticMeshResource>::Add(Resource* resource, const void* params) {

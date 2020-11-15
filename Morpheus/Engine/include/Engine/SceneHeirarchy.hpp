@@ -3,6 +3,9 @@
 #include <entt/entt.hpp>
 #include <unordered_map>
 #include <vector>
+#include <stack>
+
+#include <Engine/Renderer.hpp>
 
 namespace Morpheus {
 	struct SceneTreeNode {
@@ -39,18 +42,130 @@ namespace Morpheus {
 		inline EntityNode GetFirstChild();
 		inline EntityNode GetLastChild();
 		inline EntityNode GetParent();
+		inline bool IsValid() const;
+
+		template <typename T, typename... Args>
+		inline T* AddComponent(Args &&... args);
+
+		template <typename T>
+		inline T* GetComponent();
+
+		template <typename T>
+		inline T* TryGetComponent();
 
 		friend class SceneHeirarchy;
 	};
-	
+
+	class NodeIterator {
+	private:
+		std::stack<EntityNode> mNodeStack;
+
+	public:
+		NodeIterator(EntityNode start) {
+			mNodeStack.emplace(start);
+		}
+
+		inline EntityNode operator()() {
+			return mNodeStack.top();
+		}
+
+		inline EntityNode* operator->() {
+			return &mNodeStack.top();
+		}
+
+		inline explicit operator bool() const {
+			return !mNodeStack.empty();
+		}
+
+		inline NodeIterator& operator++() {
+			auto& top = mNodeStack.top();
+
+			mNodeStack.emplace(top.GetFirstChild());
+			
+			while (!mNodeStack.empty() && !mNodeStack.top().IsValid()) {
+				mNodeStack.pop();
+				if (!mNodeStack.empty()) {
+					top = mNodeStack.top();
+					mNodeStack.pop();
+					mNodeStack.emplace(top.GetNext());
+				}
+			}
+
+			return *this;
+		}
+	};
+
+	enum class IteratorDirection {
+		DOWN,
+		UP
+	};
+
+	class NodeDoubleIterator {
+	private:
+		std::stack<EntityNode> mNodeStack;
+		IteratorDirection mDirection;
+
+	public:
+		NodeDoubleIterator(EntityNode start) {
+			mNodeStack.emplace(start);
+			mDirection = IteratorDirection::DOWN;
+		}
+
+		inline EntityNode operator()() {
+			return mNodeStack.top();
+		}
+
+		inline EntityNode* operator->() {
+			return &mNodeStack.top();
+		}
+
+		inline IteratorDirection GetDirection() const {
+			return mDirection;
+		}
+
+		inline explicit operator bool() const {
+			return !mNodeStack.empty();
+		}
+
+		inline NodeDoubleIterator& operator++() {
+			auto& top = mNodeStack.top();
+
+			if (mDirection == IteratorDirection::UP) {
+				mNodeStack.pop();
+				mNodeStack.emplace(top.GetNext());
+				mDirection = IteratorDirection::DOWN;
+			} else {
+				mNodeStack.emplace(top.GetFirstChild());
+				mDirection = IteratorDirection::DOWN;
+			}
+			
+			if (!mNodeStack.empty() && !mNodeStack.top().IsValid()) {
+				mNodeStack.pop();
+				if (!mNodeStack.empty()) {
+					mDirection = IteratorDirection::UP;
+				}
+			}
+
+			return *this;
+		}
+	};
+
+	class CameraComponent;
+	class Engine;
+
 	class SceneHeirarchy {
 	private:
 		std::unordered_map<entt::entity, uint> mEntityToNode;
 		std::vector<SceneTreeNode> mNodes;
 		entt::registry* mRegistry;
+
+		Camera* mCurrentCamera = nullptr;
+
 		int mFirstFree = -1;
 		int mRootsBegin = -1;
 		int mRootsEnd = -1;
+
+		RenderCache* mRenderCache = nullptr;
 
 		void DestroyChild(int node);
 
@@ -58,6 +173,7 @@ namespace Morpheus {
 		void Isolate(int node);
 
 	public:
+		SceneHeirarchy(Engine* engine, uint initialReserve = 1000);
 		SceneHeirarchy(entt::registry* registry, uint initialReserve = 1000);
 		~SceneHeirarchy();
 
@@ -70,11 +186,37 @@ namespace Morpheus {
 		void Destroy(EntityNode entity);
 
 		EntityNode CreateNode(entt::entity entity);
+		EntityNode CreateNode();
 		EntityNode CreateChild(EntityNode parent);
 
+		EntityNode GetRoot();
+
+		inline NodeIterator GetIterator() {
+			return NodeIterator(GetRoot());
+		}
+
+		inline NodeDoubleIterator GetDoubleIterator() {
+			return NodeDoubleIterator(GetRoot());
+		}
+
+		inline RenderCache* GetRenderCache() {
+			return mRenderCache;
+		}
+
+		Camera* GetCurrentCamera() {
+			return mCurrentCamera;
+		}
+
+		inline void SetCurrentCamera(Camera* camera) {
+			mCurrentCamera = camera;
+		}
+
+		void SetCurrentCamera(CameraComponent* component);
+		void BuildRenderCache(Renderer* renderer);
 		void Clear();
 
 		friend class EntityNode;
+		friend class Engine;
 	};
 
 	entt::entity EntityNode::operator()() const {
@@ -127,5 +269,24 @@ namespace Morpheus {
 
 	entt::registry* EntityNode::GetRegistry() {
 		return mTree->mRegistry;
+	}
+
+	bool EntityNode::IsValid() const {
+		return mNode >= 0;
+	}
+
+	template <typename T>
+	T* EntityNode::GetComponent() {
+		return &mTree->mRegistry->template get<T>(GetEntity());
+	}
+
+	template <typename T>
+	T* EntityNode::TryGetComponent() {
+		return mTree->mRegistry->template try_get<T>(GetEntity());
+	}
+
+	template <typename T, typename... Args>
+	T* EntityNode::AddComponent(Args &&... args) {
+		return &mTree->mRegistry->template emplace<T, Args...>(GetEntity(), std::forward<Args>(args)...);
 	}
 }
