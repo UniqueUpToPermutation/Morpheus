@@ -4,7 +4,7 @@
 
 #include "TextureUtilities.h"
 
-#include <gli/gli.hpp>
+#include <ktx.h>
 
 namespace Morpheus {
 	TextureResource* TextureResource::ToTexture() {
@@ -25,28 +25,47 @@ namespace Morpheus {
 		}
 		auto ext = source.substr(pos);
 
-		if (ext == ".ktx" || ext == ".dds") {
-			LoadGli(source, resource);
+		if (ext == ".ktx") {
+			LoadKtx(source, resource);
 		} else {
 			LoadDiligent(source, resource);
 		}
 	}
 
-	DG::TEXTURE_FORMAT ConvertTexFormat(gli::format format) {
-		
-	}
+	void TextureLoader::LoadKtx(const std::string& source, TextureResource* resource) {
+		ktxTexture* texture;
+		KTX_error_code result;
+		ktx_size_t offset;
+		ktx_uint8_t* image;
+		ktx_uint32_t level, layer, faceSlice;
+		result = ktxTexture_CreateFromNamedFile(source.c_str(),
+												KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+												&texture);
 
-	void TextureLoader::LoadGli(const std::string& source, TextureResource* texture) {
-		auto device = mManager->GetParent()->GetDevice();
+		ktx_uint32_t numLevels = texture->numLevels;
+		ktx_uint32_t baseWidth = texture->baseWidth;
+		ktx_bool_t isArray = texture->isArray;
 
-		GLenum gltype;
-		gli::texture tex = gli::load(source);
-		if (tex.empty()) {
-			std::cout << "Failed to load texture " << source << "!" << std::endl;
-			throw std::runtime_error("Failed to load texture!");
+		char* pValue;
+		uint32_t valueLen;
+		if (KTX_SUCCESS == ktxHashList_FindValue(&texture->kvDataHead,
+												KTX_ORIENTATION_KEY,
+												&valueLen, (void**)&pValue))
+		{
+			char s, t;
+			if (sscanf(pValue, KTX_ORIENTATION2_FMT, &s, &t) == 2) {
+
+			}
 		}
 
-		
+
+		level = 1; layer = 0; faceSlice = 3;
+		result = ktxTexture_GetImageOffset(texture, level, layer, faceSlice, &offset);
+		image = ktxTexture_GetData(texture) + offset;
+		// ...
+		// Do something with the texture image.
+		// ...
+		ktxTexture_Destroy(texture);
 	}
 
 	void TextureLoader::LoadDiligent(const std::string& source, TextureResource* texture) {

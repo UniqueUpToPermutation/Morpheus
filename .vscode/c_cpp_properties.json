@@ -7,7 +7,7 @@
                 "${workspaceFolder}/Morpheus/Engine/include",
                 "${workspaceFolder}/json/single_include/",
 				"${workspaceFolder}/entt/single_include/",
-				"${workspaceFolder}/gli/"
+				"${workspaceFolder}/KTX-Software/include/"
             ],
             "defines": [
                 "PLATFORM_LINUX",
