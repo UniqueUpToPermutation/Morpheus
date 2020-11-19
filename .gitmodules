@@ -7,3 +7,6 @@
 [submodule "json"]
 	path = json
 	url = https://github.com/nlohmann/json.git
+[submodule "gli"]
+	path = gli
+	url = https://github.com/g-truc/gli.git

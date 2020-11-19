@@ -144,7 +144,8 @@ set_common_target_properties(Morpheus-Engine)
 
 target_include_directories(Morpheus-Engine
 PUBLIC
-    include
+	include
+	../../gli/
 )
 
 if(MSVC)

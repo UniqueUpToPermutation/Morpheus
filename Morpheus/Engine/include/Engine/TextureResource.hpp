@@ -73,6 +73,8 @@ namespace Morpheus {
 	public:
 		TextureLoader(ResourceManager* manager);
 
+		void LoadGli(const std::string& source, TextureResource* texture);
+		void LoadDiligent(const std::string& source, TextureResource* texture);
 		void Load(const std::string& source, TextureResource* texture);
 	};
 

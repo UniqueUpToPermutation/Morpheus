@@ -4,6 +4,8 @@
 
 #include "TextureUtilities.h"
 
+#include <gli/gli.hpp>
+
 namespace Morpheus {
 	TextureResource* TextureResource::ToTexture() {
 		return this;
@@ -17,6 +19,37 @@ namespace Morpheus {
 	}
 
 	void TextureLoader::Load(const std::string& source, TextureResource* resource) {
+		auto pos = source.rfind('.');
+		if (pos == std::string::npos) {
+			throw std::runtime_error("Source does not have file extension!");
+		}
+		auto ext = source.substr(pos);
+
+		if (ext == ".ktx" || ext == ".dds") {
+			LoadGli(source, resource);
+		} else {
+			LoadDiligent(source, resource);
+		}
+	}
+
+	DG::TEXTURE_FORMAT ConvertTexFormat(gli::format format) {
+		
+	}
+
+	void TextureLoader::LoadGli(const std::string& source, TextureResource* texture) {
+		auto device = mManager->GetParent()->GetDevice();
+
+		GLenum gltype;
+		gli::texture tex = gli::load(source);
+		if (tex.empty()) {
+			std::cout << "Failed to load texture " << source << "!" << std::endl;
+			throw std::runtime_error("Failed to load texture!");
+		}
+
+		
+	}
+
+	void TextureLoader::LoadDiligent(const std::string& source, TextureResource* texture) {
 		DG::TextureLoadInfo loadInfo;
 		loadInfo.IsSRGB = true;
 		DG::ITexture* tex = nullptr;
@@ -25,8 +58,8 @@ namespace Morpheus {
 
 		CreateTextureFromFile(source.c_str(), loadInfo, mManager->GetParent()->GetDevice(), &tex);
 		
-		resource->mTexture = tex;
-		resource->mSource = source;
+		texture->mTexture = tex;
+		texture->mSource = source;
 	}
 
 	ResourceCache<TextureResource>::ResourceCache(ResourceManager* manager) :
