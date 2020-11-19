@@ -3,6 +3,7 @@
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/CameraComponent.hpp>
+#include <Engine/Skybox.hpp>
 #include <random>
 
 using namespace Morpheus;
@@ -42,7 +43,13 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	auto skybox_texture = en.GetResourceManager()->Load<TextureResource>("skybox.ktx");
+	auto skybox = scene->CreateChild(root);
+	skybox.AddComponent<SkyboxComponent>(skybox_texture);
+
+	skybox_texture->Release();
 	resource->Release();
+
 	en.SetScene(scene);
 
 	while (en.IsReady()) {

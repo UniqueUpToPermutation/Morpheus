@@ -12,7 +12,7 @@
 	"PrimitiveTopology" : "PRIMITIVE_TOPOLOGY_TRIANGLE_LIST",
 
 	"RasterizerDesc" : {
-		"CullMode" 		: "CULL_MODE_NONE"
+		"CullMode" 		: "CULL_MODE_BACK"
 	},
 	 
 	"DepthStencilDesc" : {

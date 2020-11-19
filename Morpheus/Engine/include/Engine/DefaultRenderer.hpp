@@ -2,6 +2,7 @@
 #include <Engine/Camera.hpp>
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
+#include <Engine/Skybox.hpp>
 
 namespace DG = Diligent;
 
@@ -45,6 +46,11 @@ namespace Morpheus {
 	class DefaultRenderCache : public RenderCache {
 	public:
 		std::vector<StaticMeshCache> mStaticMeshes;
+		SkyboxComponent* mSkybox;
+
+		inline DefaultRenderCache() :
+			mSkybox(nullptr) {
+		}
 		
 		~DefaultRenderCache() {
 		}
@@ -58,7 +64,8 @@ namespace Morpheus {
 		DG::IBuffer* mInstanceBuffer;
 		Transform mIdentityTransform;
 
-		void RenderStaticMeshes(DefaultRenderCache* cache);
+		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
+		void RenderSkybox(SkyboxComponent* skybox);
 
 	public:
 		DefaultRenderer(Engine* engine, 

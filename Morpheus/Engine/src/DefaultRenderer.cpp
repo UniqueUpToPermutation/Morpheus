@@ -128,7 +128,20 @@ namespace Morpheus {
 		return mGlobalsBuffer.GetBuffer();
 	}
 
-	void DefaultRenderer::RenderStaticMeshes(DefaultRenderCache* cache) {
+	void DefaultRenderer::RenderSkybox(SkyboxComponent* skybox) {
+		auto context = mEngine->GetImmediateContext();
+		
+		auto pipeline = skybox->GetPipeline();
+		context->SetPipelineState(pipeline->GetState());
+		context->CommitShaderResources(skybox->GetResourceBinding(),
+			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		DG::DrawAttribs attribs;
+		attribs.NumVertices = 4;
+		context->Draw(attribs);
+	}
+
+	void DefaultRenderer::RenderStaticMeshes(std::vector<StaticMeshCache>& cache) {
 		auto pipelineComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
 			return c1.mStaticMesh->GetPipeline() < c2.mStaticMesh->GetPipeline();
 		};
@@ -141,9 +154,9 @@ namespace Morpheus {
 			return c1.mStaticMesh < c2.mStaticMesh;
 		};
 
-		std::sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), pipelineComp);
-		std::stable_sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), materialComp);
-		std::stable_sort(cache->mStaticMeshes.begin(), cache->mStaticMeshes.end(), meshComp);
+		std::sort(cache.begin(), cache.end(), pipelineComp);
+		std::stable_sort(cache.begin(), cache.end(), materialComp);
+		std::stable_sort(cache.begin(), cache.end(), meshComp);
 
 		PipelineResource* currentPipeline = nullptr;
 		MaterialResource* currentMaterial = nullptr;
@@ -153,7 +166,7 @@ namespace Morpheus {
 
 		auto context = mEngine->GetImmediateContext();
 
-		int meshCount = cache->mStaticMeshes.size();
+		int meshCount = cache.size();
 
 		while (currentIdx < meshCount) {
 			// First upload transforms to GPU buffer
@@ -167,14 +180,14 @@ namespace Morpheus {
 
 			for (; currentIdx + currentInstanceIdx < meshCount && currentInstanceIdx < maxInstances;
 				++currentInstanceIdx) {
-				ptr[currentInstanceIdx] = cache->mStaticMeshes[currentIdx + currentInstanceIdx].mTransform->GetCache();
+				ptr[currentInstanceIdx] = cache[currentIdx + currentInstanceIdx].mTransform->GetCache();
 			}
 
 			context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
 
 			int instanceBatchTotal = currentInstanceIdx;
 			for (currentInstanceIdx = 0; currentInstanceIdx < instanceBatchTotal;) {
-				auto mesh = cache->mStaticMeshes[currentIdx + currentInstanceIdx].mStaticMesh->GetMesh();
+				auto mesh = cache[currentIdx + currentInstanceIdx].mStaticMesh->GetMesh();
 				auto material = mesh->GetMaterial();
 				auto pipeline = material->GetPipeline();
 
@@ -203,7 +216,7 @@ namespace Morpheus {
 				// Count the number of instances of this specific mesh to render
 				int instanceCount = 1;
 				for (; currentInstanceIdx + instanceCount < instanceBatchTotal 
-					&& cache->mStaticMeshes[currentIdx + currentInstanceIdx + instanceCount].mStaticMesh->GetMesh() == mesh;
+					&& cache[currentIdx + currentInstanceIdx + instanceCount].mStaticMesh->GetMesh() == mesh;
 					++instanceCount);
 
 				DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
@@ -248,7 +261,11 @@ namespace Morpheus {
 				camera->GetEye(), 0.0f);
 
 			// Render all static meshes in the scene
-			RenderStaticMeshes(cacheCast);
+			RenderStaticMeshes(cacheCast->mStaticMeshes);
+
+			// Render skybox
+			if (cacheCast->mSkybox)
+				RenderSkybox(cacheCast->mSkybox);
 		}
 
 		// Restore default render target in case the sample has changed it
@@ -291,6 +308,7 @@ namespace Morpheus {
 			if (it.GetDirection() == IteratorDirection::DOWN) {
 				auto transform = it->TryGetComponent<Transform>();
 				auto staticMesh = it->TryGetComponent<StaticMeshComponent>();
+				auto skybox = it->TryGetComponent<SkyboxComponent>();
 
 				// Node has a transform; update cache
 				if (transform) {
@@ -304,6 +322,13 @@ namespace Morpheus {
 					meshCache.mStaticMesh = staticMesh;
 					meshCache.mTransform = transformStack.top();
 					cache->mStaticMeshes.emplace_back(meshCache);
+				}
+
+				if (skybox) {
+					if (cache->mSkybox) {
+						std::cout << "Warning: multiple skyboxes detected!" << std::endl;
+					}
+					cache->mSkybox = skybox;
 				}
 			}
 			else if (it.GetDirection() == IteratorDirection::UP) {

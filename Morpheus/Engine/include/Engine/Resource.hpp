@@ -77,6 +77,10 @@ namespace Morpheus {
 		virtual TextureResource* ToTexture();
 		virtual StaticMeshResource* ToStaticMesh();
 
+		inline ResourceManager* GetManager() {
+			return mManager;
+		}
+
 		template <typename T>
 		inline T* To() {
 			return ResourceConvert<T>::Convert(this);

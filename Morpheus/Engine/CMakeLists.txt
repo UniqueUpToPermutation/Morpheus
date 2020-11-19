@@ -8,7 +8,7 @@ add_subdirectory(shaders/cpp)
 add_custom_command(
 	OUTPUT shader_rc.cpp
 	COMMAND embedfile ${CMAKE_CURRENT_SOURCE_DIR}/shaders shader_rc.cpp
-	DEPENDS shaders/*)
+	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*)
 
 find_package(assimp REQUIRED)
 
@@ -123,6 +123,7 @@ list(APPEND SOURCE
 	src/StaticMeshResource.cpp
 	src/ShaderLoader.cpp
 	src/Transform.cpp
+	src/Skybox.cpp
 	shader_rc.cpp
 )
 
