@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	auto skybox_texture = en.GetResourceManager()->Load<TextureResource>("skybox.ktx");
+	auto skybox_texture = en.GetResourceManager()->Load<TextureResource>("env.ktx");
 	auto skybox = scene->CreateChild(root);
 	skybox.AddComponent<SkyboxComponent>(skybox_texture);
 

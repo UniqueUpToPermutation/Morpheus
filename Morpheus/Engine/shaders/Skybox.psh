@@ -1,0 +1,19 @@
+TextureCube  mTexture;
+SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+struct PSInput 
+{ 
+    float4 Position   	: SV_POSITION;
+	float3 Direction 	: TEXCOORD;
+};
+
+struct PSOutput
+{ 
+    float4 Color : SV_TARGET; 
+};
+
+void main(in PSInput PSIn,
+	out PSOutput PSOut) {
+
+	PSOut.Color = mTexture.Sample(mTexture_sampler, PSIn.Direction); 
+}

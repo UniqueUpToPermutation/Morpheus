@@ -446,6 +446,8 @@ namespace Morpheus {
 		if (json.contains("DepthFunc")) {
 			desc->DepthFunc = ReadComparisonFunc(json.value("DepthFunc", ""));
 		}
+
+		desc->DepthWriteEnable = json.value("DepthWriteEnable", desc->DepthWriteEnable);
 	}
 
 	void PipelineLoader::Load(const std::string& source, PipelineResource* resource) {

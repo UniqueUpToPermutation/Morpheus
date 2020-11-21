@@ -145,7 +145,8 @@ set_common_target_properties(Morpheus-Engine)
 target_include_directories(Morpheus-Engine
 PUBLIC
 	include
-	../../KTX-Software/include
+	../../gli
+	../../gli/external
 )
 
 if(MSVC)

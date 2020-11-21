@@ -1,0 +1,69 @@
+{
+	"Name" : "Skybox PSO",
+	"PipelineType" : "PIPELINE_TYPE_GRAPHICS",
+	"NumRenderTargets" : 1,
+
+	"RTVFormats" : [
+		"SWAP_CHAIN_COLOR_BUFFER_FORMAT"
+	],
+
+	"DSVFormat" 		: "SWAP_CHAIN_DEPTH_BUFFER_FORMAT",
+	
+	"PrimitiveTopology" : "PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP",
+
+	"RasterizerDesc" : {
+		"CullMode" 		: "CULL_MODE_NONE"
+	},
+	 
+	"DepthStencilDesc" : {
+		"DepthEnable" 	: true,
+		"DepthFunc"		: "COMPARISON_FUNC_LESS_EQUAL"
+	},
+
+	"VS" : {
+		"ShaderType" 	: "SHADER_TYPE_VERTEX",
+		"Name" 			: "Skybox vertex shader textured",
+		"Source" 		: "Skybox.vsh",
+		"EntryPoint" 	: "main"
+	},
+
+	"PS" : {
+		"ShaderType" 	: "SHADER_TYPE_PIXEL",
+		"Name" 			: "Skybox pixel shader textured",
+		"Source" 		: "Skybox.psh",
+		"EntryPoint" 	: "main"
+	},
+
+	"InputLayout" : [
+	],
+
+	"Attributes" : {
+	},
+
+	"ResourceLayout" : {
+		"DefaultVariableType" 	: "SHADER_RESOURCE_VARIABLE_TYPE_STATIC",
+
+		"Variables"				: [
+			{
+				"Name"			: "mTexture",
+				"Type"			: "SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE",
+				"ShaderStages"	: [ "SHADER_TYPE_PIXEL" ]
+			}
+		],
+
+		"ImmutableSamplers"		: [
+			{
+				"Name"			: "mTexture_sampler",
+				"ShaderStages" 	: [ "SHADER_TYPE_PIXEL" ],
+				"AddressU"		: "TEXTURE_ADDRESS_CLAMP",
+				"AddressV"		: "TEXTURE_ADDRESS_CLAMP",
+				"AddressW"		: "TEXTURE_ADDRESS_CLAMP",
+				"MinFilter"		: "FILTER_TYPE_LINEAR",
+				"MagFilter"		: "FILTER_TYPE_LINEAR",
+				"MipFilter"		: "FILTER_TYPE_LINEAR"
+			}
+		]
+	},
+
+	"GlobalsBuffer" : "Globals"
+}
