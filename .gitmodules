@@ -10,3 +10,6 @@
 [submodule "gli"]
 	path = gli
 	url = https://github.com/g-truc/gli.git
+[submodule "lodepng"]
+	path = lodepng
+	url = https://github.com/lvandeve/lodepng.git

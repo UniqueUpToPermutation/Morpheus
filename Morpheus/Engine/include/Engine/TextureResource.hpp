@@ -51,6 +51,9 @@ namespace Morpheus {
 			return mTexture->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
 		}
 
+		void SaveGli(const std::string& path);
+		void SavePng(const std::string& path);
+
 		friend class TextureLoader;
 		friend class ResourceCache<TextureResource>;
 	};

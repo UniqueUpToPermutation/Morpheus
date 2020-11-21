@@ -5,6 +5,8 @@
 #include "TextureUtilities.h"
 
 #include <gli/gli.hpp>
+
+#include <lodepng.h>
 namespace Morpheus {
 	TextureResource* TextureResource::ToTexture() {
 		return this;
@@ -31,73 +33,61 @@ namespace Morpheus {
 		}
 	}
 
-	DG::TEXTURE_FORMAT ConvertInternalTexFormat(gli::gl::internal_format format) {
+	DG::TEXTURE_FORMAT GliToDG(gli::format format) {
 		switch (format) {
-			case gli::gl::INTERNAL_SRGB8_ALPHA8:
+			case gli::FORMAT_RGBA8_SRGB_PACK8:
 				return DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
-			case gli::gl::INTERNAL_SRGB8:
+			case gli::FORMAT_RGB8_SRGB_PACK8:
 				return DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
-			case gli::gl::INTERNAL_RGB8_UNORM:
+			case gli::FORMAT_RGB8_UNORM_PACK8:
 				return DG::TEX_FORMAT_RGBA8_UNORM;
-			case gli::gl::INTERNAL_RGBA8_UNORM:
+			case gli::FORMAT_RGBA8_UNORM_PACK8:
 				return DG::TEX_FORMAT_RGBA8_UNORM;
-			case gli::gl::INTERNAL_RGBA8_SNORM:
-				return DG::TEX_FORMAT_RGBA8_SNORM;
-			case gli::gl::INTERNAL_RG8_SNORM:
-				return DG::TEX_FORMAT_RG8_SNORM;
-			case gli::gl::INTERNAL_RG8_UNORM:
-				return DG::TEX_FORMAT_RG8_UNORM;
-			case gli::gl::INTERNAL_R8_SNORM:
-				return DG::TEX_FORMAT_R8_SNORM;
-			case gli::gl::INTERNAL_R8_UNORM:
+			case gli::FORMAT_R8_UNORM_PACK8:
 				return DG::TEX_FORMAT_R8_UNORM;
-			case gli::gl::INTERNAL_RGBA16_SNORM:
-				return DG::TEX_FORMAT_RGBA16_SNORM;
-			case gli::gl::INTERNAL_RGBA16_UNORM:
+			case gli::FORMAT_RG8_UNORM_PACK8:
+				return DG::TEX_FORMAT_RG8_UNORM;
+			case gli::FORMAT_RGBA16_UNORM_PACK16:
 				return DG::TEX_FORMAT_RGBA16_UNORM;
-			case gli::gl::INTERNAL_RGBA16F:
-				return DG::TEX_FORMAT_RGBA16_FLOAT;
-			case gli::gl::INTERNAL_RG16_SNORM:
-				return DG::TEX_FORMAT_RG16_SNORM;
-			case gli::gl::INTERNAL_RG16_UNORM:
+			case gli::FORMAT_RG16_UNORM_PACK16:
 				return DG::TEX_FORMAT_RG16_UNORM;
-			case gli::gl::INTERNAL_RG16F:
-				return DG::TEX_FORMAT_RG16_FLOAT;
-			case gli::gl::INTERNAL_R16_SNORM:
-				return DG::TEX_FORMAT_R16_SNORM;
-			case gli::gl::INTERNAL_R16_UNORM:
+			case gli::FORMAT_R16_UNORM_PACK16:
 				return DG::TEX_FORMAT_R16_UNORM;
-			case gli::gl::INTERNAL_R16F:
+			case gli::FORMAT_RGBA16_SFLOAT_PACK16:
+				return DG::TEX_FORMAT_RGBA16_FLOAT;
+			case gli::FORMAT_RG16_SFLOAT_PACK16:
+				return DG::TEX_FORMAT_RG16_FLOAT;
+			case gli::FORMAT_R16_SFLOAT_PACK16:
 				return DG::TEX_FORMAT_R16_FLOAT;
-			case gli::gl::INTERNAL_RGBA32F:
+			case gli::FORMAT_RGBA32_SFLOAT_PACK32:
 				return DG::TEX_FORMAT_RGBA32_FLOAT;
-			case gli::gl::INTERNAL_RG32F:
+			case gli::FORMAT_RG32_SFLOAT_PACK32:
 				return DG::TEX_FORMAT_RG32_FLOAT;
-			case gli::gl::INTERNAL_R32F:
+			case gli::FORMAT_R32_SFLOAT_PACK32:
 				return DG::TEX_FORMAT_R32_FLOAT;
 			default:
-				throw std::runtime_error("Unsupported KTX format!");
+				throw std::runtime_error("Could not recognize format!");
 		}
 	}
 
-	DG::RESOURCE_DIMENSION ConvertResourceDimension(gli::gl::target target) {
+	DG::RESOURCE_DIMENSION GliToDG(gli::target target) {
 		switch (target) {
-			case gli::gl::TARGET_1D:
+			case gli::TARGET_1D:
 				return DG::RESOURCE_DIM_TEX_1D;
-			case gli::gl::TARGET_1D_ARRAY:
+			case gli::TARGET_1D_ARRAY:
 				return DG::RESOURCE_DIM_TEX_1D_ARRAY;
-			case gli::gl::TARGET_2D:
+			case gli::TARGET_2D:
 				return DG::RESOURCE_DIM_TEX_2D;
-			case gli::gl::TARGET_2D_ARRAY:
+			case gli::TARGET_2D_ARRAY:
 				return DG::RESOURCE_DIM_TEX_2D_ARRAY;
-			case gli::gl::TARGET_CUBE:
-				return DG::RESOURCE_DIM_TEX_CUBE;
-			case gli::gl::TARGET_CUBE_ARRAY:
-				return DG::RESOURCE_DIM_TEX_CUBE_ARRAY;
-			case gli::gl::TARGET_3D:
+			case gli::TARGET_3D:
 				return DG::RESOURCE_DIM_TEX_3D;
+			case gli::TARGET_CUBE:
+				return DG::RESOURCE_DIM_TEX_CUBE;
+			case gli::TARGET_CUBE_ARRAY:
+				return DG::RESOURCE_DIM_TEX_CUBE_ARRAY;
 			default:
-				throw std::runtime_error("Unsupported KTX target!");
+				throw std::runtime_error("Could not recognize dimension type!");
 		}
 	}
 
@@ -121,28 +111,27 @@ namespace Morpheus {
 			throw std::runtime_error("Failed to load texture!");
 		}
 
-		gli::gl GL(gli::gl::PROFILE_GL33);
-		gli::gl::format Format = GL.translate(tex.format(), tex.swizzles());
-		gli::gl::target Target = GL.translate(tex.target());
-
-		DG::TEXTURE_FORMAT internal_format = ConvertInternalTexFormat(Format.Internal);
-
 		DG::TextureDesc desc;
 		desc.Name = source.c_str();
+
+		auto Target = tex.target();
+		auto Format = tex.format();
 		
 		desc.BindFlags = DG::BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
-		desc.Format = internal_format;
+		desc.Format = GliToDG(Format);
 		desc.Width = tex.extent().x;
 		desc.Height = tex.extent().y;
-		if (Target == gli::gl::TARGET_3D) {
+
+		if (Target == gli::TARGET_3D) {
 			desc.Depth = tex.extent().z;
 		} else {
 			desc.ArraySize = tex.layers() * tex.faces();
 		}
+
 		desc.MipLevels = tex.levels();
 		desc.Usage = DG::USAGE_IMMUTABLE;
-		desc.Type = ConvertResourceDimension(Target);
+		desc.Type = GliToDG(Target);
 
 		std::vector<DG::TextureSubResData> subData;
 
@@ -152,8 +141,8 @@ namespace Morpheus {
 
 		bool bExpand = false;
 
-		if (Format.Internal == gli::gl::INTERNAL_RGB8_UNORM ||
-			Format.Internal == gli::gl::INTERNAL_SRGB8) {
+		if (Format == gli::FORMAT_RGB8_UNORM_PACK8 ||
+			Format == gli::FORMAT_RGB8_SRGB_PACK8) {
 			bExpand = true;
 			block_size = 4;
 		}
@@ -165,7 +154,8 @@ namespace Morpheus {
 					size_t mip_width = std::max(desc.Width >> Level, 1u);
 					size_t mip_height = std::max(desc.Height >> Level, 1u);
 					size_t mip_depth = 1;
-					if (Target == gli::gl::TARGET_3D) {
+
+					if (Target == gli::TARGET_3D) {
 						mip_depth = std::max(desc.Depth >> Level, 1u);
 					}
 
@@ -299,5 +289,364 @@ namespace Morpheus {
 		}
 
 		mResources.clear();
+	}
+
+	gli::target DGToGli(DG::RESOURCE_DIMENSION dim) {
+		switch (dim) {
+			case DG::RESOURCE_DIM_TEX_1D:
+				return gli::TARGET_1D;
+			case DG::RESOURCE_DIM_TEX_1D_ARRAY:
+				return gli::TARGET_1D_ARRAY;
+			case DG::RESOURCE_DIM_TEX_2D:
+				return gli::TARGET_2D;
+			case DG::RESOURCE_DIM_TEX_2D_ARRAY:
+				return gli::TARGET_2D_ARRAY;
+			case DG::RESOURCE_DIM_TEX_3D:
+				return gli::TARGET_3D;
+			case DG::RESOURCE_DIM_TEX_CUBE:
+				return gli::TARGET_CUBE;
+			case DG::RESOURCE_DIM_TEX_CUBE_ARRAY:
+				return gli::TARGET_CUBE_ARRAY;
+			default:
+				throw std::runtime_error("Resource dimension unrecognized!");
+		}
+	}
+
+	gli::format DGToGli(DG::TEXTURE_FORMAT format) {
+		switch (format) {
+			case DG::TEX_FORMAT_RGBA8_UNORM_SRGB:
+				return gli::FORMAT_RGBA8_SRGB_PACK8;
+				
+			case DG::TEX_FORMAT_RGBA8_UNORM:
+				return gli::FORMAT_RGB8_UNORM_PACK8;
+				
+			case DG::TEX_FORMAT_R8_UNORM:
+				return gli::FORMAT_R8_UNORM_PACK8;
+			
+			case DG::TEX_FORMAT_RG8_UNORM:
+				return gli::FORMAT_RG8_UNORM_PACK8;
+				
+			case DG::TEX_FORMAT_RGBA16_UNORM:
+				return gli::FORMAT_RGBA16_UNORM_PACK16;
+				
+			case DG::TEX_FORMAT_RG16_UNORM:
+				return gli::FORMAT_RG16_UNORM_PACK16;
+				
+			case DG::TEX_FORMAT_R16_UNORM:
+				return gli::FORMAT_R16_UNORM_PACK16;
+				
+			case DG::TEX_FORMAT_RGBA16_FLOAT:
+				return gli::FORMAT_RGBA16_SFLOAT_PACK16;
+				
+			case DG::TEX_FORMAT_RG16_FLOAT:
+				return gli::FORMAT_RG16_SFLOAT_PACK16;
+				
+			case DG::TEX_FORMAT_R16_FLOAT:
+				return gli::FORMAT_R16_SFLOAT_PACK16;
+				
+			case DG::TEX_FORMAT_RGBA32_FLOAT:
+				return gli::FORMAT_RGBA32_SFLOAT_PACK32;
+				
+			case DG::TEX_FORMAT_RG32_FLOAT:
+				return gli::FORMAT_RG32_SFLOAT_PACK32;
+				
+			case DG::TEX_FORMAT_R32_FLOAT:
+				return gli::FORMAT_R32_SFLOAT_PACK32;
+				
+			default:
+				throw std::runtime_error("Could not recognize format!");
+		}
+	}
+
+	uint GetByteSize(DG::TEXTURE_FORMAT format) {
+		switch (format) {
+		case DG::TEX_FORMAT_RGBA8_UNORM_SRGB:
+			return 4;
+			
+		case DG::TEX_FORMAT_RGBA8_UNORM:
+			return 4;
+			
+		case DG::TEX_FORMAT_R8_UNORM:
+			return 1;
+		
+		case DG::TEX_FORMAT_RG8_UNORM:
+			return 2;
+			
+		case DG::TEX_FORMAT_RGBA16_UNORM:
+			return 8;
+			
+		case DG::TEX_FORMAT_RG16_UNORM:
+			return 4;
+			
+		case DG::TEX_FORMAT_R16_UNORM:
+			return 2;
+			
+		case DG::TEX_FORMAT_RGBA16_FLOAT:
+			return 8;
+			
+		case DG::TEX_FORMAT_RG16_FLOAT:
+			return 4;
+			
+		case DG::TEX_FORMAT_R16_FLOAT:
+			return 2;
+			
+		case DG::TEX_FORMAT_RGBA32_FLOAT:
+			return 16;
+			
+		case DG::TEX_FORMAT_RG32_FLOAT:
+			return 8;
+			
+		case DG::TEX_FORMAT_R32_FLOAT:
+			return 4;
+			
+		default:
+			throw std::runtime_error("Could not recognize format!");
+		}
+	}
+
+	void TextureResource::SavePng(const std::string& path) {
+		auto desc = mTexture->GetDesc();
+
+		if (desc.Type != DG::RESOURCE_DIM_TEX_2D && 
+			desc.Type != DG::RESOURCE_DIM_TEX_CUBE &&
+			desc.Type != DG::RESOURCE_DIM_TEX_2D_ARRAY &&
+			desc.Type != DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
+			throw std::runtime_error("Cannot save non Texture2D or Cubemap to PNG!");
+		}
+
+		size_t array_size = desc.ArraySize;
+
+		// Create staging texture
+		auto stage_desc = desc;
+		stage_desc.Name = "CPU Retrieval Texture";
+		stage_desc.CPUAccessFlags = DG::CPU_ACCESS_READ;
+		stage_desc.Usage = DG::USAGE_STAGING;
+		stage_desc.BindFlags = DG::BIND_NONE;
+		stage_desc.MiscFlags = DG::MISC_TEXTURE_FLAG_NONE;
+		stage_desc.MipLevels = 1;
+		stage_desc.Format = DG::TEX_FORMAT_RGBA8_UNORM;
+
+		auto context = GetManager()->GetParent()->GetImmediateContext();
+		auto device = GetManager()->GetParent()->GetDevice();
+
+		DG::ITexture* stage_tex = nullptr;
+		device->CreateTexture(stage_desc, nullptr, &stage_tex);
+
+		for (uint slice = 0; slice < array_size; ++slice) {
+			DG::CopyTextureAttribs copy_attribs;
+			copy_attribs.pDstTexture = stage_tex;
+			copy_attribs.DstTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+			copy_attribs.DstSlice = slice;
+
+			copy_attribs.pSrcTexture = mTexture;
+			copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+			copy_attribs.SrcSlice = slice;
+
+			context->CopyTexture(copy_attribs);
+		}
+
+		DG::FenceDesc fence_desc;
+		fence_desc.Name = "CPU Retrieval Texture";
+		DG::IFence* fence = nullptr;
+		device->CreateFence(fence_desc, &fence);
+
+		context->SignalFence(fence, 1);
+		context->WaitForFence(fence, 1, true);
+
+		size_t subresource_data_size = desc.Width * desc.Height * 4;
+
+		const char* side_names_append[] = {
+			"_px",
+			"_nx",
+			"_py",
+			"_ny",
+			"_pz",
+			"_nz"
+		};
+
+		for (uint slice = 0; slice < array_size; ++slice) {
+			std::vector<uint8_t> buf;
+			buf.resize(subresource_data_size);
+
+			DG::MappedTextureSubresource texSub;
+			context->MapTextureSubresource(stage_tex, 0, slice, 
+				DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
+
+			std::memcpy(&buf[0], texSub.pData, subresource_data_size);
+
+			context->UnmapTextureSubresource(stage_tex, 0, 0);
+
+			std::string save_path;
+			if (desc.Type == DG::RESOURCE_DIM_TEX_2D) {
+				save_path = path;
+			} else if (desc.Type == DG::RESOURCE_DIM_TEX_CUBE) {
+				auto pos = path.rfind('.');
+				if (pos == std::string::npos) {
+					save_path = path + side_names_append[slice];
+				} else {
+					save_path = path.substr(0, pos) + side_names_append[slice] + path.substr(pos);
+				}
+			} else if (desc.Type == DG::RESOURCE_DIM_TEX_2D_ARRAY) {
+				auto pos = path.rfind('.');
+				if (pos == std::string::npos) {
+					save_path = path + std::to_string(slice);
+				} else {
+					save_path = path.substr(0, pos) + std::to_string(slice) + path.substr(pos);
+				}
+			} else if (desc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
+				auto pos = path.rfind('.');
+				uint face = slice % 6;
+				uint idx = slice / 6;
+
+				if (pos == std::string::npos) {
+					save_path = path + std::to_string(idx) + side_names_append[face];
+				} else {
+					save_path = path.substr(0, pos) + std::to_string(slice) + side_names_append[face] + path.substr(pos);
+				}
+			}
+
+			auto err = lodepng::encode(save_path, &buf[0], desc.Width, desc.Height);
+
+			if (err) {
+				std::cout << "Encoder error " << err << ": " << lodepng_error_text(err) << std::endl;
+				throw std::runtime_error(lodepng_error_text(err));
+			}
+		}
+
+		stage_tex->Release();
+		fence->Release();
+	}
+
+	void TextureResource::SaveGli(const std::string& path) {
+		auto target = DGToGli(mTexture->GetDesc().Type);
+		auto format = DGToGli(mTexture->GetDesc().Format);
+		auto desc = mTexture->GetDesc();
+
+		std::unique_ptr<gli::texture> tex;
+
+		switch (target) {
+		case gli::TARGET_1D: {
+			gli::extent1d ex;
+			ex.x = desc.Width;
+			tex.reset(new gli::texture1d(format, ex, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_1D_ARRAY: {
+			gli::extent1d ex;
+			ex.x = desc.Width;
+			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_2D: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture2d(format, ex, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_2D_ARRAY: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_3D: {
+			gli::extent3d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			ex.z = desc.Depth;
+			tex.reset(new gli::texture3d(format, ex, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_CUBE: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture_cube(format, ex, desc.MipLevels));
+			break;
+		}
+		case gli::TARGET_CUBE_ARRAY: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			size_t faces = 6;
+			size_t array_size = desc.ArraySize / 6;
+			tex.reset(new gli::texture_cube_array(format, ex, array_size, desc.MipLevels));
+			break;
+		}
+		}
+
+		auto context = GetManager()->GetParent()->GetImmediateContext();
+		auto device = GetManager()->GetParent()->GetDevice();
+
+		uint pixel_size = GetByteSize(desc.Format);
+
+		// Create staging texture
+		auto stage_desc = desc;
+		stage_desc.Name = "CPU Retrieval Texture";
+		stage_desc.CPUAccessFlags = DG::CPU_ACCESS_READ;
+		stage_desc.Usage = DG::USAGE_STAGING;
+		stage_desc.BindFlags = DG::BIND_NONE;
+		stage_desc.MiscFlags = DG::MISC_TEXTURE_FLAG_NONE;
+
+		DG::ITexture* stage_tex = nullptr;
+		device->CreateTexture(stage_desc, nullptr, &stage_tex);
+
+		DG::CopyTextureAttribs copy_attribs;
+
+		for (uint slice = 0; slice < desc.ArraySize; ++slice) {
+			for (uint mip = 0; mip < desc.MipLevels; ++mip) {
+				copy_attribs.DstSlice = slice;
+				copy_attribs.DstMipLevel = mip;
+				copy_attribs.pDstTexture = stage_tex;
+				copy_attribs.DstTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+
+				copy_attribs.SrcSlice = slice;
+				copy_attribs.SrcMipLevel = mip;
+				copy_attribs.pSrcTexture = mTexture;
+				copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+
+				context->CopyTexture(copy_attribs);
+			}
+		}
+
+		DG::FenceDesc fence_desc;
+		fence_desc.Name = "CPU Retrieval Texture";
+		DG::IFence* fence = nullptr;
+		device->CreateFence(fence_desc, &fence);
+
+		context->SignalFence(fence, 1);
+		context->WaitForFence(fence, 1, true);
+
+		for (std::size_t Layer = 0; Layer < tex->layers(); ++Layer) {
+			for (std::size_t Face = 0; Face < tex->faces(); ++Face) {
+				for (std::size_t Level = 0; Level < tex->levels(); ++Level) {
+
+					size_t subresource_width = std::max(1u, desc.Width >> Level);
+					size_t subresource_height = std::max(1u, desc.Width >> Level);
+					size_t subresource_depth = std::max(1u, desc.Depth >> Level);
+
+					size_t subresource_data_size = subresource_width * subresource_height * 
+						subresource_depth * pixel_size;
+
+					size_t array_slice = Layer * tex->faces() + Face;
+
+					DG::MappedTextureSubresource texSub;
+
+					context->MapTextureSubresource(stage_tex, Level, array_slice, 
+						DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
+
+					std::memcpy(tex->data(Layer, Face, Level), texSub.pData, subresource_data_size);
+
+					context->UnmapTextureSubresource(stage_tex, Level, array_slice);
+				}
+			}
+		}
+
+		stage_tex->Release();
+		fence->Release();
+
+		gli::save_ktx(*tex, path);
 	}
 }

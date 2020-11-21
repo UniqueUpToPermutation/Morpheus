@@ -59,6 +59,15 @@ namespace Morpheus
 	}
 
 	void Engine::Startup(int argc, char** argv) {
+
+		std::stringstream ss;
+		for (auto i = 1; i < argc; ++i) {
+			ss << argv[i];
+			ss << " ";
+		}
+		std::string cmdLine = ss.str();
+		ProcessCommandLine(cmdLine.c_str());
+
 		// Create platform
 		mPlatform = CreatePlatform();
 		mPlatform->Initialize(this, argc, argv);
@@ -911,8 +920,6 @@ namespace Morpheus
 	#endif
 			}
 		}
-
-		ProcessCommandLine(CmdLine);
 	}
 
 	void Engine::SelectDeviceType() {

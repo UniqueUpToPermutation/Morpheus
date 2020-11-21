@@ -124,6 +124,7 @@ list(APPEND SOURCE
 	src/ShaderLoader.cpp
 	src/Transform.cpp
 	src/Skybox.cpp
+	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )
 
@@ -147,6 +148,7 @@ PUBLIC
 	include
 	../../gli
 	../../gli/external
+	../../lodepng
 )
 
 if(MSVC)
