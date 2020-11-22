@@ -43,6 +43,5 @@ void main(FullScreenTriangleVSOutput VSOut,
     float2 UV = NormalizedDeviceXYToTexUV(VSOut.f2NormalizedXY);
     float NdotV           = UV.x;
     float linearRoughness = UV.y;
-    //f2BRDF_LUT = IntegrateBRDF(linearRoughness, NdotV, NUM_SAMPLES);
-	f2BRDF_LUT = float2(1.0, 1.0);
+    f2BRDF_LUT = IntegrateBRDF(linearRoughness, NdotV, NUM_SAMPLES);
 }
