@@ -50,8 +50,6 @@ int main(int argc, char** argv) {
 	skybox_texture->Release();
 	resource->Release();
 
-	skybox_texture->SavePng("test.png");
-
 	en.SetScene(scene);
 
 	while (en.IsReady()) {

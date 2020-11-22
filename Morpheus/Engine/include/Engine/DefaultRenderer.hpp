@@ -3,6 +3,7 @@
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/Skybox.hpp>
+#include <Engine/Brdf.hpp>
 
 namespace DG = Diligent;
 
@@ -63,6 +64,7 @@ namespace Morpheus {
 		GlobalsBuffer mGlobalsBuffer;
 		DG::IBuffer* mInstanceBuffer;
 		Transform mIdentityTransform;
+		CookTorranceLUT mCookTorranceLut;
 
 		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
 		void RenderSkybox(SkyboxComponent* skybox);

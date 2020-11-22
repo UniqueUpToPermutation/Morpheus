@@ -450,7 +450,8 @@ namespace Morpheus {
 		desc->DepthWriteEnable = json.value("DepthWriteEnable", desc->DepthWriteEnable);
 	}
 
-	void PipelineLoader::Load(const std::string& source, PipelineResource* resource) {
+	void PipelineLoader::Load(const std::string& source, PipelineResource* resource,
+		const ShaderPreprocessorConfig* overrides) {
 
 		std::cout << "Loading " << source << "..." << std::endl;
 
@@ -465,11 +466,12 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		Load(json, path, resource);
+		Load(json, path, resource, overrides);
 	}
 
 	void PipelineLoader::Load(const nlohmann::json& json,
-		const std::string& path, PipelineResource* resource) {
+		const std::string& path, PipelineResource* resource,
+		const ShaderPreprocessorConfig* overrides) {
 		auto type = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
 
 		std::vector<DG::IShader*> shaders;
@@ -485,12 +487,12 @@ namespace Morpheus {
 				ReadGraphicsInfo(json, &layoutElements, 
 				&variables, &immutableSamplers, &strings);
 
-			auto shaderLoad = [&json, &path, &shaders, this](
+			auto shaderLoad = [&json, &path, &shaders, &overrides, this](
 				DG::IShader** result,
 				const std::string& shaderMacro) {
 				if (json.contains(shaderMacro)) {
 					auto json_macro = json[shaderMacro];
-					auto shad = LoadShader(json_macro, path);
+					auto shad = LoadShader(json_macro, path, overrides);
 					shaders.emplace_back(shad);
 					*result = shad;
 				}
@@ -626,7 +628,8 @@ namespace Morpheus {
 
 	DG::IShader* PipelineLoader::LoadShader(
 		const nlohmann::json& shaderConfig,
-		const std::string& path) {
+		const std::string& path,
+		const ShaderPreprocessorConfig* config) {
 		DG::ShaderCreateInfo info;
 		info.Desc.ShaderType = ReadShaderType(shaderConfig.value("ShaderType", ""));
 		std::string name = shaderConfig.value("Name", "Unnammed Shader");
@@ -640,7 +643,7 @@ namespace Morpheus {
 		std::cout << "Loading " << source << "..." << std::endl;
 
 		ShaderPreprocessorOutput output;
-		mShaderLoader.Load(path + "/" + source, &output);
+		mShaderLoader.Load(path + "/" + source, &output, config);
 
 		info.Source = output.mContent.c_str();
 		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
@@ -661,6 +664,7 @@ namespace Morpheus {
 	Resource* ResourceCache<PipelineResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
+		auto overrides = &params_cast->mOverrides;
 
 		auto it = mCachedResources.find(src);
 		if (it != mCachedResources.end()) {
@@ -668,7 +672,8 @@ namespace Morpheus {
 		}
 
 		PipelineResource* resource = new PipelineResource(mManager);
-		mLoader.Load(src, resource);
+		mLoader.Load(src, resource, overrides);
+		resource->mSource = params_cast->mSource;
 		mCachedResources[src] = resource;
 		return resource;
 	}
@@ -691,7 +696,8 @@ namespace Morpheus {
 
 	void ResourceCache<PipelineResource>::ProcessDeferred() {
 		for (auto& resource : mDefferedResources) {
-			mLoader.Load(resource.second.mSource, resource.first);
+			mLoader.Load(resource.second.mSource, resource.first, &resource.second.mOverrides);
+			resource.first->mSource = resource.second.mSource;
 		}
 
 		mDefferedResources.clear();

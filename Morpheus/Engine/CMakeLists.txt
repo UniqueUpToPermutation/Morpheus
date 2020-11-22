@@ -124,6 +124,7 @@ list(APPEND SOURCE
 	src/ShaderLoader.cpp
 	src/Transform.cpp
 	src/Skybox.cpp
+	src/Brdf.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

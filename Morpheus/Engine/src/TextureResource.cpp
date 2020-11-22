@@ -404,14 +404,63 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureResource::SavePng(const std::string& path) {
-		auto desc = mTexture->GetDesc();
+	template <uint channels>
+	void ImCpy(uint8_t* dest, uint8_t* src, uint pixel_count) {
+
+		uint ptr_dest = 0;
+		uint ptr_src = 0;
+		for (uint i = 0; i < pixel_count; ++i) {
+			dest[ptr_dest++] = src[ptr_src++];
+
+			if constexpr (channels > 1) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				dest[ptr_dest++] = 0;
+			}
+
+			if constexpr (channels > 2) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				dest[ptr_dest++] = 0;
+			}
+
+			if constexpr (channels > 3) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				dest[ptr_dest++] = 1;
+			}
+		}
+	}
+
+	void SavePng(DG::ITexture* texture, const std::string& path, 
+		DG::IDeviceContext* context, DG::IRenderDevice* device) {
+		auto desc = texture->GetDesc();
 
 		if (desc.Type != DG::RESOURCE_DIM_TEX_2D && 
 			desc.Type != DG::RESOURCE_DIM_TEX_CUBE &&
 			desc.Type != DG::RESOURCE_DIM_TEX_2D_ARRAY &&
 			desc.Type != DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
 			throw std::runtime_error("Cannot save non Texture2D or Cubemap to PNG!");
+		}
+
+		if (desc.Format != DG::TEX_FORMAT_RGBA8_UNORM &&
+			desc.Format != DG::TEX_FORMAT_RGBA8_UNORM_SRGB &&
+			desc.Format != DG::TEX_FORMAT_RG8_UNORM &&
+			desc.Format != DG::TEX_FORMAT_R8_UNORM) {
+			throw std::runtime_error("Texture format must be 8-bit byte type!");
+		}
+
+		size_t channels = 0;
+		if (desc.Format == DG::TEX_FORMAT_RGBA8_UNORM ||
+			desc.Format == DG::TEX_FORMAT_RGBA8_UNORM_SRGB) {
+			channels = 4;
+		} else if (desc.Format == DG::TEX_FORMAT_RG8_UNORM) {
+			channels = 2;
+		} else if (desc.Format == DG::TEX_FORMAT_R8_UNORM) {
+			channels = 1;
 		}
 
 		size_t array_size = desc.ArraySize;
@@ -424,10 +473,6 @@ namespace Morpheus {
 		stage_desc.BindFlags = DG::BIND_NONE;
 		stage_desc.MiscFlags = DG::MISC_TEXTURE_FLAG_NONE;
 		stage_desc.MipLevels = 1;
-		stage_desc.Format = DG::TEX_FORMAT_RGBA8_UNORM;
-
-		auto context = GetManager()->GetParent()->GetImmediateContext();
-		auto device = GetManager()->GetParent()->GetDevice();
 
 		DG::ITexture* stage_tex = nullptr;
 		device->CreateTexture(stage_desc, nullptr, &stage_tex);
@@ -438,7 +483,7 @@ namespace Morpheus {
 			copy_attribs.DstTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
 			copy_attribs.DstSlice = slice;
 
-			copy_attribs.pSrcTexture = mTexture;
+			copy_attribs.pSrcTexture = texture;
 			copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
 			copy_attribs.SrcSlice = slice;
 
@@ -454,6 +499,7 @@ namespace Morpheus {
 		context->WaitForFence(fence, 1, true);
 
 		size_t subresource_data_size = desc.Width * desc.Height * 4;
+		size_t subresource_pixels = desc.Width * desc.Height;
 
 		const char* side_names_append[] = {
 			"_px",
@@ -472,7 +518,20 @@ namespace Morpheus {
 			context->MapTextureSubresource(stage_tex, 0, slice, 
 				DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
 
-			std::memcpy(&buf[0], texSub.pData, subresource_data_size);
+			switch (channels) {
+				case 1:
+					ImCpy<1>(&buf[0], (uint8_t*)texSub.pData, subresource_pixels);
+					break;
+				case 2:
+					ImCpy<2>(&buf[0], (uint8_t*)texSub.pData, subresource_pixels);
+					break;
+				case 3:
+					ImCpy<3>(&buf[0], (uint8_t*)texSub.pData, subresource_pixels);
+					break;
+				case 4:
+					ImCpy<4>(&buf[0], (uint8_t*)texSub.pData, subresource_pixels);
+					break;
+			}
 
 			context->UnmapTextureSubresource(stage_tex, 0, 0);
 
@@ -517,10 +576,11 @@ namespace Morpheus {
 		fence->Release();
 	}
 
-	void TextureResource::SaveGli(const std::string& path) {
-		auto target = DGToGli(mTexture->GetDesc().Type);
-		auto format = DGToGli(mTexture->GetDesc().Format);
-		auto desc = mTexture->GetDesc();
+	void SaveGli(DG::ITexture* texture, const std::string& path, 
+		DG::IDeviceContext* context, DG::IRenderDevice* device) {
+		auto target = DGToGli(texture->GetDesc().Type);
+		auto format = DGToGli(texture->GetDesc().Format);
+		auto desc = texture->GetDesc();
 
 		std::unique_ptr<gli::texture> tex;
 
@@ -577,9 +637,6 @@ namespace Morpheus {
 		}
 		}
 
-		auto context = GetManager()->GetParent()->GetImmediateContext();
-		auto device = GetManager()->GetParent()->GetDevice();
-
 		uint pixel_size = GetByteSize(desc.Format);
 
 		// Create staging texture
@@ -604,7 +661,7 @@ namespace Morpheus {
 
 				copy_attribs.SrcSlice = slice;
 				copy_attribs.SrcMipLevel = mip;
-				copy_attribs.pSrcTexture = mTexture;
+				copy_attribs.pSrcTexture = texture;
 				copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
 
 				context->CopyTexture(copy_attribs);
@@ -648,5 +705,17 @@ namespace Morpheus {
 		fence->Release();
 
 		gli::save_ktx(*tex, path);
+	}
+
+	void TextureResource::SavePng(const std::string& path) {
+		Morpheus::SavePng(mTexture, path, 
+			GetManager()->GetParent()->GetImmediateContext(),
+			GetManager()->GetParent()->GetDevice());
+	}
+
+	void TextureResource::SaveGli(const std::string& path) {
+		Morpheus::SaveGli(mTexture, path,
+			GetManager()->GetParent()->GetImmediateContext(),
+			GetManager()->GetParent()->GetDevice());
 	}
 }

@@ -58,6 +58,11 @@ namespace Morpheus {
 		friend class ResourceCache<TextureResource>;
 	};
 
+	void SavePng(DG::ITexture* texture, const std::string& path, 
+		DG::IDeviceContext* context, DG::IRenderDevice* device);
+	void SaveGli(DG::ITexture* texture, const std::string& path, 
+		DG::IDeviceContext* context, DG::IRenderDevice* device);
+
 	template <>
 	struct LoadParams<TextureResource> {
 		std::string mSource;

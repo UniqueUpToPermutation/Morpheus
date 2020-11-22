@@ -66,31 +66,26 @@ namespace Morpheus {
 			bool bGlobalSearch = false;
 
 			auto quotesIt = std::find(&contents[include_pos], &contents[endLineIndex], '\"');
-			auto carrotsIt = std::find(&contents[include_pos], &contents[endLineIndex], '<');
 
-			ss << contents.substr(last_include_pos, include_pos) << "//";
+			ss << contents.substr(last_include_pos, include_pos - last_include_pos);
 
-			if (quotesIt == &contents[endLineIndex] && carrotsIt == &contents[endLineIndex]) {
+			if (quotesIt == &contents[endLineIndex]) {
 				std::cout << source << ": Warning: #include detected without include file!" << std::endl;
 			}
 			else {
 				size_t endIndx;
 				size_t startIndx;
 
-				if (quotesIt < carrotsIt) {
-					startIndx = quotesIt - &contents[0] + 1;
-					endIndx = contents.find('\"', startIndx);
-					bGlobalSearch = false;
-				} else {
-					startIndx = carrotsIt - &contents[0] + 1;
-					endIndx = contents.find('>', startIndx);
-					bGlobalSearch = true;
-				}
+				startIndx = quotesIt - &contents[0] + 1;
+				endIndx = contents.find('\"', startIndx);
+				bGlobalSearch = false;
 				
 				if (endIndx == std::string::npos) {
 					std::cout << source << ": Warning: unmatched quote in #include!" << std::endl;
 					return;
 				}
+
+				last_include_pos = endIndx + 1;
 
 				std::string includeSource = contents.substr(startIndx, endIndx - startIndx);
 				std::string nextPath = path;
@@ -117,7 +112,7 @@ namespace Morpheus {
 				Load(includeSource, nextPath, defaults, overrides, streamOut,
 					output, alreadyVisited);
 				
-				ss << std::endl << "\n#line " << current_line << " \"" << path + "/" + source << "\"" << std::endl; // Reset line numbers
+				ss << std::endl << "\n#line " << current_line << " \"" << source << "\"" << std::endl; // Reset line numbers
 			}
 
 			include_pos = contents.find("#include", include_pos + 1);

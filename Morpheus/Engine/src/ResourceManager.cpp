@@ -49,6 +49,8 @@ namespace Morpheus {
 	}
 
 	ResourceManager::~ResourceManager() {
+		CollectGarbage();
+
 		for (auto it : mResourceCaches) {
 			delete it.second;
 		}

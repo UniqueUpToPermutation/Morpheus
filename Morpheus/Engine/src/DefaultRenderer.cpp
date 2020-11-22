@@ -103,6 +103,7 @@ namespace Morpheus {
 
 	DefaultRenderer::DefaultRenderer(Engine* engine,
 		uint instanceBatchSize) :
+		mCookTorranceLut(engine->GetDevice()),
 		mInstanceBuffer(nullptr),
 		mEngine(engine), 
 		mGlobalsBuffer(engine->GetDevice()) {
@@ -122,6 +123,16 @@ namespace Morpheus {
 	}
 
 	void DefaultRenderer::Initialize() {
+		std::cout << "Precomputing Cook-Torrance BRDF..." << std::endl;
+
+		auto context = mEngine->GetImmediateContext();
+
+		mCookTorranceLut.Compute(mEngine->GetResourceManager(),
+			context, 
+			mEngine->GetDevice());
+
+		context->SetRenderTargets(0, nullptr, nullptr,
+			RESOURCE_STATE_TRANSITION_MODE_NONE);
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {

@@ -1,0 +1,42 @@
+{
+	"Name" : "Precompute BRDF PSO",
+	"PipelineType" : "PIPELINE_TYPE_GRAPHICS",
+	"NumRenderTargets" : 1,
+
+	"RTVFormats" : [
+		"TEX_FORMAT_RG16_FLOAT"
+	],
+	
+	"PrimitiveTopology" : "PRIMITIVE_TOPOLOGY_TRIANGLE_LIST",
+
+	"RasterizerDesc" : {
+		"CullMode" 		: "CULL_MODE_NONE"
+	},
+	 
+	"DepthStencilDesc" : {
+		"DepthEnable" 	: false
+	},
+
+	"VS" : {
+		"ShaderType" 	: "SHADER_TYPE_VERTEX",
+		"Name" 			: "Fullscreen Triangle",
+		"Source" 		: "FullscreenTriangle.vsh",
+		"EntryPoint" 	: "main"
+	},
+
+	"PS" : {
+		"ShaderType" 	: "SHADER_TYPE_PIXEL",
+		"Name" 			: "Precompute BRDF Pixel Shader",
+		"Source" 		: "PrecomputeBRDF.psh",
+		"EntryPoint" 	: "main"
+	},
+
+	"InputLayout" : [
+	],
+
+	"Attributes" : {
+	},
+
+	"ResourceLayout" : {
+	}
+}

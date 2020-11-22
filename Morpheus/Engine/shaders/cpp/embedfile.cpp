@@ -13,7 +13,8 @@ using namespace std;
 set<string> important_ext = {
 	".psh",
 	".vsh",
-	".json"
+	".json",
+	".hlsl"
 };
 
 void write_into_lookup(const fs::__cxx11::directory_entry& path,

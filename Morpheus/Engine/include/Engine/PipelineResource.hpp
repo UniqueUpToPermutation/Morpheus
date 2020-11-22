@@ -89,6 +89,7 @@ namespace Morpheus {
 	template <>
 	struct LoadParams<PipelineResource> {
 		std::string mSource;
+		ShaderPreprocessorConfig mOverrides;
 
 		static LoadParams<PipelineResource> FromString(const std::string& str) {
 			LoadParams<PipelineResource> p;
@@ -134,8 +135,10 @@ namespace Morpheus {
 		DG::FILTER_TYPE ReadFilterType(const nlohmann::json& json);
 		DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
 
-		void Load(const std::string& source, PipelineResource* into);
-		void Load(const nlohmann::json& json, const std::string& path, PipelineResource* into);
+		void Load(const std::string& source, PipelineResource* into, 
+			const ShaderPreprocessorConfig* overrides=nullptr);
+		void Load(const nlohmann::json& json, const std::string& path, PipelineResource* into, 
+			const ShaderPreprocessorConfig* overrides=nullptr);
 		DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
 		DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(const nlohmann::json& json, 
 			std::vector<DG::LayoutElement>* layoutElements,
@@ -143,7 +146,8 @@ namespace Morpheus {
 			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
 			std::vector<char*>* strings);
 		DG::IShader* LoadShader(const nlohmann::json& shaderConfig,
-			const std::string& path);
+			const std::string& path,
+			const ShaderPreprocessorConfig* config = nullptr);
 	};
 
 	template <>
