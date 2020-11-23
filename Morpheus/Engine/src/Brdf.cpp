@@ -2,6 +2,10 @@
 
 #include <Engine/PipelineResource.hpp>
 #include <Engine/TextureResource.hpp>
+#include <Engine/Engine.hpp>
+
+#include "GraphicsUtilities.h"
+#include "MapHelper.hpp"
 
 namespace Morpheus {
 	CookTorranceLUT::CookTorranceLUT(DG::IRenderDevice* device, 
@@ -63,5 +67,345 @@ namespace Morpheus {
 
 	void CookTorranceLUT::SaveGli(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device) {
 		Morpheus::SaveGli(mLut, path, context, device);
+	}
+
+	LightProbeProcessor::LightProbeProcessor(DG::IRenderDevice* device) : 
+		mIrradiancePipeline(nullptr), 
+		mPrefilterEnvPipeline(nullptr), 
+		mSHIrradiancePipeline(nullptr),
+		mIrradianceSRB(nullptr),
+		mPrefilterEnvSRB(nullptr),
+		mSHIrradianceSRB(nullptr),
+		mTransformConstantBuffer(nullptr) {
+
+		DG::CreateUniformBuffer(device, sizeof(PrecomputeEnvMapAttribs),
+			"Light Probe Processor Constants Buffer", 
+			&mTransformConstantBuffer);
+	}
+
+	LightProbeProcessor::~LightProbeProcessor() {
+
+		if (mIrradianceSRB)
+			mIrradianceSRB->Release();
+		if (mPrefilterEnvSRB)
+			mPrefilterEnvSRB->Release();
+		if (mSHIrradianceSRB)
+			mSHIrradianceSRB->Release();
+
+		if (mIrradiancePipeline)
+			mIrradiancePipeline->Release();
+		if (mPrefilterEnvPipeline)
+			mPrefilterEnvPipeline->Release();
+		if (mSHIrradiancePipeline)
+			mSHIrradiancePipeline->Release();
+
+		mTransformConstantBuffer->Release();
+	}
+
+	void LightProbeProcessor::Initialize(ResourceManager* resourceManager,
+			DG::TEXTURE_FORMAT irradianceFormat,
+			DG::TEXTURE_FORMAT environmentFormat,
+			const uint irradianceSamplesTheta,
+			const uint irradianceSamplesPhi,
+			const bool envMapOptimizeSamples,
+			const uint envMapSamples) {
+
+		mIrradianceFormat = irradianceFormat;
+		mPrefilteredEnvFormat = environmentFormat;
+
+		mEnvironmentMapSamples = envMapSamples;
+		
+		auto pipelineCache = resourceManager->GetCache<PipelineResource>();
+		auto loader = pipelineCache->GetLoader();
+		auto device = resourceManager->GetParent()->GetDevice();
+
+		ShaderPreprocessorConfig irradianceConfig;
+		ShaderPreprocessorConfig prefilterEnvConfig;
+
+		irradianceConfig.mDefines["NUM_PHI_SAMPLES"] = std::to_string(irradianceSamplesPhi);
+		irradianceConfig.mDefines["NUM_THETA_SAMPLES"] = std::to_string(irradianceSamplesTheta);
+
+		prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)envMapOptimizeSamples);
+
+		auto cubemapFaceVS = loader->LoadShader(DG::SHADER_TYPE_VERTEX,
+			"internal/CubemapFace.vsh",
+			"Cubemap Face Vertex Shader",
+			"main",
+			nullptr);
+
+		auto irradiancePS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
+			"internal/ComputeIrradiance.psh",
+			"Compute Irradiance Pixel Shader",
+			"main",
+			&irradianceConfig);
+
+		auto environmentPS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
+			"internal/PrefilterEnvironment.psh",
+			"Compute Environment Pixel Shader",
+			"main",
+			&prefilterEnvConfig);
+
+		DG::SamplerDesc SamLinearClampDesc
+		{
+			DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, 
+			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
+		};
+
+		{
+			// Create Irradiance Pipeline
+			DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+			DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+			DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+
+			PSODesc.Name         = "Precompute irradiance cube PSO";
+			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+
+			GraphicsPipeline.NumRenderTargets             = 1;
+			GraphicsPipeline.RTVFormats[0]                = irradianceFormat;
+			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
+			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
+
+			PSOCreateInfo.pVS = cubemapFaceVS;
+			PSOCreateInfo.pPS = irradiancePS;
+
+			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+			// clang-format off
+			DG::ShaderResourceVariableDesc Vars[] = 
+			{
+				{DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
+			};
+			// clang-format on
+			PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+			PSODesc.ResourceLayout.Variables    = Vars;
+
+			// clang-format off
+			DG::ImmutableSamplerDesc ImtblSamplers[] =
+			{
+				{DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap_sampler", SamLinearClampDesc}
+			};
+			// clang-format on
+			PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
+			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
+
+			device->CreateGraphicsPipelineState(PSOCreateInfo, &mIrradiancePipeline);
+			mIrradiancePipeline->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "mTransform")->Set(mTransformConstantBuffer);
+			mIrradiancePipeline->CreateShaderResourceBinding(&mIrradianceSRB, true);
+		}
+
+		{
+			// Create Environment Pipeline
+			DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+			DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+			DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+
+			PSODesc.Name         = "Prefilter environment map PSO";
+			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+
+			GraphicsPipeline.NumRenderTargets             = 1;
+			GraphicsPipeline.RTVFormats[0]                = environmentFormat;
+			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
+			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
+
+			PSOCreateInfo.pVS = cubemapFaceVS;
+			PSOCreateInfo.pPS = environmentPS;
+
+			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+			// clang-format off
+			DG::ShaderResourceVariableDesc Vars[] = 
+			{
+				{DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
+			};
+			// clang-format on
+			PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+			PSODesc.ResourceLayout.Variables    = Vars;
+
+			// clang-format off
+			DG::ImmutableSamplerDesc ImtblSamplers[] =
+			{
+				{DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap_sampler", SamLinearClampDesc}
+			};
+			// clang-format on
+			PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
+			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
+
+			device->CreateGraphicsPipelineState(PSOCreateInfo, &mPrefilterEnvPipeline);
+			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "mTransform")->Set(mTransformConstantBuffer);
+			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "FilterAttribs")->Set(mTransformConstantBuffer);
+			mPrefilterEnvPipeline->CreateShaderResourceBinding(&mPrefilterEnvSRB, true);
+		}
+	}
+
+	void LightProbeProcessor::ComputeIrradiance(DG::IDeviceContext* context, 
+		DG::ITextureView* environmentSRV,
+		DG::ITexture* outputCubemap) {
+
+		if (!mIrradiancePipeline) {
+			throw std::runtime_error("Initialize has not been called!");
+		}
+		if (outputCubemap->GetDesc().Format != mIrradianceFormat) {
+			throw std::runtime_error("Output cubemap does not have correct format!");
+		}
+
+		// clang-format off
+		const std::array<DG::float4x4, 6> Matrices =
+		{
+	/* +X */ DG::float4x4::RotationY(+DG::PI_F / 2.f),
+	/* -X */ DG::float4x4::RotationY(-DG::PI_F / 2.f),
+	/* +Y */ DG::float4x4::RotationX(-DG::PI_F / 2.f),
+	/* -Y */ DG::float4x4::RotationX(+DG::PI_F / 2.f),
+	/* +Z */ DG::float4x4::Identity(),
+	/* -Z */ DG::float4x4::RotationY(DG::PI_F)
+		};
+		// clang-format on
+
+		context->SetPipelineState(mIrradiancePipeline);
+		mIrradianceSRB->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap")->Set(environmentSRV);
+		context->CommitShaderResources(mIrradianceSRB, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		auto*       pIrradianceCube    = outputCubemap;
+		const auto& IrradianceCubeDesc = pIrradianceCube->GetDesc();
+		for (uint mip = 0; mip < IrradianceCubeDesc.MipLevels; ++mip)
+		{
+			for (uint face = 0; face < 6; ++face)
+			{
+				DG::TextureViewDesc RTVDesc(DG::TEXTURE_VIEW_RENDER_TARGET, DG::RESOURCE_DIM_TEX_2D_ARRAY);
+				RTVDesc.Name            = "RTV for irradiance cube texture";
+				RTVDesc.MostDetailedMip = mip;
+				RTVDesc.FirstArraySlice = face;
+				RTVDesc.NumArraySlices  = 1;
+				DG::RefCntAutoPtr<DG::ITextureView> pRTV;
+				pIrradianceCube->CreateView(RTVDesc, &pRTV);
+				DG::ITextureView* ppRTVs[] = {pRTV};
+				context->SetRenderTargets(_countof(ppRTVs), ppRTVs, nullptr, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+				{
+					DG::MapHelper<PrecomputeEnvMapAttribs> Attribs(context, mTransformConstantBuffer, 
+						DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
+					Attribs->Rotation = Matrices[face];
+				}
+				DG::DrawAttribs drawAttrs(4, DG::DRAW_FLAG_VERIFY_ALL);
+				context->Draw(drawAttrs);
+			}
+		}
+
+		// clang-format off
+		DG::StateTransitionDesc Barriers[] = 
+		{
+			{outputCubemap, DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
+		};
+		// clang-format on
+		context->TransitionResourceStates(_countof(Barriers), Barriers);
+	}
+
+	void LightProbeProcessor::ComputePrefilteredEnvironment(DG::IDeviceContext* context, 
+		DG::ITextureView* environmentSRV,
+		DG::ITexture* outputCubemap) {
+
+		if (!mPrefilterEnvPipeline) {
+			throw std::runtime_error("Initialize has not been called!");
+		}
+		if (outputCubemap->GetDesc().Format != mPrefilteredEnvFormat) {
+			throw std::runtime_error("Output cubemap does not have correct format!");
+		}
+
+		// clang-format off
+		const std::array<DG::float4x4, 6> Matrices =
+		{
+	/* +X */ DG::float4x4::RotationY(+DG::PI_F / 2.f),
+	/* -X */ DG::float4x4::RotationY(-DG::PI_F / 2.f),
+	/* +Y */ DG::float4x4::RotationX(-DG::PI_F / 2.f),
+	/* -Y */ DG::float4x4::RotationX(+DG::PI_F / 2.f),
+	/* +Z */ DG::float4x4::Identity(),
+	/* -Z */ DG::float4x4::RotationY(DG::PI_F)
+		};
+		// clang-format on
+
+		context->SetPipelineState(mPrefilterEnvPipeline);
+		mPrefilterEnvSRB->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_EnvironmentMap")->Set(environmentSRV);
+		context->CommitShaderResources(mPrefilterEnvSRB, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		auto*       pPrefilteredEnvMap    = outputCubemap;
+		const auto& PrefilteredEnvMapDesc = pPrefilteredEnvMap->GetDesc();
+		for (uint mip = 0; mip < PrefilteredEnvMapDesc.MipLevels; ++mip)
+		{
+			for (uint face = 0; face < 6; ++face)
+			{
+				DG::TextureViewDesc RTVDesc(DG::TEXTURE_VIEW_RENDER_TARGET, DG::RESOURCE_DIM_TEX_2D_ARRAY);
+				RTVDesc.Name            = "RTV for prefiltered env map cube texture";
+				RTVDesc.MostDetailedMip = mip;
+				RTVDesc.FirstArraySlice = face;
+				RTVDesc.NumArraySlices  = 1;
+				DG::RefCntAutoPtr<DG::ITextureView> pRTV;
+				pPrefilteredEnvMap->CreateView(RTVDesc, &pRTV);
+				DG::ITextureView* ppRTVs[] = {pRTV};
+				context->SetRenderTargets(_countof(ppRTVs), ppRTVs, nullptr, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+				{
+					DG::MapHelper<PrecomputeEnvMapAttribs> Attribs(context, mTransformConstantBuffer, 
+						DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
+					Attribs->Rotation   = Matrices[face];
+					Attribs->Roughness  = static_cast<float>(mip) / static_cast<float>(PrefilteredEnvMapDesc.MipLevels);
+					Attribs->EnvMapDim  = static_cast<float>(PrefilteredEnvMapDesc.Width);
+					Attribs->NumSamples = mEnvironmentMapSamples;
+				}
+
+				DG::DrawAttribs drawAttrs(4, DG::DRAW_FLAG_VERIFY_ALL);
+				context->Draw(drawAttrs);
+			}
+		}
+
+		// clang-format off
+		DG::StateTransitionDesc Barriers[] = 
+		{
+			{outputCubemap, DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
+		};
+		// clang-format on
+		context->TransitionResourceStates(_countof(Barriers), Barriers);
+	}
+
+	DG::ITexture* LightProbeProcessor::ComputeIrradiance(DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		DG::ITextureView* incommingEnvironmentSRV,
+		uint size) {
+		
+		DG::TextureDesc desc;
+		desc.BindFlags = DG::BIND_RENDER_TARGET | DG::BIND_SHADER_RESOURCE;
+		desc.Width = size;
+		desc.Height = size;
+		desc.MipLevels = 0;
+		desc.ArraySize = 6;
+		desc.Type = DG::RESOURCE_DIM_TEX_CUBE;
+		desc.Usage = DG::USAGE_DEFAULT;
+		desc.Name = "Light Probe Irradiance";
+		desc.Format = mIrradianceFormat;
+
+		DG::ITexture* result = nullptr;
+		device->CreateTexture(desc, nullptr, &result);
+
+		ComputeIrradiance(context, incommingEnvironmentSRV, result);
+		return result;
+	}
+
+	DG::ITexture* LightProbeProcessor::ComputePrefilteredEnvironment(DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		DG::ITextureView* incommingEnvironmentSRV,
+		uint size) {
+
+		DG::TextureDesc desc;
+		desc.BindFlags = DG::BIND_RENDER_TARGET | DG::BIND_SHADER_RESOURCE;
+		desc.Width = size;
+		desc.Height = size;
+		desc.MipLevels = 0;
+		desc.ArraySize = 6;
+		desc.Type = DG::RESOURCE_DIM_TEX_CUBE;
+		desc.Usage = DG::USAGE_DEFAULT;
+		desc.Name = "Light Probe Prefiltered Environment";
+		desc.Format = mPrefilteredEnvFormat;
+
+		DG::ITexture* result = nullptr;
+		device->CreateTexture(desc, nullptr, &result);
+
+		ComputePrefilteredEnvironment(context, incommingEnvironmentSRV, result);
+		return result;
+
 	}
 }

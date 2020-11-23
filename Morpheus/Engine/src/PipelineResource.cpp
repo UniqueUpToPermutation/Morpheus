@@ -653,6 +653,30 @@ namespace Morpheus {
 		return shader;
 	}
 
+	DG::IShader* PipelineLoader::LoadShader(DG::SHADER_TYPE shaderType,
+		const std::string& path,
+		const std::string& name,
+		const std::string& entryPoint,
+		const ShaderPreprocessorConfig* config) {
+		DG::ShaderCreateInfo info;
+		info.Desc.ShaderType = shaderType;
+		info.Desc.Name = name.c_str();
+		info.EntryPoint = entryPoint.c_str();
+
+		std::cout << "Loading " << path << "..." << std::endl;
+
+		ShaderPreprocessorOutput output;
+		mShaderLoader.Load(path, &output, config);
+
+		info.Source = output.mContent.c_str();
+		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
+
+		DG::IShader* shader = nullptr;
+		mManager->GetParent()->GetDevice()->CreateShader(info, &shader);
+
+		return shader;
+	}
+
 	ResourceCache<PipelineResource>::~ResourceCache() {
 		Clear();
 	}

@@ -1,9 +1,11 @@
 #include <Engine/Engine.hpp>
+#include <Engine/TextureResource.hpp>
 #include <Engine/PipelineResource.hpp>
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/CameraComponent.hpp>
 #include <Engine/Skybox.hpp>
+#include <Engine/Brdf.hpp>
 #include <random>
 
 using namespace Morpheus;
@@ -44,8 +46,25 @@ int main(int argc, char** argv) {
 	}
 
 	auto skybox_texture = en.GetResourceManager()->Load<TextureResource>("env.ktx");
+
+	LightProbeProcessor processor(en.GetDevice());
+	processor.Initialize(en.GetResourceManager(), 
+		DG::TEX_FORMAT_RGBA16_FLOAT, 
+		DG::TEX_FORMAT_RGBA16_FLOAT, 
+		64, 128);
+	auto tex = processor.ComputeIrradiance(en.GetDevice(), en.GetImmediateContext(), skybox_texture->GetShaderView(), 256);
+	auto tex2 = processor.ComputePrefilteredEnvironment(en.GetDevice(), en.GetImmediateContext(), skybox_texture->GetShaderView(), 256);
+
+	auto tex_res = new TextureResource(en.GetResourceManager(), tex);
+	tex_res->AddRef();
+	en.GetResourceManager()->Add(tex_res, "PROCESSED RESOURCE");
+
+	auto tex_res2 = new TextureResource(en.GetResourceManager(), tex2);
+	tex_res2->AddRef();
+	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");
+
 	auto skybox = scene->CreateChild(root);
-	skybox.AddComponent<SkyboxComponent>(skybox_texture);
+	skybox.AddComponent<SkyboxComponent>(tex_res2);
 
 	skybox_texture->Release();
 	resource->Release();

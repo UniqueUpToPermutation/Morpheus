@@ -23,12 +23,23 @@ namespace Morpheus {
 		ResourceManager(Engine* parent);
 		~ResourceManager();
 
+		template <typename T>
+		inline ResourceCache<T>* GetCache() {
+			auto it = mResourceCaches.find(resource_type::type<T>);
+
+			if (it != mResourceCaches.end()) {
+				return dynamic_cast<ResourceCache<T>*>(it->second);
+			}
+
+			return nullptr;
+		}
+
 		inline ShaderPreprocessorConfig* GetShaderPreprocessorConfig() {
 			return &mShaderPreprocessorConfig;
 		}
 
 		template <typename T>
-		inline T* Add(Resource* resource, const LoadParams<T>& params) {
+		inline void Add(T* resource, const LoadParams<T>& params) {
 			auto resource_id = resource_type::type<T>;
 			auto it = mResourceCaches.find(resource_id);
 
@@ -36,11 +47,11 @@ namespace Morpheus {
 				throw std::runtime_error("Could not find resource cache for resource type!");
 			}
 
-			it->second->Add(resource, params);
+			it->second->Add(resource, &params);
 		}
 
 		template <typename T>
-		inline void Add(Resource* resource, const std::string& str) {
+		inline void Add(T* resource, const std::string& str) {
 			Add(resource, LoadParams<T>::FromString(str));
 		}
 

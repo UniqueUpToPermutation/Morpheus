@@ -52,6 +52,7 @@ namespace Morpheus {
 		void SelectDeviceType();
 		void Startup(int argc, char** argv);
 		void Shutdown();
+		void CollectGarbage();
 
 		void GetDesiredInitialWindowSize(int& width, int& height) override final
 		{

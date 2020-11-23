@@ -2,12 +2,22 @@
 
 #include "RenderDevice.h"
 #include "DeviceContext.h"
+#include "BasicMath.hpp"
 
 #include <Engine/ResourceManager.hpp>
 
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	inline uint MipCount(const uint width, const uint height) {
+		return 1 + std::floor(std::log2(std::max(width, height)));
+	}
+
+	inline uint MipCount(const uint width, const uint height, const uint depth) {
+		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
+	}
+
 	class CookTorranceLUT {
 	private:
 		DG::ITexture* mLut;
@@ -34,5 +44,68 @@ namespace Morpheus {
 
 		void SavePng(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device);
 		void SaveGli(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device);
+	};
+
+	struct PrecomputeEnvMapAttribs
+    {
+        DG::float4x4 Rotation;
+
+        float Roughness;
+        float EnvMapDim;
+        uint  NumSamples;
+        float Dummy;
+    };
+	class LightProbeProcessor {
+	private:
+		DG::IPipelineState* mIrradiancePipeline;
+		DG::IPipelineState* mPrefilterEnvPipeline;
+		DG::IPipelineState* mSHIrradiancePipeline;
+		DG::IBuffer* mTransformConstantBuffer;
+		DG::IShaderResourceBinding* mIrradianceSRB;
+		DG::IShaderResourceBinding* mPrefilterEnvSRB;
+		DG::IShaderResourceBinding* mSHIrradianceSRB;
+
+		DG::TEXTURE_FORMAT mIrradianceFormat;
+		DG::TEXTURE_FORMAT mPrefilteredEnvFormat;
+
+		uint mEnvironmentMapSamples;
+
+	public:
+		LightProbeProcessor(DG::IRenderDevice* device);
+		~LightProbeProcessor();
+
+		void Initialize(ResourceManager* resourceManager,
+			DG::TEXTURE_FORMAT irradianceFormat,
+			DG::TEXTURE_FORMAT prefilterEnvFormat,
+			const uint irradianceSamplesTheta = 32,
+			const uint irradianceSamplesPhi = 64,
+			const bool envMapOptimizeSamples = true,
+			const uint envMapSamples = 256);
+
+		inline void SetEnvironmentMapSamples(uint envMapSamples) {
+			mEnvironmentMapSamples = envMapSamples;
+		}
+
+		inline uint GetEnvironmentMapSamples() const {
+			return mEnvironmentMapSamples;
+		}
+
+		void ComputeIrradiance(DG::IDeviceContext* context, 
+			DG::ITextureView* incommingEnvironmentSRV,
+			DG::ITexture* outputCubemap);
+
+		void ComputePrefilteredEnvironment(DG::IDeviceContext* context, 
+			DG::ITextureView* incommingEnvironmentSRV,
+			DG::ITexture* outputCubemap);
+
+		DG::ITexture* ComputeIrradiance(DG::IRenderDevice* device,
+			DG::IDeviceContext* context,
+			DG::ITextureView* incommingEnvironmentSRV,
+			uint size);
+
+		DG::ITexture* ComputePrefilteredEnvironment(DG::IRenderDevice* device,
+			DG::IDeviceContext* context,
+			DG::ITextureView* incommingEnvironmentSRV,
+			uint size);
 	};
 }

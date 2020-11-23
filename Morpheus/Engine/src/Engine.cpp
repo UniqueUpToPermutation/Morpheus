@@ -154,8 +154,13 @@ namespace Morpheus
 			}
 		}
 
-		std::cout << "Collecting garbage" << std::endl;
-		mResourceManager->CollectGarbage();
+		CollectGarbage();
+	}
+
+	void Engine::CollectGarbage() {
+		std::cout << "Collecting garbage..." << std::endl;
+		if (mResourceManager)
+			mResourceManager->CollectGarbage();
 	}
 
 	void Engine::Shutdown() {

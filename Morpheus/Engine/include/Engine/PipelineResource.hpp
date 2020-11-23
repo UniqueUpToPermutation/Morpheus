@@ -148,6 +148,11 @@ namespace Morpheus {
 		DG::IShader* LoadShader(const nlohmann::json& shaderConfig,
 			const std::string& path,
 			const ShaderPreprocessorConfig* config = nullptr);
+		DG::IShader* LoadShader(DG::SHADER_TYPE shaderType,
+			const std::string& path,
+			const std::string& name,
+			const std::string& entryPoint,
+			const ShaderPreprocessorConfig* config = nullptr);
 	};
 
 	template <>
@@ -164,6 +169,10 @@ namespace Morpheus {
 			mManager(manager) {
 		}
 		~ResourceCache();
+
+		inline PipelineLoader* GetLoader() {
+			return &mLoader;
+		}
 
 		Resource* Load(const void* params) override;
 		Resource* DeferredLoad(const void* params) override;
