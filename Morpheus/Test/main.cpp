@@ -4,6 +4,7 @@
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/CameraComponent.hpp>
+#include <Engine/HdriToCubemap.hpp>
 #include <Engine/Skybox.hpp>
 #include <Engine/Brdf.hpp>
 #include <random>
@@ -21,7 +22,7 @@ int main(int argc, char** argv) {
 	auto cameraComponent = cameraNode.AddComponent<CameraComponent>();
 	float rot = 0.0f;
 	cameraComponent->SetPerspectiveLookAt(
-		DG::float3(15.0f * std::sin(rot), 15.0f, 15.0f * std::cos(rot)), 
+		DG::float3(15.0f * std::sin(rot), 5.0f, 15.0f * std::cos(rot)), 
 		DG::float3(0.0f, 0.0f, 0.0f), 
 		DG::float3(0.0f, 1.0f, 0.0f));
 	auto camera = dynamic_cast<PerspectiveLookAtCamera*>(cameraComponent->GetCamera());
@@ -45,9 +46,19 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	auto skybox_texture = en.GetResourceManager()->Load<TextureResource>("env.ktx");
+	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 
-	LightProbeProcessor processor(en.GetDevice());
+	HDRIToCubemapConverter conv(en.GetDevice());
+	conv.Initialize(en.GetResourceManager(), DG::TEX_FORMAT_RGBA16_FLOAT);
+	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048);
+
+	skybox_hdri->Release();
+
+	auto tex_res = new TextureResource(en.GetResourceManager(), skybox_texture);
+	tex_res->AddRef();
+	en.GetResourceManager()->Add(tex_res, "SKYBOX");
+
+	/*LightProbeProcessor processor(en.GetDevice());
 	processor.Initialize(en.GetResourceManager(), 
 		DG::TEX_FORMAT_RGBA16_FLOAT, 
 		DG::TEX_FORMAT_RGBA16_FLOAT, 
@@ -61,12 +72,11 @@ int main(int argc, char** argv) {
 
 	auto tex_res2 = new TextureResource(en.GetResourceManager(), tex2);
 	tex_res2->AddRef();
-	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");
+	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");*/
 
 	auto skybox = scene->CreateChild(root);
-	skybox.AddComponent<SkyboxComponent>(tex_res2);
+	skybox.AddComponent<SkyboxComponent>(tex_res);
 
-	skybox_texture->Release();
 	resource->Release();
 
 	en.SetScene(scene);
@@ -75,7 +85,7 @@ int main(int argc, char** argv) {
 		en.Update();
 
 		rot += 0.01f;
-		camera->mEye = DG::float3(15.0f * std::sin(rot), 15.0f, 15.0f * std::cos(rot));
+		camera->mEye = DG::float3(15.0f * std::sin(rot), 5.0f, 15.0f * std::cos(rot));
 
 		en.Render();
 		en.Present();

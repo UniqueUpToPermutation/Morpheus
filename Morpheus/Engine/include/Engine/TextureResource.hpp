@@ -13,6 +13,15 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	inline uint MipCount(const uint width, const uint height) {
+		return 1 + std::floor(std::log2(std::max(width, height)));
+	}
+
+	inline uint MipCount(const uint width, const uint height, const uint depth) {
+		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
+	}
+
 	class TextureResource : public Resource {
 	private:
 		DG::ITexture* mTexture;
@@ -83,6 +92,7 @@ namespace Morpheus {
 
 		void LoadGli(const std::string& source, TextureResource* texture);
 		void LoadDiligent(const std::string& source, TextureResource* texture);
+		void LoadStb(const std::string& source, TextureResource* texture);
 		void Load(const std::string& source, TextureResource* texture);
 	};
 

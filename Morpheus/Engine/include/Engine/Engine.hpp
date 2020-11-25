@@ -182,6 +182,11 @@ namespace Morpheus {
 
 		void SetScene(SceneHeirarchy* scene, bool bUnloadOld = true);
 
+		inline DG::InputController& GetInputController()
+		{
+			return mInputController;
+		}
+
 		inline SceneHeirarchy* GetScene() {
 			return mSceneHeirarchy;
 		}

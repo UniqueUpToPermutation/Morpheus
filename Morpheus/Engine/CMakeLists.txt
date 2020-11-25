@@ -125,6 +125,7 @@ list(APPEND SOURCE
 	src/Transform.cpp
 	src/Skybox.cpp
 	src/Brdf.cpp
+	src/HdriToCubemap.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

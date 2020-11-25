@@ -235,6 +235,10 @@ namespace Morpheus {
 			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "FilterAttribs")->Set(mTransformConstantBuffer);
 			mPrefilterEnvPipeline->CreateShaderResourceBinding(&mPrefilterEnvSRB, true);
 		}
+
+		cubemapFaceVS->Release();
+		irradiancePS->Release();
+		environmentPS->Release();
 	}
 
 	void LightProbeProcessor::ComputeIrradiance(DG::IDeviceContext* context, 
@@ -406,6 +410,5 @@ namespace Morpheus {
 
 		ComputePrefilteredEnvironment(context, incommingEnvironmentSRV, result);
 		return result;
-
 	}
 }

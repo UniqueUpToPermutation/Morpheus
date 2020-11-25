@@ -9,7 +9,7 @@
 namespace Morpheus {
 
 	class Engine;
-
+	
 	class ResourceManager {
 	private:
 		std::unordered_map<entt::id_type, IResourceCache*> mResourceCaches;

@@ -1,0 +1,19 @@
+Texture2D  g_HDRI;
+SamplerState g_HDRI_sampler;
+
+const float PI = 3.1415926535897932384626433832795;
+
+void main(in float4 Pos      : SV_Position,
+          in float3 WorldPos : WORLD_POS,
+          out float4 Color   : SV_Target)
+{
+    float3 N     = normalize(WorldPos);
+
+	// Find phi and theta
+	float phi = acos(N.y);
+	float theta = atan2(N.z, N.x);
+
+	float2 lookup_uv = float2(theta / (2 * PI) + 0.5, phi / PI);
+
+	Color = g_HDRI.Sample(g_HDRI_sampler, lookup_uv);
+}

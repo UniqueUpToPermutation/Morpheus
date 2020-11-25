@@ -9,15 +9,6 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
-
-	inline uint MipCount(const uint width, const uint height) {
-		return 1 + std::floor(std::log2(std::max(width, height)));
-	}
-
-	inline uint MipCount(const uint width, const uint height, const uint depth) {
-		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
-	}
-
 	class CookTorranceLUT {
 	private:
 		DG::ITexture* mLut;

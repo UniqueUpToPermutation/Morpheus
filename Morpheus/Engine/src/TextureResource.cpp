@@ -3,11 +3,55 @@
 #include <Engine/Engine.hpp>
 
 #include "TextureUtilities.h"
+#include "TextureLoader.h"
+#include "Image.h"
 
 #include <gli/gli.hpp>
-
 #include <lodepng.h>
+
+#include <type_traits>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 namespace Morpheus {
+
+	template <uint channels, typename T>
+	void ImCpy(T* dest, T* src, uint pixel_count) {
+
+		uint ptr_dest = 0;
+		uint ptr_src = 0;
+		for (uint i = 0; i < pixel_count; ++i) {
+			dest[ptr_dest++] = src[ptr_src++];
+
+			if constexpr (channels > 1) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				dest[ptr_dest++] = 0;
+			}
+
+			if constexpr (channels > 2) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				dest[ptr_dest++] = 0;
+			}
+
+			if constexpr (channels > 3) {
+				dest[ptr_dest++] = src[ptr_src++];
+			}
+			else {
+				if constexpr (std::is_same<T, uint8_t>::value) {
+					dest[ptr_dest++] = 255u;
+				} else if constexpr (std::is_same<T, float>::value) {
+					dest[ptr_dest++] = 1.0f;
+				} else {
+					dest[ptr_dest++] = 0;
+				}
+			}
+		}
+	}
+
 	TextureResource* TextureResource::ToTexture() {
 		return this;
 	}
@@ -28,6 +72,8 @@ namespace Morpheus {
 
 		if (ext == ".ktx" || ext == ".dds") {
 			LoadGli(source, resource);
+		} else if (ext == ".hdr") {
+			LoadStb(source, resource);
 		} else {
 			LoadDiligent(source, resource);
 		}
@@ -204,6 +250,306 @@ namespace Morpheus {
 		
 		texture->mTexture = tex;
 		texture->mSource = source;
+	}
+
+	inline float LinearToSRGB(float x)
+	{
+		return x <= 0.0031308 ? x * 12.92f : 1.055f * std::pow(x, 1.f / 2.4f) - 0.055f;
+	}
+
+	inline float SRGBToLinear(float x)
+	{
+		return x <= 0.04045f ? x / 12.92f : std::pow((x + 0.055f) / 1.055f, 2.4f);
+	}
+
+	class LinearToSRGBMap
+	{
+	public:
+		LinearToSRGBMap() noexcept
+		{
+			for (uint i = 0; i < m_ToSRBG.size(); ++i)
+			{
+				m_ToSRBG[i] = LinearToSRGB(static_cast<float>(i) / 255.f);
+			}
+		}
+
+		float operator[](uint8_t x) const
+		{
+			return m_ToSRBG[x];
+		}
+
+	private:
+		std::array<float, 256> m_ToSRBG;
+	};
+
+	class SRGBToLinearMap
+	{
+	public:
+		SRGBToLinearMap() noexcept
+		{
+			for (uint i = 0; i < m_ToLinear.size(); ++i)
+			{
+				m_ToLinear[i] = SRGBToLinear(static_cast<float>(i) / 255.f);
+			}
+		}
+
+		float operator[](uint8_t x) const
+		{
+			return m_ToLinear[x];
+		}
+
+	private:
+		std::array<float, 256> m_ToLinear;
+	};
+
+
+	float LinearToSRGB(uint8_t x)
+	{
+		static const LinearToSRGBMap map;
+		return map[x];
+	}
+
+	float SRGBToLinear(uint8_t x)
+	{
+		static const SRGBToLinearMap map;
+		return map[x];
+	}
+
+	template <typename ChannelType>
+	ChannelType SRGBAverage(ChannelType c0, ChannelType c1, ChannelType c2, ChannelType c3)
+	{
+		static constexpr float NormVal = static_cast<float>(std::numeric_limits<ChannelType>::max());
+
+		float fc0 = static_cast<float>(c0) / NormVal;
+		float fc1 = static_cast<float>(c1) / NormVal;
+		float fc2 = static_cast<float>(c2) / NormVal;
+		float fc3 = static_cast<float>(c3) / NormVal;
+
+		float fLinearAverage = (SRGBToLinear(fc0) + SRGBToLinear(fc1) + SRGBToLinear(fc2) + SRGBToLinear(fc3)) / 4.f;
+		float fSRGBAverage   = LinearToSRGB(fLinearAverage) * NormVal;
+
+		static constexpr float MinVal = static_cast<float>(std::numeric_limits<ChannelType>::min());
+		static constexpr float MaxVal = static_cast<float>(std::numeric_limits<ChannelType>::max());
+
+		fSRGBAverage = std::max(fSRGBAverage, MinVal);
+		fSRGBAverage = std::min(fSRGBAverage, MaxVal);
+
+		return static_cast<ChannelType>(fSRGBAverage);
+	}
+
+	template <typename ChannelType>
+	ChannelType LinearAverage(ChannelType c0, ChannelType c1, ChannelType c2, ChannelType c3)
+	{
+		static_assert(std::numeric_limits<ChannelType>::is_integer && !std::numeric_limits<ChannelType>::is_signed, "Unsigned integers are expected");
+		return static_cast<ChannelType>((static_cast<uint32_t>(c0) + static_cast<uint32_t>(c1) + static_cast<uint32_t>(c2) + static_cast<uint32_t>(c3)) / 4);
+	}
+
+	template <>
+	float LinearAverage<float>(float c0, float c1, float c2, float c3) {
+		return (c0 + c1 + c2 + c3) / 4.0f;
+	}
+
+	template <typename ChannelType>
+	void ComputeCoarseMip(DG::Uint32      NumChannels,
+						bool        IsSRGB,
+						const void* pFineMip,
+						DG::Uint32      FineMipStride,
+						DG::Uint32      FineMipWidth,
+						DG::Uint32      FineMipHeight,
+						void*       pCoarseMip,
+						DG::Uint32      CoarseMipStride,
+						DG::Uint32      CoarseMipWidth,
+						DG::Uint32      CoarseMipHeight)
+	{
+		VERIFY_EXPR(FineMipWidth > 0 && FineMipHeight > 0 && FineMipStride > 0);
+		VERIFY_EXPR(CoarseMipWidth > 0 && CoarseMipHeight > 0 && CoarseMipStride > 0);
+
+		for (DG::Uint32 row = 0; row < CoarseMipHeight; ++row)
+		{
+			auto src_row0 = row * 2;
+			auto src_row1 = std::min(row * 2 + 1, FineMipHeight - 1);
+
+			auto pSrcRow0 = (reinterpret_cast<const ChannelType*>(pFineMip) + src_row0 * FineMipStride);
+			auto pSrcRow1 = (reinterpret_cast<const ChannelType*>(pFineMip) + src_row1 * FineMipStride);
+
+			for (DG::Uint32 col = 0; col < CoarseMipWidth; ++col)
+			{
+				auto src_col0 = col * 2;
+				auto src_col1 = std::min(col * 2 + 1, FineMipWidth - 1);
+
+				for (DG::Uint32 c = 0; c < NumChannels; ++c)
+				{
+					auto Chnl00 = pSrcRow0[src_col0 * NumChannels + c];
+					auto Chnl01 = pSrcRow0[src_col1 * NumChannels + c];
+					auto Chnl10 = pSrcRow1[src_col0 * NumChannels + c];
+					auto Chnl11 = pSrcRow1[src_col1 * NumChannels + c];
+
+					auto& DstCol = (reinterpret_cast<ChannelType*>(pCoarseMip) + row * CoarseMipStride)[col * NumChannels + c];
+					if (IsSRGB)
+						DstCol = SRGBAverage(Chnl00, Chnl01, Chnl10, Chnl11);
+					else
+						DstCol = LinearAverage(Chnl00, Chnl01, Chnl10, Chnl11);
+				}
+			}
+		}
+	}
+
+	void TextureLoader::LoadStb(const std::string& source, TextureResource* texture) {
+		unsigned char* pixel_data = nullptr;
+		bool b_hdr;
+		int comp;
+		int x;
+		int y;
+
+		if (stbi_is_hdr(source.c_str())) {
+			float* pixels = stbi_loadf(source.c_str(), &x, &y, &comp, 0);
+			if(pixels) {
+				pixel_data = reinterpret_cast<unsigned char*>(pixels);
+				b_hdr = true;
+			}
+        }
+        else {
+			unsigned char* pixels = stbi_load(source.c_str(), &x, &y, &comp, 0);
+			if(pixels) {
+				pixel_data = pixels;
+				b_hdr = false;
+			}
+        }
+
+        if (!pixel_data) {
+			throw std::runtime_error("Failed to load image file: " + source);
+        }
+
+		DG::TEXTURE_FORMAT format;
+		bool bExpand = false;
+		uint new_comp = comp;
+
+		if (b_hdr) {
+			switch (comp) {
+			case 1:
+				format = DG::TEX_FORMAT_R32_FLOAT;
+				break;
+			case 2:
+				format = DG::TEX_FORMAT_RG32_FLOAT;
+				break;
+			case 3:
+				format = DG::TEX_FORMAT_RGBA32_FLOAT;
+				bExpand = true;
+				new_comp = 4;
+				break;
+			case 4:
+				format = DG::TEX_FORMAT_RGBA32_FLOAT;
+				break;
+			}
+		} else {
+			switch (comp) {
+			case 1:
+				format = DG::TEX_FORMAT_R8_UNORM;
+				break;
+			case 2:
+				format = DG::TEX_FORMAT_RG8_UNORM;
+				break;
+			case 3:
+				format = DG::TEX_FORMAT_RGBA8_UNORM;
+				bExpand = true;
+				new_comp = 4;
+				break;
+			case 4:
+				format = DG::TEX_FORMAT_RGBA8_UNORM;
+				break;
+			}
+		}
+
+		std::vector<DG::TextureSubResData> subDatas;
+		std::vector<void*> rawDatas;
+		size_t mipCount = MipCount(x, y);
+		for (size_t i = 0; i < mipCount; ++i) {
+			uint width = std::max(1, x >> i);
+			uint height = std::max(1, y >> i);
+			DG::TextureSubResData s;
+			s.DepthStride = width * height * new_comp * (b_hdr ? sizeof(float) : sizeof(uint8_t));
+			s.Stride = width * new_comp * (b_hdr ? sizeof(float) : sizeof(uint8_t));
+			void* raw_data;
+			if (b_hdr) {
+				raw_data = new float[width * height * new_comp];
+			} else {
+				raw_data = new uint8_t[width * height * new_comp];
+			}
+			s.pData = raw_data;
+			subDatas.emplace_back(s);
+			rawDatas.emplace_back(raw_data);
+		}
+
+		if (bExpand && b_hdr) {
+			ImCpy<3, float>((float*)rawDatas[0], (float*)pixel_data, x * y);
+		}
+		if (bExpand && !b_hdr) {
+			ImCpy<3, uint8_t>((uint8_t*)rawDatas[0], pixel_data, x * y);
+		}
+		if (!bExpand && b_hdr) {
+			memcpy(rawDatas[0], pixel_data, x * y * new_comp * sizeof(float));
+		}
+		if (!bExpand && !b_hdr) {
+			memcpy(rawDatas[0], pixel_data, x * y * new_comp * sizeof(uint8_t));
+		}
+
+		for (size_t i = 1; i < mipCount; ++i) {
+			uint fineWidth = std::max(1, x >> (i - 1));
+			uint fineHeight = std::max(1, y >> (i - 1));
+			uint coarseWidth = std::max(1, x >> i);
+			uint coarseHeight = std::max(1, y >> i);
+
+			uint fineStride = fineWidth * new_comp;
+			uint coarseStride = coarseWidth * new_comp;
+
+			if (b_hdr) {
+				ComputeCoarseMip<float>(new_comp, false,
+					(float*)rawDatas[i - 1], 
+					fineStride,
+					fineWidth, fineHeight,
+					(float*)rawDatas[i], 
+					coarseStride,
+					coarseWidth, coarseHeight);
+			} else {
+				ComputeCoarseMip<uint8_t>(new_comp, false,
+					(uint8_t*)rawDatas[i - 1],
+					fineStride,
+					fineWidth, fineHeight,
+					(uint8_t*)rawDatas[i],
+					coarseStride,
+					coarseWidth, coarseHeight);
+			}
+		}
+
+		DG::TextureDesc desc;
+		desc.BindFlags = DG::BIND_SHADER_RESOURCE | DG::BIND_RENDER_TARGET;
+		desc.Width = x;
+		desc.Height = y;
+		desc.MipLevels = 0;
+		desc.Name = source.c_str();
+		desc.Format = format;
+		desc.Type = DG::RESOURCE_DIM_TEX_2D;
+		desc.Usage = DG::USAGE_IMMUTABLE;
+		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
+		desc.ArraySize = 1;
+
+		DG::TextureData data;
+		data.NumSubresources = subDatas.size();
+		data.pSubResources = &subDatas[0];
+
+		DG::ITexture* tex = nullptr;
+		mManager->GetParent()->GetDevice()->CreateTexture(desc, &data, &tex);
+
+		texture->mTexture = tex;
+		texture->mSource = source;
+
+		for (size_t i = 0; i < mipCount; ++i) {
+			if (b_hdr) {
+				delete[] (float*)rawDatas[i];
+			} else {
+				delete[] (uint8_t*)rawDatas[i];
+			}
+		}
 	}
 
 	ResourceCache<TextureResource>::ResourceCache(ResourceManager* manager) :
@@ -401,37 +747,6 @@ namespace Morpheus {
 			
 		default:
 			throw std::runtime_error("Could not recognize format!");
-		}
-	}
-
-	template <uint channels>
-	void ImCpy(uint8_t* dest, uint8_t* src, uint pixel_count) {
-
-		uint ptr_dest = 0;
-		uint ptr_src = 0;
-		for (uint i = 0; i < pixel_count; ++i) {
-			dest[ptr_dest++] = src[ptr_src++];
-
-			if constexpr (channels > 1) {
-				dest[ptr_dest++] = src[ptr_src++];
-			}
-			else {
-				dest[ptr_dest++] = 0;
-			}
-
-			if constexpr (channels > 2) {
-				dest[ptr_dest++] = src[ptr_src++];
-			}
-			else {
-				dest[ptr_dest++] = 0;
-			}
-
-			if constexpr (channels > 3) {
-				dest[ptr_dest++] = src[ptr_src++];
-			}
-			else {
-				dest[ptr_dest++] = 1;
-			}
 		}
 	}
 
