@@ -969,6 +969,14 @@ namespace Morpheus
 		{
 			mInputController.ClearState();
 		}
+
+		if (mSceneHeirarchy) {
+			auto dispatcher = mSceneHeirarchy->GetDispatcher();
+			UpdateEvent e;
+			e.CurrTime = CurrTime;
+			e.ElapsedTime = ElapsedTime;
+			dispatcher->trigger<UpdateEvent>(e);
+		}
 	}
 
 	void Engine::Render()

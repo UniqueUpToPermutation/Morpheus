@@ -3,7 +3,9 @@
 namespace Morpheus {
 	void Transform::UpdateCache(Transform* parent) {
 		UpdateCache();
-		mCachedTransform = mCachedTransform * parent->GetCache();
+		if (parent) {
+			mCachedTransform = mCachedTransform * parent->GetCache();
+		}
 	}
 
 	void Transform::UpdateCache() {

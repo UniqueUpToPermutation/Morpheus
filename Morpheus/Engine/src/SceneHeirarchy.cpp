@@ -174,9 +174,11 @@ namespace Morpheus {
 		}
 
 		auto firstChild = node.mFirstChild;
-		for (auto child = firstChild; child != -1; child = mNodes[child].mNext) {
+		for (auto child = firstChild; child != -1;) {
 			// Recursively destroy everything below without topology updates
+			auto next = mNodes[child].mNext;
 			DestroyChild(child); 
+			child = next;
 		}
 
 		// Free up this node

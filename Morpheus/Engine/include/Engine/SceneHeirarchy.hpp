@@ -6,6 +6,12 @@
 #include <stack>
 
 namespace Morpheus {
+
+	struct UpdateEvent {
+		double CurrTime;
+		double ElapsedTime;
+	};
+
 	struct SceneTreeNode {
 		entt::entity mEntity;
 		int mNext;
@@ -163,6 +169,7 @@ namespace Morpheus {
 		std::unordered_map<entt::entity, uint> mEntityToNode;
 		std::vector<SceneTreeNode> mNodes;
 		entt::registry mRegistry;
+		entt::dispatcher mDispatcher;
 
 		EntityNode mCamera;
 
@@ -223,6 +230,10 @@ namespace Morpheus {
 
 		inline entt::registry* GetRegistry() {
 			return &mRegistry;
+		}
+
+		inline entt::dispatcher* GetDispatcher() {
+			return &mDispatcher;
 		}
 
 		friend class EntityNode;

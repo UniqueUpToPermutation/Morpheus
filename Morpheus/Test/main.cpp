@@ -6,6 +6,7 @@
 #include <Engine/HdriToCubemap.hpp>
 #include <Engine/Skybox.hpp>
 #include <Engine/Brdf.hpp>
+#include <Engine/EditorCameraController.hpp>
 #include <Engine/Camera.hpp>
 #include <random>
 
@@ -24,7 +25,7 @@ int main(int argc, char** argv) {
 	std::default_random_engine generator;
 	std::uniform_real_distribution<double> distribution(0.0, 2 * DG::PI);
 
-	for (int x = -5; x <= 5; ++x) {
+	/*for (int x = -5; x <= 5; ++x) {
 		for (int y = -5; y <= 5; ++y) {
 			auto meshNode = scene->CreateChild(root);
 			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(resource);
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
 			transform->mRotation = DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), 
 				distribution(generator));
 		}
-	}
+	}*/
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 
@@ -51,6 +52,9 @@ int main(int argc, char** argv) {
 
 	Transform* t = scene->GetCameraNode().AddComponent<Transform>();
 	t->mTranslation = DG::float3(0.0f, 0.0f, 0.0f);
+
+	scene->GetCameraNode().AddComponent<EditorCameraController>(scene);
+
 	/*
 	LightProbeProcessor processor(en.GetDevice());
 	processor.Initialize(en.GetResourceManager(), 
@@ -76,14 +80,12 @@ int main(int argc, char** argv) {
 
 	en.SetScene(scene);
 
-	float phi = 0.0f;
-
 	while (en.IsReady()) {
 		en.Update();
 
-		auto camera = scene->GetCamera();
-		camera->SetEye(DG::float3(std::cos(phi) * 15.0f, 5.0f, std::sin(phi) * 15.0f));
-		phi += 0.01f;
+		auto camera = scene->GetCameraNode();
+		auto transform = camera.GetComponent<Transform>();
+		transform->UpdateCache(nullptr);
 
 		en.Render();
 		en.Present();

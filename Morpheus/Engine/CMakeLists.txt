@@ -125,6 +125,7 @@ list(APPEND SOURCE
 	src/Skybox.cpp
 	src/Brdf.cpp
 	src/HdriToCubemap.cpp
+	src/EditorCameraController.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )
