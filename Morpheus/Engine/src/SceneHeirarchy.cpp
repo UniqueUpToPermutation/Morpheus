@@ -1,15 +1,21 @@
 #include <Engine/SceneHeirarchy.hpp>
-#include <Engine/CameraComponent.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/Camera.hpp>
 
 namespace Morpheus {
-	SceneHeirarchy::SceneHeirarchy(Engine* engine, uint initialReserve) :
-		SceneHeirarchy(engine->GetRegistry(), initialReserve) {
-	}
-
-	SceneHeirarchy::SceneHeirarchy(entt::registry* registry, uint initialReserve) :
-		mRegistry(registry) {
+	SceneHeirarchy::SceneHeirarchy(uint initialReserve) :
+		mCamera(EntityNode::Invalid()) {
+		
 		mNodes.reserve(initialReserve);
+		
+		// Create root
+		auto root = CreateNode();
+
+		// Create camera
+		auto cameraNode = root.CreateChild();
+		cameraNode.AddComponent<Camera>();
+
+		mCamera = cameraNode;
 	}
 
 	SceneHeirarchy::~SceneHeirarchy() {
@@ -29,16 +35,16 @@ namespace Morpheus {
 		}
 	}
 
-	void SceneHeirarchy::SetCurrentCamera(CameraComponent* component) {
-		mCurrentCamera = component->GetCamera();
-	}
-
 	void SceneHeirarchy::BuildRenderCache(Renderer* renderer) {
 		if (mRenderCache) {
 			delete mRenderCache;
 		}
 
 		mRenderCache = renderer->BuildRenderCache(this);
+	}
+
+	Camera* SceneHeirarchy::GetCamera() {
+		return mCamera.GetComponent<Camera>();
 	}
 
 	EntityNode SceneHeirarchy::AddChild(EntityNode entityParent, entt::entity entityChild) {
@@ -84,7 +90,7 @@ namespace Morpheus {
 	}
 
 	EntityNode SceneHeirarchy::AddChild(EntityNode node) {
-		auto entity = mRegistry->create();
+		auto entity = mRegistry.create();
 		return AddChild(node, entity);
 	}
 
@@ -135,7 +141,7 @@ namespace Morpheus {
 
 	void SceneHeirarchy::Destroy(EntityNode entity) {
 		auto& node = mNodes[entity.mNode];
-		mRegistry->destroy(node.mEntity);
+		mRegistry.destroy(node.mEntity);
 		
 		auto prev = node.mPrev;
 		auto next = node.mNext;
@@ -190,18 +196,18 @@ namespace Morpheus {
 			node.mEntity = entity;
 			node.mFirstChild = -1;
 			node.mLastChild = -1;
-			node.mPrev = -1;
-			node.mNext = mRootsBegin;
+			node.mPrev = mRootsEnd;
+			node.mNext = -1;
 
-			if (mRootsBegin != -1) {
-				mNodes[mRootsBegin].mPrev = result.mNode;
+			if (mRootsEnd != -1) {
+				mNodes[mRootsEnd].mNext = result.mNode;
 			}
 
 			node.mParent = -1;
-			mRootsBegin = result.mNode;
+			mRootsEnd = result.mNode;
 
-			if (mRootsEnd == -1) {
-				mRootsEnd = result.mNode;
+			if (mRootsBegin == -1) {
+				mRootsBegin = result.mNode;
 			}
 
 			mNodes.emplace_back(node);
@@ -216,18 +222,18 @@ namespace Morpheus {
 			firstFree.mEntity = entity;
 			firstFree.mFirstChild = -1;
 			firstFree.mLastChild = -1;
-			firstFree.mPrev = -1;
-			firstFree.mNext = mRootsBegin;
+			firstFree.mPrev = mRootsEnd;
+			firstFree.mNext = -1;
 
-			if (mRootsBegin != -1) {
-				mNodes[mRootsBegin].mPrev = result.mNode;
+			if (mRootsEnd != -1) {
+				mNodes[mRootsEnd].mNext = result.mNode;
 			}
 
 			firstFree.mParent = -1;
 			mRootsBegin = result.mNode;
 
-			if (mRootsEnd == -1) {
-				mRootsEnd = result.mNode;
+			if (mRootsBegin == -1) {
+				mRootsBegin = result.mNode;
 			}
 
 			return result;
@@ -235,7 +241,7 @@ namespace Morpheus {
 	}
 
 	EntityNode SceneHeirarchy::CreateNode() {
-		auto e = mRegistry->create();
+		auto e = mRegistry.create();
 		return CreateNode(e);
 	}
 
@@ -276,7 +282,7 @@ namespace Morpheus {
 			DestroyChild(child);
 		}
 
-		mRegistry->destroy(node_.mEntity);
+		mRegistry.destroy(node_.mEntity);
 
 		// Free up this node
 		node_.mNext = mFirstFree;

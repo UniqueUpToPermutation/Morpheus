@@ -113,9 +113,8 @@ namespace Morpheus {
 		DG::ISwapChain*                  	mSwapChain 			= nullptr;
 		DG::GraphicsAdapterInfo            	mAdapterAttribs;
 		std::vector<DG::DisplayModeAttribs>	mDisplayModes;
-		entt::registry 						mEntityRegistry;
 
-		DG::InputController	mInputController;
+		InputController		mInputController;
 		Platform*			mPlatform			= nullptr;
 		ResourceManager* 	mResourceManager 	= nullptr;
 		SceneHeirarchy* 	mSceneHeirarchy 	= nullptr;
@@ -182,7 +181,7 @@ namespace Morpheus {
 
 		void SetScene(SceneHeirarchy* scene, bool bUnloadOld = true);
 
-		inline DG::InputController& GetInputController()
+		inline InputController& GetInputController()
 		{
 			return mInputController;
 		}
@@ -208,9 +207,6 @@ namespace Morpheus {
 		}
 		inline Platform* GetPlatform() {
 			return mPlatform;
-		}
-		inline entt::registry* GetRegistry() {
-			return &mEntityRegistry;
 		}
 		inline Renderer* GetRenderer() {
 			return mRenderer;

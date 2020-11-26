@@ -5,8 +5,6 @@
 #include <vector>
 #include <stack>
 
-#include <Engine/Renderer.hpp>
-
 namespace Morpheus {
 	struct SceneTreeNode {
 		entt::entity mEntity;
@@ -18,6 +16,9 @@ namespace Morpheus {
 	};
 
 	class SceneHeirarchy;
+	class Camera;
+	class RenderCache;
+	class Renderer;
 
 	struct EntityNode {
 	private:
@@ -27,6 +28,10 @@ namespace Morpheus {
 	public:
 		EntityNode(SceneHeirarchy* tree, int node) :
 			mTree(tree), mNode(node) {
+		}
+
+		static EntityNode Invalid() {
+			return EntityNode(nullptr, -1);
 		}
 
 		inline entt::entity operator()() const;
@@ -157,9 +162,9 @@ namespace Morpheus {
 	private:
 		std::unordered_map<entt::entity, uint> mEntityToNode;
 		std::vector<SceneTreeNode> mNodes;
-		entt::registry* mRegistry;
+		entt::registry mRegistry;
 
-		Camera* mCurrentCamera = nullptr;
+		EntityNode mCamera;
 
 		int mFirstFree = -1;
 		int mRootsBegin = -1;
@@ -173,8 +178,7 @@ namespace Morpheus {
 		void Isolate(int node);
 
 	public:
-		SceneHeirarchy(Engine* engine, uint initialReserve = 1000);
-		SceneHeirarchy(entt::registry* registry, uint initialReserve = 1000);
+		SceneHeirarchy(uint initialReserve = 1000);
 		~SceneHeirarchy();
 
 		EntityNode AddChild(EntityNode entityParent, entt::entity entityChild);
@@ -203,17 +207,23 @@ namespace Morpheus {
 			return mRenderCache;
 		}
 
-		Camera* GetCurrentCamera() {
-			return mCurrentCamera;
+		Camera* GetCamera();
+
+		EntityNode GetCameraNode() {
+			return mCamera;
 		}
 
-		inline void SetCurrentCamera(Camera* camera) {
-			mCurrentCamera = camera;
+		inline void SetCameraNode(EntityNode camera) {
+			mCamera = camera;
 		}
 
 		void SetCurrentCamera(CameraComponent* component);
 		void BuildRenderCache(Renderer* renderer);
 		void Clear();
+
+		inline entt::registry* GetRegistry() {
+			return &mRegistry;
+		}
 
 		friend class EntityNode;
 		friend class Engine;
@@ -267,26 +277,22 @@ namespace Morpheus {
 		return mTree;
 	}
 
-	entt::registry* EntityNode::GetRegistry() {
-		return mTree->mRegistry;
-	}
-
 	bool EntityNode::IsValid() const {
 		return mNode >= 0;
 	}
 
 	template <typename T>
 	T* EntityNode::GetComponent() {
-		return &mTree->mRegistry->template get<T>(GetEntity());
+		return &mTree->mRegistry.template get<T>(GetEntity());
 	}
 
 	template <typename T>
 	T* EntityNode::TryGetComponent() {
-		return mTree->mRegistry->template try_get<T>(GetEntity());
+		return mTree->mRegistry.template try_get<T>(GetEntity());
 	}
 
 	template <typename T, typename... Args>
 	T* EntityNode::AddComponent(Args &&... args) {
-		return &mTree->mRegistry->template emplace<T, Args...>(GetEntity(), std::forward<Args>(args)...);
+		return &mTree->mRegistry.template emplace<T, Args...>(GetEntity(), std::forward<Args>(args)...);
 	}
 }

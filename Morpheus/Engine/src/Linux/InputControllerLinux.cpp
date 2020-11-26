@@ -34,7 +34,7 @@
 #include <Engine/InputController.hpp>
 #include "DebugUtilities.hpp"
 
-namespace Diligent
+namespace Morpheus
 {
 
 int InputControllerLinux::HandleKeyEvevnt(unsigned int keysym, bool IsKeyPressed)

@@ -3,10 +3,10 @@
 #include <Engine/PipelineResource.hpp>
 #include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
-#include <Engine/CameraComponent.hpp>
 #include <Engine/HdriToCubemap.hpp>
 #include <Engine/Skybox.hpp>
 #include <Engine/Brdf.hpp>
+#include <Engine/Camera.hpp>
 #include <random>
 
 using namespace Morpheus;
@@ -16,17 +16,8 @@ int main(int argc, char** argv) {
 
 	en.Startup(argc, argv);
 
-	SceneHeirarchy* scene = new SceneHeirarchy(&en);
-	auto root = scene->CreateNode();
-	auto cameraNode = scene->CreateChild(root);
-	auto cameraComponent = cameraNode.AddComponent<CameraComponent>();
-	float rot = 0.0f;
-	cameraComponent->SetPerspectiveLookAt(
-		DG::float3(15.0f * std::sin(rot), 5.0f, 15.0f * std::cos(rot)), 
-		DG::float3(0.0f, 0.0f, 0.0f), 
-		DG::float3(0.0f, 1.0f, 0.0f));
-	auto camera = dynamic_cast<PerspectiveLookAtCamera*>(cameraComponent->GetCamera());
-	scene->SetCurrentCamera(cameraComponent);
+	SceneHeirarchy* scene = new SceneHeirarchy();
+	auto root = scene->GetRoot();
 
 	auto resource = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
 
@@ -58,7 +49,10 @@ int main(int argc, char** argv) {
 	tex_res->AddRef();
 	en.GetResourceManager()->Add(tex_res, "SKYBOX");
 
-	/*LightProbeProcessor processor(en.GetDevice());
+	Transform* t = scene->GetCameraNode().AddComponent<Transform>();
+	t->mTranslation = DG::float3(0.0f, 0.0f, 0.0f);
+	/*
+	LightProbeProcessor processor(en.GetDevice());
 	processor.Initialize(en.GetResourceManager(), 
 		DG::TEX_FORMAT_RGBA16_FLOAT, 
 		DG::TEX_FORMAT_RGBA16_FLOAT, 
@@ -72,7 +66,8 @@ int main(int argc, char** argv) {
 
 	auto tex_res2 = new TextureResource(en.GetResourceManager(), tex2);
 	tex_res2->AddRef();
-	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");*/
+	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");
+	*/
 
 	auto skybox = scene->CreateChild(root);
 	skybox.AddComponent<SkyboxComponent>(tex_res);
@@ -81,11 +76,14 @@ int main(int argc, char** argv) {
 
 	en.SetScene(scene);
 
+	float phi = 0.0f;
+
 	while (en.IsReady()) {
 		en.Update();
 
-		rot += 0.01f;
-		camera->mEye = DG::float3(15.0f * std::sin(rot), 5.0f, 15.0f * std::cos(rot));
+		auto camera = scene->GetCamera();
+		camera->SetEye(DG::float3(std::cos(phi) * 15.0f, 5.0f, std::sin(phi) * 15.0f));
+		phi += 0.01f;
 
 		en.Render();
 		en.Present();

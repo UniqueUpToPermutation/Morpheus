@@ -1,7 +1,6 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/DefaultRenderer.hpp>
-#include <Engine/CameraComponent.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -73,7 +72,7 @@ namespace Morpheus
 		mPlatform->Initialize(this, argc, argv);
 
 		mResourceManager = new ResourceManager(this);
-		mSceneHeirarchy = new SceneHeirarchy(&mEntityRegistry);
+		mSceneHeirarchy = new SceneHeirarchy();
 		mRenderer = new DefaultRenderer(this);
 
 		mRenderer->Initialize();
@@ -168,8 +167,6 @@ namespace Morpheus
 			delete mSceneHeirarchy;
 			mSceneHeirarchy = nullptr; 
 		}
-
-		mEntityRegistry.clear();
 
 		if (mRenderer) {
 			delete mRenderer;
@@ -977,11 +974,11 @@ namespace Morpheus
 	void Engine::Render()
 	{
 		RenderCache* cache = nullptr;
-		Camera* camera = nullptr;
+		EntityNode camera = EntityNode::Invalid();
 
 		if (mSceneHeirarchy) {
 			cache = mSceneHeirarchy->GetRenderCache();
-			camera = mSceneHeirarchy->GetCurrentCamera();
+			camera = mSceneHeirarchy->GetCameraNode();
 		}
 
 		mRenderer->Render(cache, camera);

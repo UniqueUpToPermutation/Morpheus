@@ -59,7 +59,6 @@ namespace Morpheus {
 
 	class DefaultRenderer : public Renderer {
 	private:
-		PerspectiveLookAtCamera mCamera;
 		Engine* mEngine;
 		GlobalsBuffer mGlobalsBuffer;
 		DG::IBuffer* mInstanceBuffer;
@@ -81,7 +80,7 @@ namespace Morpheus {
 		void RequestConfiguration(DG::EngineMtlCreateInfo* info) override;
 
 		void Initialize();
-		void Render(RenderCache* cache, Camera* camera) override;
+		void Render(RenderCache* cache, EntityNode cameraNode) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() override;

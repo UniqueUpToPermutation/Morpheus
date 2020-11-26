@@ -242,7 +242,7 @@ namespace Morpheus {
 		}
 	}
 
-	void DefaultRenderer::Render(RenderCache* cache, Camera* camera) {
+	void DefaultRenderer::Render(RenderCache* cache, EntityNode cameraNode) {
 		DefaultRenderCache* cacheCast = dynamic_cast<DefaultRenderCache*>(cache);
 
 		auto context = mEngine->GetImmediateContext();
@@ -262,9 +262,18 @@ namespace Morpheus {
 		context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-		if (camera && cacheCast) {
+		if (cameraNode.IsValid() && cacheCast) {
+			auto camera = cameraNode.GetComponent<Camera>();
+			auto camera_transform = cameraNode.TryGetComponent<Transform>();
+
 			float4x4 view = camera->GetView();
 			float4x4 projection = camera->GetProjection(mEngine);
+
+			if (camera_transform) {
+				auto camera_transform_mat = camera_transform->GetCache();
+				auto camera_transform_inv = camera_transform_mat.Inverse();
+				view = camera_transform_inv * view;
+			}
 
 			// Update the globals buffer with global stuff
 			mGlobalsBuffer.Update(context, 
@@ -313,6 +322,8 @@ namespace Morpheus {
 
 		mIdentityTransform.UpdateCache();
 		
+		auto registry = scene->GetRegistry();
+
 		DefaultRenderCache* cache = new DefaultRenderCache();
 
 		for (auto it = scene->GetDoubleIterator(); it; ++it) {
@@ -334,13 +345,6 @@ namespace Morpheus {
 					meshCache.mTransform = transformStack.top();
 					cache->mStaticMeshes.emplace_back(meshCache);
 				}
-
-				if (skybox) {
-					if (cache->mSkybox) {
-						std::cout << "Warning: multiple skyboxes detected!" << std::endl;
-					}
-					cache->mSkybox = skybox;
-				}
 			}
 			else if (it.GetDirection() == IteratorDirection::UP) {
 				auto transform = it->TryGetComponent<Transform>();
@@ -349,6 +353,24 @@ namespace Morpheus {
 				if (transform) {
 					transformStack.pop();
 				}
+			}
+		}
+
+		auto skybox_view = registry->view<SkyboxComponent>();
+
+		for (auto entity : skybox_view) {
+			auto& skybox = skybox_view.get<SkyboxComponent>(entity);
+			if (cache->mSkybox) {
+				std::cout << "Warning: multiple skyboxes detected!" << std::endl;
+			}
+			cache->mSkybox = &skybox;
+		}
+
+		auto camera_view = registry->view<Camera>();
+
+		for (auto entity : camera_view) {
+			if (!registry->has<Transform>(entity)) {
+				std::cout << "Warning! Camera detected without Transform!" << std::endl;
 			}
 		}
 

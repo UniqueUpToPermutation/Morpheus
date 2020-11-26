@@ -1,5 +1,5 @@
 /*
- *  Copyright 2019-2020 Diligent Graphics LLC
+ *  Copyright 2019-2020 Morpheus Graphics LLC
  *  Copyright 2015-2019 Egor Yusov
  *  
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,12 +30,14 @@
 #include "BasicTypes.h"
 #include "FlagEnum.h"
 
-namespace Diligent
+namespace DG = Diligent;
+
+namespace Morpheus
 {
 
 struct MouseState
 {
-    enum BUTTON_FLAGS : Uint8
+    enum BUTTON_FLAGS : DG::Uint8
     {
         BUTTON_FLAG_NONE   = 0x00,
         BUTTON_FLAG_LEFT   = 0x01,
@@ -44,13 +46,16 @@ struct MouseState
         BUTTON_FLAG_WHEEL  = 0x08
     };
 
-    Float32      PosX        = -1;
-    Float32      PosY        = -1;
+    DG::Float32      PosX        = -1;
+    DG::Float32      PosY        = -1;
     BUTTON_FLAGS ButtonFlags = BUTTON_FLAG_NONE;
-    Float32      WheelDelta  = 0;
+    DG::Float32      WheelDelta  = 0;
 };
 DEFINE_FLAG_ENUM_OPERATORS(MouseState::BUTTON_FLAGS)
 
+enum class Keys {
+
+};
 
 enum class InputKeys
 {
@@ -70,7 +75,7 @@ enum class InputKeys
     TotalKeys
 };
 
-enum INPUT_KEY_STATE_FLAGS : Uint8
+enum INPUT_KEY_STATE_FLAGS : DG::Uint8
 {
     INPUT_KEY_STATE_FLAG_KEY_NONE     = 0x00,
     INPUT_KEY_STATE_FLAG_KEY_IS_DOWN  = 0x01,
@@ -100,7 +105,7 @@ public:
     {
         m_MouseState.WheelDelta = 0;
 
-        for (Uint32 i = 0; i < static_cast<Uint32>(InputKeys::TotalKeys); ++i)
+        for (DG::Uint32 i = 0; i < static_cast<DG::Uint32>(InputKeys::TotalKeys); ++i)
         {
             auto& KeyState = m_Keys[i];
             if (KeyState & INPUT_KEY_STATE_FLAG_KEY_WAS_DOWN)
@@ -115,47 +120,47 @@ protected:
     INPUT_KEY_STATE_FLAGS m_Keys[static_cast<size_t>(InputKeys::TotalKeys)] = {};
 };
 
-} // namespace Diligent
+} // namespace Morpheus
 
 // clang-format off
 #if PLATFORM_WIN32
     #include "Win32/InputControllerWin32.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerWin32;
     }
 #elif PLATFORM_UNIVERSAL_WINDOWS
     #include "UWP/InputControllerUWP.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerUWP;
     }
 #elif PLATFORM_MACOS
     #include "MacOS/InputControllerMacOS.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerMacOS;
     }
 #elif PLATFORM_IOS
     #include "iOS/InputControllerIOS.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerIOS;
     }
 #elif PLATFORM_LINUX
     #include "Linux/InputControllerLinux.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerLinux;
     }
 #elif PLATFORM_ANDROID
     #include "Android/InputControllerAndroid.hpp"
-    namespace Diligent
+    namespace Morpheus
     {
         using InputController = InputControllerAndroid;
     }
 #else
-    namespace Diligent
+    namespace Morpheus
     {
         class DummyInputController
         {

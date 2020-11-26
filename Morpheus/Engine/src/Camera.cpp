@@ -1,7 +1,22 @@
 #include <Engine/Camera.hpp>
 
 namespace Morpheus {
-	DG::float4x4 PerspectiveLookAtCamera::GetView() const {
+	Camera::Camera(CameraType type) :
+		mType(type) {	
+	}
+	Camera::Camera(const Camera& other) :
+		mEye(other.mEye),
+		mLookAt(other.mLookAt),
+		mUp(other.mUp),
+		mFieldOfView(other.mFieldOfView),
+		mNearPlane(other.mNearPlane),
+		mFarPlane(other.mFarPlane),
+		mType(other.mType) {
+	}
+
+	DG::float4x4 Camera::GetView() const {
+		assert(mType == CameraType::PERSPECTIVE);
+
 		auto translate = DG::float4x4::Translation(-mEye);
 		
 		auto zAxis = DG::normalize(mLookAt - mEye);
@@ -14,7 +29,7 @@ namespace Morpheus {
 		return view;
 	}
 
-	DG::float4x4 PerspectiveLookAtCamera::GetProjection(Engine* engine) const {
+	DG::float4x4 Camera::GetProjection(Engine* engine) const {
 		// Get pretransform matrix that rotates the scene according the surface orientation
     	auto srfPreTransform = engine->GetSurfacePretransformMatrix(DG::float3{0, 0, 1});
 
@@ -23,7 +38,7 @@ namespace Morpheus {
 		return srfPreTransform * proj;
 	}
 
-	DG::float3 PerspectiveLookAtCamera::GetEye() const {
+	DG::float3 Camera::GetEye() const {
 		return mEye;
 	}
 }

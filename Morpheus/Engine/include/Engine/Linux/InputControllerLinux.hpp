@@ -17,23 +17,22 @@
 
 #pragma once
 
-namespace Diligent
+namespace Morpheus
 {
+	class InputControllerLinux : public InputControllerBase
+	{
+	public:
+		~InputControllerLinux();
 
-class InputControllerLinux : public InputControllerBase
-{
-public:
-    ~InputControllerLinux();
+		int HandleXEvent(void* xevent);
+		int HandleXCBEvent(void* xcb_event);
 
-    int HandleXEvent(void* xevent);
-    int HandleXCBEvent(void* xcb_event);
+		void InitXCBKeysms(void* connection);
 
-    void InitXCBKeysms(void* connection);
+	private:
+		int HandleKeyEvevnt(unsigned int keysym, bool IsKeyPressed);
 
-private:
-    int HandleKeyEvevnt(unsigned int keysym, bool IsKeyPressed);
+		void* m_XCBKeySymbols = nullptr;
+	};
 
-    void* m_XCBKeySymbols = nullptr;
-};
-
-} // namespace Diligent
+}

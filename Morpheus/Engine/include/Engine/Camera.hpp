@@ -5,15 +5,14 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
-	class Camera {
-	public:
-		virtual DG::float4x4 GetView() const = 0;
-		virtual DG::float4x4 GetProjection(Engine* engine) const = 0;
-		virtual DG::float3 GetEye() const = 0;
+
+	enum class CameraType {
+		PERSPECTIVE,
+		ORTHOGRAPHIC
 	};
 
-	class PerspectiveLookAtCamera : public Camera {
-	public:
+	class Camera {
+	private:
 		DG::float3 mEye = DG::float3{0.0f, 0.0f, 0.0f};
 		DG::float3 mLookAt = DG::float3{0.0f, 0.0f, 1.0f};
 		DG::float3 mUp = DG::float3{0.0f, 1.0f, 0.0f};
@@ -22,8 +21,30 @@ namespace Morpheus {
 		float mNearPlane = 0.1f;
 		float mFarPlane = 100.0f;
 
-		DG::float4x4 GetView() const override;
-		DG::float4x4 GetProjection(Engine* engine) const override;
-		DG::float3 GetEye() const override;
+		CameraType mType;
+
+	public:
+		Camera(CameraType type = CameraType::PERSPECTIVE);
+		Camera(const Camera& other);
+
+		DG::float4x4 GetView() const;
+		DG::float4x4 GetProjection(Engine* engine) const;
+		DG::float3 GetEye() const;
+
+		inline void SetEye(const DG::float3& eye) {
+			mEye = eye;
+		}
+
+		inline void LookAt(const DG::float3& target) { 
+			mLookAt = target;
+		}
+
+		inline float GetFieldOfView() const {
+			return mFieldOfView;
+		}
+
+		inline DG::float3 GetLookAt() const {
+			return mLookAt;
+		}
 	};
 }

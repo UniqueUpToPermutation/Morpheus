@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/SceneHeirarchy.hpp>
 #include <Engine/Engine.hpp>
 
 namespace DG = Diligent;
@@ -26,7 +27,7 @@ namespace Morpheus {
 		virtual void RequestConfiguration(DG::EngineVkCreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineMtlCreateInfo* info) = 0;
 		virtual void Initialize() = 0;
-		virtual void Render(RenderCache* cache, Camera* camera) = 0;
+		virtual void Render(RenderCache* cache, EntityNode cameraNode) = 0;
 
 		virtual RenderCache* BuildRenderCache(SceneHeirarchy* scene) = 0;
 

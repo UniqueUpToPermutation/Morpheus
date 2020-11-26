@@ -109,7 +109,6 @@ elseif(PLATFORM_IOS)
 endif()
 
 list(APPEND SOURCE
-	src/FirstPersonCamera.cpp
 	src/Engine.cpp
 	src/Resource.cpp
 	src/ResourceManager.cpp
@@ -131,7 +130,6 @@ list(APPEND SOURCE
 )
 
 list(APPEND INCLUDE
-    include/Engine/FirstPersonCamera.hpp
     include/Engine/InputController.hpp
 	include/Engine/Platform.hpp
 	include/Engine/Resource.hpp
