@@ -37,12 +37,12 @@
 namespace Morpheus
 {
 
-int InputControllerLinux::HandleKeyEvevnt(unsigned int keysym, bool IsKeyPressed)
+int InputControllerLinux::HandleKeyEvent(unsigned int keysym, bool IsKeyPressed)
 {
     int  handled        = 0;
     auto UpdateKeyState = [&](InputKeys Key) //
     {
-        auto& KeyState = m_Keys[static_cast<size_t>(Key)];
+        auto& KeyState = mKeys[static_cast<size_t>(Key)];
         if (IsKeyPressed)
         {
             KeyState &= ~INPUT_KEY_STATE_FLAG_KEY_WAS_DOWN;
@@ -174,7 +174,7 @@ int InputControllerLinux::HandleXEvent(void* xevent)
         {
             KeySym keysym;
             int    num_char = XLookupString((XKeyEvent*)event, nullptr, 0, &keysym, 0);
-            return HandleKeyEvevnt(keysym, event->type == KeyPress);
+            return HandleKeyEvent(keysym, event->type == KeyPress);
         }
 
         case ButtonPress:
@@ -183,23 +183,23 @@ int InputControllerLinux::HandleXEvent(void* xevent)
             switch (xbe->button)
             {
                 case Button1:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_LEFT;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_LEFT;
                     break;
 
                 case Button2:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_MIDDLE;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_MIDDLE;
                     break;
 
                 case Button3:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_RIGHT;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_RIGHT;
                     break;
 
                 case Button4:
-                    m_MouseState.WheelDelta += 1;
+                    mMouseState.WheelDelta += 1;
                     break;
 
                 case Button5:
-                    m_MouseState.WheelDelta -= 1;
+                    mMouseState.WheelDelta -= 1;
                     break;
             }
             return 1;
@@ -211,15 +211,15 @@ int InputControllerLinux::HandleXEvent(void* xevent)
             switch (xbe->button)
             {
                 case Button1:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_LEFT;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_LEFT;
                     break;
 
                 case Button2:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_MIDDLE;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_MIDDLE;
                     break;
 
                 case Button3:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_RIGHT;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_RIGHT;
                     break;
             }
             return 1;
@@ -229,8 +229,8 @@ int InputControllerLinux::HandleXEvent(void* xevent)
         {
             auto* xme = (XMotionEvent*)event;
 
-            m_MouseState.PosX = static_cast<float>(xme->x);
-            m_MouseState.PosY = static_cast<float>(xme->y);
+            mMouseState.PosX = static_cast<float>(xme->x);
+            mMouseState.PosY = static_cast<float>(xme->y);
             return 1;
         }
 
@@ -267,8 +267,8 @@ int InputControllerLinux::HandleXCBEvent(void* xcb_event)
         {
             xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
 
-            m_MouseState.PosX = static_cast<float>(motion->event_x);
-            m_MouseState.PosY = static_cast<float>(motion->event_y);
+            mMouseState.PosX = static_cast<float>(motion->event_x);
+            mMouseState.PosY = static_cast<float>(motion->event_y);
             return 1;
         }
         break;
@@ -279,23 +279,23 @@ int InputControllerLinux::HandleXCBEvent(void* xcb_event)
             switch (press->detail)
             {
                 case XCB_BUTTON_INDEX_1:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_LEFT;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_LEFT;
                     break;
 
                 case XCB_BUTTON_INDEX_2:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_MIDDLE;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_MIDDLE;
                     break;
 
                 case XCB_BUTTON_INDEX_3:
-                    m_MouseState.ButtonFlags |= MouseState::BUTTON_FLAG_RIGHT;
+                    mMouseState.ButtonFlags |= MouseState::BUTTON_FLAG_RIGHT;
                     break;
 
                 case XCB_BUTTON_INDEX_4:
-                    m_MouseState.WheelDelta += 1;
+                    mMouseState.WheelDelta += 1;
                     break;
 
                 case XCB_BUTTON_INDEX_5:
-                    m_MouseState.WheelDelta -= 1;
+                    mMouseState.WheelDelta -= 1;
                     break;
             }
             return 1;
@@ -308,15 +308,15 @@ int InputControllerLinux::HandleXCBEvent(void* xcb_event)
             switch (press->detail)
             {
                 case XCB_BUTTON_INDEX_1:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_LEFT;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_LEFT;
                     break;
 
                 case XCB_BUTTON_INDEX_2:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_MIDDLE;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_MIDDLE;
                     break;
 
                 case XCB_BUTTON_INDEX_3:
-                    m_MouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_RIGHT;
+                    mMouseState.ButtonFlags &= ~MouseState::BUTTON_FLAG_RIGHT;
                     break;
             }
             return 1;
@@ -329,7 +329,7 @@ int InputControllerLinux::HandleXCBEvent(void* xcb_event)
             xcb_keysym_t keysym = xcb_key_press_lookup_keysym(
                 reinterpret_cast<xcb_key_symbols_t*>(m_XCBKeySymbols),
                 reinterpret_cast<xcb_key_press_event_t*>(event), 0);
-            return HandleKeyEvevnt(keysym, event_type == XCB_KEY_PRESS);
+            return HandleKeyEvent(keysym, event_type == XCB_KEY_PRESS);
         }
         break;
 

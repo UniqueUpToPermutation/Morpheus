@@ -30,7 +30,7 @@ namespace Morpheus
 		void InitXCBKeysms(void* connection);
 
 	private:
-		int HandleKeyEvevnt(unsigned int keysym, bool IsKeyPressed);
+		int HandleKeyEvent(unsigned int keysym, bool IsKeyPressed);
 
 		void* m_XCBKeySymbols = nullptr;
 	};

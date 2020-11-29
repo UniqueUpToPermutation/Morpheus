@@ -30,6 +30,9 @@
 #include "BasicTypes.h"
 #include "FlagEnum.h"
 
+#include <cstdint>
+#include <cstring>
+
 namespace DG = Diligent;
 
 namespace Morpheus
@@ -88,26 +91,39 @@ class InputControllerBase
 public:
     const MouseState& GetMouseState() const
     {
-        return m_MouseState;
+        return mMouseState;
     }
+
+	const MouseState& GetLastMouseState() const {
+		return mLastMouseState;
+	}
 
     INPUT_KEY_STATE_FLAGS GetKeyState(InputKeys Key) const
     {
-        return m_Keys[static_cast<size_t>(Key)];
+        return mKeys[static_cast<size_t>(Key)];
     }
+
+	INPUT_KEY_STATE_FLAGS GetLastKeyState(InputKeys Key) const {
+		return mKeysLast[static_cast<size_t>(Key)];
+	}
 
     bool IsKeyDown(InputKeys Key) const
     {
         return (GetKeyState(Key) & INPUT_KEY_STATE_FLAG_KEY_IS_DOWN) != 0;
     }
 
+	void NewFrame() {
+		mLastMouseState = mMouseState;
+		std::memcpy(mKeysLast, mKeys, sizeof(mKeys));
+	}
+
     void ClearState()
     {
-        m_MouseState.WheelDelta = 0;
+        mMouseState.WheelDelta = 0;
 
         for (DG::Uint32 i = 0; i < static_cast<DG::Uint32>(InputKeys::TotalKeys); ++i)
         {
-            auto& KeyState = m_Keys[i];
+            auto& KeyState = mKeys[i];
             if (KeyState & INPUT_KEY_STATE_FLAG_KEY_WAS_DOWN)
             {
                 KeyState &= ~INPUT_KEY_STATE_FLAG_KEY_WAS_DOWN;
@@ -116,8 +132,11 @@ public:
     }
 
 protected:
-    MouseState            m_MouseState;
-    INPUT_KEY_STATE_FLAGS m_Keys[static_cast<size_t>(InputKeys::TotalKeys)] = {};
+    MouseState            mMouseState;
+    INPUT_KEY_STATE_FLAGS mKeys[static_cast<size_t>(InputKeys::TotalKeys)] = {};
+
+	MouseState 			  mLastMouseState;
+	INPUT_KEY_STATE_FLAGS mKeysLast[static_cast<size_t>(InputKeys::TotalKeys)] = {};
 };
 
 } // namespace Morpheus

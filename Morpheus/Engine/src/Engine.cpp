@@ -973,8 +973,9 @@ namespace Morpheus
 		if (mSceneHeirarchy) {
 			auto dispatcher = mSceneHeirarchy->GetDispatcher();
 			UpdateEvent e;
-			e.CurrTime = CurrTime;
-			e.ElapsedTime = ElapsedTime;
+			e.mCurrTime = CurrTime;
+			e.mElapsedTime = ElapsedTime;
+			e.mEngine = this;
 			dispatcher->trigger<UpdateEvent>(e);
 		}
 	}
@@ -1148,6 +1149,8 @@ namespace Morpheus
 				mScreenCapture->RecycleStagingTexture(std::move(Capture.pTexture));
 			}
 		}
+
+		mInputController.NewFrame();
 	}
 
 

@@ -4,12 +4,14 @@
 #include <unordered_map>
 #include <vector>
 #include <stack>
-
 namespace Morpheus {
 
+	class Engine;
+
 	struct UpdateEvent {
-		double CurrTime;
-		double ElapsedTime;
+		double mCurrTime;
+		double mElapsedTime;
+		Engine* mEngine;
 	};
 
 	struct SceneTreeNode {

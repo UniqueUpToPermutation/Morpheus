@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 	std::default_random_engine generator;
 	std::uniform_real_distribution<double> distribution(0.0, 2 * DG::PI);
 
-	/*for (int x = -5; x <= 5; ++x) {
+	for (int x = -5; x <= 5; ++x) {
 		for (int y = -5; y <= 5; ++y) {
 			auto meshNode = scene->CreateChild(root);
 			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(resource);
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 			transform->mRotation = DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), 
 				distribution(generator));
 		}
-	}*/
+	}
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
 	en.GetResourceManager()->Add(tex_res, "SKYBOX");
 
 	Transform* t = scene->GetCameraNode().AddComponent<Transform>();
-	t->mTranslation = DG::float3(0.0f, 0.0f, 0.0f);
+	t->mTranslation = DG::float3(0.0f, 5.0f, 0.0f);
 
 	scene->GetCameraNode().AddComponent<EditorCameraController>(scene);
 

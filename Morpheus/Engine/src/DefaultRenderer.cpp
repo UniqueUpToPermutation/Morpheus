@@ -268,17 +268,18 @@ namespace Morpheus {
 
 			float4x4 view = camera->GetView();
 			float4x4 projection = camera->GetProjection(mEngine);
+			float3 eye = camera->GetEye();
 
 			if (camera_transform) {
 				auto camera_transform_mat = camera_transform->GetCache();
 				auto camera_transform_inv = camera_transform_mat.Inverse();
 				view = camera_transform_inv * view;
+				eye = eye * camera_transform_mat;
 			}
 
 			// Update the globals buffer with global stuff
 			mGlobalsBuffer.Update(context, 
-				view, projection,
-				camera->GetEye(), 0.0f);
+				view, projection, eye, 0.0f);
 
 			// Render all static meshes in the scene
 			RenderStaticMeshes(cacheCast->mStaticMeshes);
