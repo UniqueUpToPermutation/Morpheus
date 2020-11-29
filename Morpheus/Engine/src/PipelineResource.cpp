@@ -26,6 +26,14 @@ namespace Morpheus {
 			return mManager->GetParent()->GetSwapChain()
 				->GetDesc().DepthBufferFormat;
 		}
+		else if (str == "INTERMEDIATE_FRAMEBUFFER_FORMAT") {
+			return mManager->GetParent()->GetRenderer()
+				->GetIntermediateFramebufferFormat();
+		}
+		else if (str == "INTERMEDIATE_DEPTHBUFFER_FORMAT") {
+			return mManager->GetParent()->GetRenderer()
+				->GetIntermediateDepthbufferFormat();
+		}
 		else if (str == "TEX_FORMAT_RGBA8_UNORM") {
 			return DG::TEX_FORMAT_RGBA8_UNORM;
 		}

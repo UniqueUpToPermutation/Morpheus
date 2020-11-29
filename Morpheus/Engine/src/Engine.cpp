@@ -933,7 +933,9 @@ namespace Morpheus
 	}
 	
 	void Engine::OnWindowResized(uint width, uint height) {
-
+		if (mRenderer) {
+			mRenderer->OnWindowResized(width, height);
+		}
 	}
 
 	void Engine::WindowResize(int width, int height)

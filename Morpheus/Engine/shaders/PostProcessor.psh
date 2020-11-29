@@ -1,0 +1,24 @@
+#include "FullscreenTriangle.hlsl"
+#include "PostProcessorStructures.hlsl"
+#include "ToneMapping.hlsl"
+
+Texture2D    mInputFramebuffer;
+SamplerState mInputFramebuffer_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+cbuffer mAttribs {
+	PostProcessorParams mParams;
+};
+
+void main(in FullScreenTriangleVSOutput VSOut,
+	out float4 Color   : SV_Target) {
+		
+	float2 uv = 0.5 * VSOut.f2NormalizedXY + float2(0.5, 0.5);
+	uv.y = 1.0 - uv.y;
+
+	float3 inputColor = mInputFramebuffer.Sample(mInputFramebuffer_sampler, uv).rgb;
+
+	float3 outputColor = ToneMap(inputColor, 
+		mParams.mToneMapAttribs, mParams.fAveLogLum);
+
+	Color = float4(outputColor, 1.0);
+}

@@ -78,7 +78,8 @@
 			"variant": "cpp",
 			"regex": "cpp",
 			"*.inc": "cpp",
-			"shared_mutex": "cpp"
+			"shared_mutex": "cpp",
+			"*.hlsl": "cpp"
 		}
 	}
 }

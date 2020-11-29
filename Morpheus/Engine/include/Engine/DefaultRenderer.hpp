@@ -4,6 +4,7 @@
 #include <Engine/Transform.hpp>
 #include <Engine/Skybox.hpp>
 #include <Engine/Brdf.hpp>
+#include <Engine/PostProcessor.hpp>
 
 namespace DG = Diligent;
 
@@ -64,14 +65,21 @@ namespace Morpheus {
 		DG::IBuffer* mInstanceBuffer;
 		Transform mIdentityTransform;
 		CookTorranceLUT mCookTorranceLut;
+		PostProcessor mPostProcessor;
+
+		DG::ITexture* mFrameBuffer;
 
 		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
 		void RenderSkybox(SkyboxComponent* skybox);
+
+		void ReallocateIntermediateFramebuffer(uint width, uint height);
 
 	public:
 		DefaultRenderer(Engine* engine, 
 			uint instanceBatchSize = DEFAULT_INSTANCE_BATCH_SIZE);
 		~DefaultRenderer();
+
+		void OnWindowResized(uint width, uint height) override;
 		
 		void RequestConfiguration(DG::EngineD3D11CreateInfo* info) override;
 		void RequestConfiguration(DG::EngineD3D12CreateInfo* info) override;
@@ -87,5 +95,7 @@ namespace Morpheus {
 		uint GetMaxAnisotropy() override;
 
 		RenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
+		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
+		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
 	};
 }

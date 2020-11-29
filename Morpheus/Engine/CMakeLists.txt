@@ -126,6 +126,7 @@ list(APPEND SOURCE
 	src/Brdf.cpp
 	src/HdriToCubemap.cpp
 	src/EditorCameraController.cpp
+	src/PostProcessor.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )
@@ -150,6 +151,7 @@ PUBLIC
 	../../gli
 	../../gli/external
 	../../lodepng
+	.
 )
 
 if(MSVC)

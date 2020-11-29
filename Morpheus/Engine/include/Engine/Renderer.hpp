@@ -35,5 +35,10 @@ namespace Morpheus {
 		virtual DG::IBuffer* GetGlobalsBuffer() = 0;
 		virtual DG::FILTER_TYPE GetDefaultFilter() = 0;
 		virtual uint GetMaxAnisotropy() = 0;
+
+		virtual void OnWindowResized(uint width, uint height) = 0;
+
+		virtual DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const = 0;
+		virtual DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const = 0;
 	};
 }

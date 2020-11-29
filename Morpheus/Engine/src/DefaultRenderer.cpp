@@ -19,6 +19,8 @@
 #include "Image.h"
 #include "FileWrapper.hpp"
 
+#define INTERMEDIATE_TEXTURE_FORMAT DG::TEX_FORMAT_RGBA16_FLOAT
+
 #if D3D11_SUPPORTED
 #    include "EngineFactoryD3D11.h"
 #endif
@@ -106,7 +108,9 @@ namespace Morpheus {
 		mCookTorranceLut(engine->GetDevice()),
 		mInstanceBuffer(nullptr),
 		mEngine(engine), 
-		mGlobalsBuffer(engine->GetDevice()) {
+		mGlobalsBuffer(engine->GetDevice()),
+		mPostProcessor(engine->GetDevice()),
+		mFrameBuffer(nullptr) {
 
 		DG::BufferDesc desc;
 		desc.Name = "Renderer Instance Buffer";
@@ -120,6 +124,37 @@ namespace Morpheus {
 
 	DefaultRenderer::~DefaultRenderer() {
 		mInstanceBuffer->Release();
+
+		if (mFrameBuffer) {
+			mFrameBuffer->Release();
+			mFrameBuffer = nullptr;
+		}
+	}
+
+	void DefaultRenderer::ReallocateIntermediateFramebuffer(
+		uint width, uint height) {
+
+		if (mFrameBuffer) {
+			mFrameBuffer->Release();
+			mFrameBuffer = nullptr;
+		}
+
+		DG::TextureDesc desc;
+		desc.Width = width;
+		desc.Height = height;
+		desc.BindFlags = DG::BIND_RENDER_TARGET | DG::BIND_SHADER_RESOURCE;
+		desc.Name = "Intermediate Framebuffer";
+		desc.Type = DG::RESOURCE_DIM_TEX_2D;
+		desc.Usage = DG::USAGE_DEFAULT;
+		desc.Format = GetIntermediateFramebufferFormat();
+		desc.MipLevels = 1;
+		
+		auto device = mEngine->GetDevice();
+		device->CreateTexture(desc, nullptr, &mFrameBuffer);
+	}
+	
+	void DefaultRenderer::OnWindowResized(uint width, uint height) {
+		ReallocateIntermediateFramebuffer(width, height);
 	}
 
 	void DefaultRenderer::Initialize() {
@@ -133,6 +168,13 @@ namespace Morpheus {
 
 		context->SetRenderTargets(0, nullptr, nullptr,
 			RESOURCE_STATE_TRANSITION_MODE_NONE);
+
+		auto swapDesc = mEngine->GetSwapChain()->GetDesc();
+		ReallocateIntermediateFramebuffer(swapDesc.Width, swapDesc.Height);
+
+		mPostProcessor.Initialize(mEngine->GetResourceManager(),
+			swapDesc.ColorBufferFormat,
+			swapDesc.DepthBufferFormat);
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
@@ -253,16 +295,18 @@ namespace Morpheus {
 
 		ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
 		ITextureView* pDSV = swapChain->GetDepthBufferDSV();
-		context->SetRenderTargets(1, &pRTV, pDSV, 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		float rgba[4] = {0.5, 0.5, 0.5, 1.0};
-		context->ClearRenderTarget(pRTV, rgba, 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		if (cameraNode.IsValid() && cacheCast) {
+			auto rtView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET);
+			context->SetRenderTargets(1, &rtView, pDSV,
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearRenderTarget(rtView, rgba, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
 			auto camera = cameraNode.GetComponent<Camera>();
 			auto camera_transform = cameraNode.TryGetComponent<Transform>();
 
@@ -287,11 +331,22 @@ namespace Morpheus {
 			// Render skybox
 			if (cacheCast->mSkybox)
 				RenderSkybox(cacheCast->mSkybox);
+		} else {
+			context->SetRenderTargets(1, &pRTV, pDSV, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		}
 
 		// Restore default render target in case the sample has changed it
 		context->SetRenderTargets(1, &pRTV, pDSV,
 			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		// Pass through post processor
+		auto srView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+		PostProcessorParams ppParams;
+		mPostProcessor.SetAttributes(context, ppParams);
+		mPostProcessor.Draw(context, srView);
 
 		auto imGui = mEngine->GetUI();
 
@@ -315,6 +370,14 @@ namespace Morpheus {
 
 	uint DefaultRenderer::GetMaxAnisotropy() {
 		return 0;
+	}
+
+	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateFramebufferFormat() const {
+		return INTERMEDIATE_TEXTURE_FORMAT;
+	}
+
+	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateDepthbufferFormat() const {
+		return mEngine->GetSwapChain()->GetDesc().DepthBufferFormat;
 	}
 
 	RenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
