@@ -1,0 +1,45 @@
+#pragma once
+
+#include <Engine/ResourceManager.hpp>
+#include <Engine/Renderer.hpp>
+
+#include <functional>
+
+namespace Morpheus {
+	typedef std::function<void(
+		DG::IRenderDevice*, 
+		ResourceManager*, 
+		Renderer*, 
+		ShaderLoader*,
+		PipelineResource*,
+		const ShaderPreprocessorConfig*)> factory_func_t;
+
+	DG::IShader* LoadShader(DG::IRenderDevice* device,
+		DG::SHADER_TYPE shaderType,
+		const std::string& path,
+		const std::string& name,
+		const std::string& entryPoint,
+		const ShaderPreprocessorConfig* config,
+		ShaderLoader* loader);
+
+	void CreateBasicTexturedPipeline(DG::IRenderDevice* device,
+		ResourceManager* manager,
+		Renderer* renderer,
+		ShaderLoader* shaderLoader,
+		PipelineResource* into,
+		const ShaderPreprocessorConfig* overrides = nullptr);
+
+	void CreatePBRStaticMeshPipeline(DG::IRenderDevice* device,
+		ResourceManager* manager, 
+		Renderer* renderer, 
+		ShaderLoader* shaderLoader,
+		PipelineResource* into,
+		const ShaderPreprocessorConfig* overrides = nullptr);
+
+	void CreateSkyboxPipeline(DG::IRenderDevice* device,
+		ResourceManager* manager,
+		Renderer* renderer,
+		ShaderLoader* shaderLoader,
+		PipelineResource* into,
+		const ShaderPreprocessorConfig* overrides);
+}

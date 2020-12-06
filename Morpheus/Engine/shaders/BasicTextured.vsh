@@ -1,8 +1,8 @@
-#include "RendererGlobals.hlsl"
+#include "BasicStructures.hlsl"
 
 cbuffer Globals
 {
-    DefaultRendererGlobals mGlobals;
+    RendererGlobalData mGlobals;
 };
 
 struct VSInput 
@@ -36,8 +36,7 @@ void main(in uint VertId : SV_VertexID,
 	float4 worldPos = mul(float4(VSIn.Position, 1.0), 
 		InstanceMatr);
 
-	PSIn.Position  	= mul(worldPos, 
-		mGlobals.mViewProjection);
+	PSIn.Position  	= mul(worldPos, mGlobals.mCamera.mViewProj);
 
     PSIn.UV 		= VSIn.UV;
 }

@@ -7,18 +7,24 @@
 
 namespace Morpheus {
 
-	MaterialResource::MaterialResource(ResourceManager* manager) :
+	MaterialResource::MaterialResource(ResourceManager* manager,
+		ResourceCache<MaterialResource>* cache) :
 		Resource(manager),
 		mResourceBinding(nullptr),
-		mPipeline(nullptr) {
+		mPipeline(nullptr),
+		mCache(cache) {
+		mEntity = cache->mViewRegistry.create();
 	}
 
 	MaterialResource::MaterialResource(ResourceManager* manager,
 		DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
-		const std::string& source) : 
-		Resource(manager) {
+		const std::string& source,
+		ResourceCache<MaterialResource>* cache) : 
+		Resource(manager),
+		mCache(cache) {
+		mEntity = cache->mViewRegistry.create();
 		Init(binding, pipeline, textures, source);
 	}
 
@@ -39,8 +45,8 @@ namespace Morpheus {
 		for (auto item : mTextures) {
 			item->Release();
 		}
+		mCache->mViewRegistry.destroy(mEntity);
 	}
-
 
 	MaterialResource* MaterialResource::ToMaterial() {
 		return this;
@@ -127,7 +133,7 @@ namespace Morpheus {
 			return it->second;
 		}
 
-		MaterialResource* resource = new MaterialResource(mManager);
+		MaterialResource* resource = new MaterialResource(mManager, this);
 		mLoader.Load(src, resource);
 		mResources[src] = resource;
 		return resource;
@@ -142,7 +148,7 @@ namespace Morpheus {
 			return it->second;
 		}
 
-		MaterialResource* resource = new MaterialResource(mManager);
+		MaterialResource* resource = new MaterialResource(mManager, this);
 		mResources[src] = resource;
 		mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
 		return resource;

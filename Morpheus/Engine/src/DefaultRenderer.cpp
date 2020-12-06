@@ -15,7 +15,6 @@
 #include "PlatformDefinitions.h"
 #include "Errors.hpp"
 #include "StringTools.hpp"
-#include "MapHelper.hpp"
 #include "Image.h"
 #include "FileWrapper.hpp"
 
@@ -55,38 +54,16 @@
 using namespace Diligent;
 
 namespace Morpheus {
-
-	GlobalsBuffer::GlobalsBuffer(DG::IRenderDevice* renderDevice) {
-        DG::BufferDesc CBDesc;
-        CBDesc.Name           = "VS constants CB";
-        CBDesc.uiSizeInBytes  = sizeof(DefaultRendererGlobals);
-        CBDesc.Usage          = USAGE_DYNAMIC;
-        CBDesc.BindFlags      = BIND_UNIFORM_BUFFER;
-        CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-
-		mGlobalsBuffer = nullptr;
-		renderDevice->CreateBuffer(CBDesc, nullptr, &mGlobalsBuffer);
-	}
-
-	GlobalsBuffer::~GlobalsBuffer() {
-		mGlobalsBuffer->Release();
-	}
-
-	void GlobalsBuffer::Update(IDeviceContext* context,
-		const float4x4& view,
-		const float4x4& projection,
-		const float3& eye,
-		float time) {
-
-		// Map the memory of the buffer and write out global transform data
-		MapHelper<DefaultRendererGlobals> globals(context, mGlobalsBuffer, MAP_WRITE, MAP_FLAG_DISCARD);
-		globals->mView = view.Transpose();
-		globals->mProjection = projection.Transpose();
-		globals->mEye = eye;
-		globals->mTime = time;
-		globals->mViewProjection = (view * projection).Transpose();
-		globals->mViewProjectionInverse = (view * projection).Inverse().Transpose();
-	}
+	// Common sampler states
+	static const SamplerDesc Sam_LinearClamp
+	{
+		FILTER_TYPE_LINEAR,
+		FILTER_TYPE_LINEAR,
+		FILTER_TYPE_LINEAR, 
+		TEXTURE_ADDRESS_CLAMP,
+		TEXTURE_ADDRESS_CLAMP,
+		TEXTURE_ADDRESS_CLAMP
+	};
 
 	void DefaultRenderer::RequestConfiguration(DG::EngineD3D11CreateInfo* info) {
 	}
@@ -108,9 +85,12 @@ namespace Morpheus {
 		mCookTorranceLut(engine->GetDevice()),
 		mInstanceBuffer(nullptr),
 		mEngine(engine), 
-		mGlobalsBuffer(engine->GetDevice()),
 		mPostProcessor(engine->GetDevice()),
-		mFrameBuffer(nullptr) {
+		mFrameBuffer(nullptr),
+		mGlobals(engine->GetDevice()) {
+
+		auto device = mEngine->GetDevice();
+		auto context = mEngine->GetImmediateContext();
 
 		DG::BufferDesc desc;
 		desc.Name = "Renderer Instance Buffer";
@@ -119,7 +99,59 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
 		desc.uiSizeInBytes = sizeof(DG::float4x4) * instanceBatchSize;
 
-		mEngine->GetDevice()->CreateBuffer(desc, nullptr, &mInstanceBuffer);
+		device->CreateBuffer(desc, nullptr, &mInstanceBuffer);
+
+		// Create default textures
+		static constexpr Uint32 TexDim = 8;
+
+        TextureDesc TexDesc;
+        TexDesc.Name      = "White texture for renderer";
+        TexDesc.Type      = RESOURCE_DIM_TEX_2D;
+        TexDesc.Usage     = USAGE_IMMUTABLE;
+        TexDesc.BindFlags = BIND_SHADER_RESOURCE;
+        TexDesc.Width     = TexDim;
+        TexDesc.Height    = TexDim;
+        TexDesc.Format    = TEX_FORMAT_RGBA8_UNORM;
+        TexDesc.MipLevels = 1;
+
+        std::vector<Uint32>     Data(TexDim * TexDim, 0xFFFFFFFF);
+        TextureSubResData       Level0Data{Data.data(), TexDim * 4};
+        TextureData             InitData{&Level0Data, 1};
+
+		mWhiteTexture = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &mWhiteTexture);
+        mWhiteSRV = mWhiteTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+
+        TexDesc.Name = "Black texture for renderer";
+        for (auto& c : Data) c = 0;
+        
+		mBlackTexture = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &mBlackTexture);
+        mBlackSRV = mBlackTexture ->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+
+        TexDesc.Name = "Default normal map for renderer";
+        for (auto& c : Data) c = 0x00FF7F7F;
+
+		mDefaultNormalTexture = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &mDefaultNormalTexture);
+        mDefaultNormalSRV = mDefaultNormalTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+
+        // clang-format off
+        StateTransitionDesc Barriers[] = 
+        {
+            {mWhiteTexture,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
+            {mBlackTexture,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
+            {mDefaultNormalTexture, RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true} 
+        };
+
+        // clang-format on
+        context->TransitionResourceStates(_countof(Barriers), Barriers);
+
+        mDefaultSampler = nullptr;
+        device->CreateSampler(Sam_LinearClamp, &mDefaultSampler);
+        mWhiteSRV->SetSampler(mDefaultSampler);
+        mBlackSRV->SetSampler(mDefaultSampler);
+        mDefaultNormalSRV->SetSampler(mDefaultSampler);
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
@@ -129,6 +161,50 @@ namespace Morpheus {
 			mFrameBuffer->Release();
 			mFrameBuffer = nullptr;
 		}
+
+		mDefaultSampler->Release();
+		mWhiteTexture->Release();
+		mBlackTexture->Release();
+		mDefaultNormalTexture->Release();
+	}
+
+	void DefaultRenderer::WriteGlobalData(EntityNode cameraNode) {
+
+		auto camera = cameraNode.GetComponent<Camera>();
+		auto camera_transform = cameraNode.TryGetComponent<Transform>();
+
+		float4x4 view = camera->GetView();
+		float4x4 projection = camera->GetProjection(mEngine);
+		float3 eye = camera->GetEye();
+
+		if (camera_transform) {
+			auto camera_transform_mat = camera_transform->GetCache();
+			auto camera_transform_inv = camera_transform_mat.Inverse();
+			view = camera_transform_inv * view;
+			eye = eye * camera_transform_mat;
+		}
+
+		auto context = mEngine->GetImmediateContext();
+		auto swapChain = mEngine->GetSwapChain();
+		auto swapChainDesc = swapChain->GetDesc();
+
+		RendererGlobalData data;
+		data.mCamera.fNearPlaneZ = camera->GetNearZ();
+		data.mCamera.fFarPlaneZ = camera->GetFarZ();
+		data.mCamera.f4Position = DG::float4(eye, 1.0f);
+		data.mCamera.f4ViewportSize = DG::float4(
+			swapChainDesc.Width,
+			swapChainDesc.Height,
+			1.0f / (float)swapChainDesc.Width,
+			1.0f / (float)swapChainDesc.Height);
+		data.mCamera.mViewT = view.Transpose();
+		data.mCamera.mProjT = projection.Transpose();
+		data.mCamera.mViewProjT = (view * projection).Transpose();
+		data.mCamera.mProjInvT = data.mCamera.mProjT.Inverse();
+		data.mCamera.mViewInvT = data.mCamera.mViewT.Inverse();
+		data.mCamera.mViewProjInvT = data.mCamera.mViewProjT.Inverse();
+
+		mGlobals.Write(context, data);
 	}
 
 	void DefaultRenderer::ReallocateIntermediateFramebuffer(
@@ -178,7 +254,7 @@ namespace Morpheus {
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
-		return mGlobalsBuffer.GetBuffer();
+		return mGlobals.Get();
 	}
 
 	void DefaultRenderer::RenderSkybox(SkyboxComponent* skybox) {
@@ -259,7 +335,7 @@ namespace Morpheus {
 
 				// Render all of these static meshes in a batch
 				auto geometry = mesh->GetGeometry();
-				Uint32  offsets[]  = { 0, 0 };
+				Uint32  offsets[]  = { 0, (DG::Uint32)currentInstanceIdx };
 				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
 				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
 					RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
@@ -307,23 +383,8 @@ namespace Morpheus {
 			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-			auto camera = cameraNode.GetComponent<Camera>();
-			auto camera_transform = cameraNode.TryGetComponent<Transform>();
-
-			float4x4 view = camera->GetView();
-			float4x4 projection = camera->GetProjection(mEngine);
-			float3 eye = camera->GetEye();
-
-			if (camera_transform) {
-				auto camera_transform_mat = camera_transform->GetCache();
-				auto camera_transform_inv = camera_transform_mat.Inverse();
-				view = camera_transform_inv * view;
-				eye = eye * camera_transform_mat;
-			}
-
-			// Update the globals buffer with global stuff
-			mGlobalsBuffer.Update(context, 
-				view, projection, eye, 0.0f);
+			// Write global data to globals buffer
+			WriteGlobalData(cameraNode);
 
 			// Render all static meshes in the scene
 			RenderStaticMeshes(cacheCast->mStaticMeshes);

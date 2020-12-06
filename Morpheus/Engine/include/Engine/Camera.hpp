@@ -46,5 +46,13 @@ namespace Morpheus {
 		inline DG::float3 GetLookAt() const {
 			return mLookAt;
 		}
+
+		inline float GetFarZ() const { 
+			return mFarPlane;
+		}
+
+		inline float GetNearZ() const {
+			return mNearPlane;
+		}
 	};
 }

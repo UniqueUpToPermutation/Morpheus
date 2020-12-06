@@ -15,12 +15,18 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	template <>
+	class ResourceCache<MaterialResource>;
+
 	class MaterialResource : public Resource {
 	private:
 		DG::IShaderResourceBinding* mResourceBinding;
 		PipelineResource* mPipeline;
 		std::vector<TextureResource*> mTextures;
 		std::string mSource;
+		ResourceCache<MaterialResource>* mCache;
+		entt::entity mEntity;
 
 		void Init(DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
@@ -29,12 +35,14 @@ namespace Morpheus {
 
 	public:
 
-		MaterialResource(ResourceManager* manager);
+		MaterialResource(ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache);
 		MaterialResource(ResourceManager* manager,
 			DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
-			const std::string& source);
+			const std::string& source,
+			ResourceCache<MaterialResource>* cache);
 		~MaterialResource();
 
 		inline bool IsReady() const {
@@ -62,6 +70,9 @@ namespace Morpheus {
 		entt::id_type GetType() const override {
 			return resource_type::type<MaterialResource>;
 		}
+
+		template <typename ViewType> 
+		inline ViewType* GetView();
 
 		friend class MaterialLoader;
 		friend class ResourceCache<MaterialResource>;
@@ -102,6 +113,7 @@ namespace Morpheus {
 		ResourceManager* mManager;
 		MaterialLoader mLoader;
 		std::vector<std::pair<MaterialResource*, LoadParams<MaterialResource>>> mDeferredResources;
+		entt::registry mViewRegistry;
 
 	public:
 		ResourceCache(ResourceManager* manager);
@@ -113,5 +125,12 @@ namespace Morpheus {
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;
+
+		friend class MaterialResource;
 	};
+
+	template <typename ViewType> 
+	ViewType* MaterialResource::GetView() {
+		return mCache->mViewRegistry.try_get<ViewType>(mEntity);
+	}
 }

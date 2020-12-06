@@ -1,5 +1,5 @@
 {
-	"Pipeline" : "internal/BasicPipeline.json",
+	"Pipeline" : "BasicTextured",
 
 	"Textures" : [
 		{

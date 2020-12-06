@@ -2,7 +2,7 @@
 
 namespace Morpheus {
 	void SkyboxComponent::LoadPipeline(ResourceManager* manager) {
-		mPipeline = manager->Load<PipelineResource>("/internal/Skybox.json");
+		mPipeline = manager->Load<PipelineResource>("Skybox");
 
 		mPipeline->GetState()->CreateShaderResourceBinding(&mResourceBinding, true);
 		if (mCubemap)

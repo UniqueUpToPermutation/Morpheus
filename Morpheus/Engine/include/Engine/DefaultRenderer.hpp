@@ -10,33 +10,46 @@ namespace DG = Diligent;
 
 #define DEFAULT_INSTANCE_BATCH_SIZE 1024
 
+using float2 = DG::float2;
+using float3 = DG::float3;
+using float4 = DG::float4;
+using float4x4 = DG::float4x4;
+
+#include <shaders/BasicStructures.hlsl>
+
+#include "MapHelper.hpp"
+
 namespace Morpheus {
 
-	struct DefaultRendererGlobals
-	{
-		DG::float4x4 mView;
-		DG::float4x4 mProjection;
-		DG::float4x4 mViewProjection;
-		DG::float4x4 mViewProjectionInverse;
-		DG::float3 mEye;
-		float mTime;
-	};
-
-	class GlobalsBuffer {
+	template <typename T>
+	class DynamicGlobalsBuffer {
 	private:
-		DG::IBuffer* mGlobalsBuffer;
+		DG::IBuffer* mBuffer;
+
 	public:
-		GlobalsBuffer(DG::IRenderDevice* renderDevice);
-		~GlobalsBuffer();
+		inline DynamicGlobalsBuffer(DG::IRenderDevice* device) {
+			DG::BufferDesc CBDesc;
+			CBDesc.Name           = "VS constants CB";
+			CBDesc.uiSizeInBytes  = sizeof(T);
+			CBDesc.Usage          = DG::USAGE_DYNAMIC;
+			CBDesc.BindFlags      = DG::BIND_UNIFORM_BUFFER;
+			CBDesc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
 
-		void Update(DG::IDeviceContext* context,
-			const DG::float4x4& view,
-			const DG::float4x4& projection,
-			const DG::float3& eye,
-			float time);
+			mBuffer = nullptr;
+			device->CreateBuffer(CBDesc, nullptr, &mBuffer);
+		}
 
-		inline DG::IBuffer* GetBuffer() {
-			return mGlobalsBuffer;
+		inline ~DynamicGlobalsBuffer() {
+			mBuffer->Release();
+		}
+
+		inline DG::IBuffer* Get() {
+			return mBuffer;
+		}
+
+		inline void Write(DG::IDeviceContext* context, const T& t) {
+			DG::MapHelper<T> data(context, mBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
+			*data = t;
 		}
 	};
 
@@ -60,19 +73,27 @@ namespace Morpheus {
 
 	class DefaultRenderer : public Renderer {
 	private:
+		DynamicGlobalsBuffer<RendererGlobalData> mGlobals;
+
 		Engine* mEngine;
-		GlobalsBuffer mGlobalsBuffer;
 		DG::IBuffer* mInstanceBuffer;
 		Transform mIdentityTransform;
 		CookTorranceLUT mCookTorranceLut;
 		PostProcessor mPostProcessor;
 
 		DG::ITexture* mFrameBuffer;
+		DG::ITexture* mBlackTexture;
+		DG::ITextureView* mBlackSRV;
+		DG::ITexture* mWhiteTexture;
+		DG::ITextureView* mWhiteSRV;
+		DG::ITexture* mDefaultNormalTexture;
+		DG::ITextureView* mDefaultNormalSRV;
+		DG::ISampler* mDefaultSampler;
 
 		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
 		void RenderSkybox(SkyboxComponent* skybox);
-
 		void ReallocateIntermediateFramebuffer(uint width, uint height);
+		void WriteGlobalData(EntityNode cameraNode);
 
 	public:
 		DefaultRenderer(Engine* engine, 

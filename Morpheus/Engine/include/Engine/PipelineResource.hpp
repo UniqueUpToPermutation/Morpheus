@@ -2,6 +2,7 @@
 
 #include <Engine/Resource.hpp>
 #include <Engine/ShaderLoader.hpp>
+#include <Engine/Pipelines/PipelineFactory.hpp>
 #include <nlohmann/json.hpp>
 
 #include "EngineFactory.h"
@@ -25,15 +26,23 @@ namespace Morpheus {
 		int mBitangent	= -1;
 	};
 
+	enum class InstancingType {
+		// No instancing
+		NONE,
+		// A float4x4 is written to an instance buffer and passed as input to VS
+		INSTANCED_STATIC_TRANSFORMS
+	};
+
 	class PipelineResource : public Resource {
 	private:
 		DG::IPipelineState* mState;
 		std::string mSource;
 		std::vector<DG::LayoutElement> mVertexLayout;
 		VertexAttributeIndices mAttributeIndices;
+		InstancingType mInstancingType;
 
 		void Init(DG::IPipelineState* state,
-			std::vector<DG::LayoutElement> layoutElements,
+			const std::vector<DG::LayoutElement>& layoutElements,
 			VertexAttributeIndices attributeIndices);
 
 	public:
@@ -41,15 +50,36 @@ namespace Morpheus {
 
 		inline PipelineResource(ResourceManager* manager) :
 			Resource(manager),
-			mState(nullptr) {
+			mState(nullptr),
+			mInstancingType(InstancingType::INSTANCED_STATIC_TRANSFORMS) {
 		}
 
 		inline PipelineResource(ResourceManager* manager, 
 			DG::IPipelineState* state,
-			std::vector<DG::LayoutElement> layoutElements,
-			VertexAttributeIndices attributeIndices) : 
-			Resource(manager) {
-			Init(state, layoutElements, attributeIndices);
+			const std::vector<DG::LayoutElement>& layoutElements,
+			VertexAttributeIndices attributeIndices,
+			InstancingType instancingType) : 
+			Resource(manager),
+			mInstancingType(instancingType),
+			mState(state),
+			mVertexLayout(layoutElements),
+			mAttributeIndices(attributeIndices) {
+		}
+
+		inline void SetAll(DG::IPipelineState* state,
+			const std::vector<DG::LayoutElement>& layoutElements,
+			VertexAttributeIndices attributeIndices,
+			InstancingType instancingType) {
+
+			if (mState) {
+				mState->Release();
+				mState = nullptr;
+			}
+
+			mState = state;
+			mVertexLayout = layoutElements;
+			mInstancingType = instancingType;
+			mAttributeIndices = attributeIndices;
 		}
 
 		inline bool IsReady() const {
@@ -153,20 +183,30 @@ namespace Morpheus {
 			const std::string& name,
 			const std::string& entryPoint,
 			const ShaderPreprocessorConfig* config = nullptr);
+
+		inline ShaderLoader* GetShaderLoader() {
+			return &mShaderLoader;
+		}
 	};
 
 	template <>
 	class ResourceCache<PipelineResource> : public IResourceCache {
 	private:
 		std::unordered_map<std::string, PipelineResource*> mCachedResources;
+		std::unordered_map<std::string, factory_func_t> mPipelineFactories;
 		std::vector<std::pair<PipelineResource*, LoadParams<PipelineResource>>> mDefferedResources;
 		PipelineLoader mLoader;
 		ResourceManager* mManager;
+
+		void InitFactories();
+		void ActuallyLoad(const std::string& source, PipelineResource* into, 
+			const ShaderPreprocessorConfig* overrides=nullptr);
 
 	public:
 		inline ResourceCache(ResourceManager* manager) :
 			mLoader(manager),
 			mManager(manager) {
+			InitFactories();
 		}
 		~ResourceCache();
 

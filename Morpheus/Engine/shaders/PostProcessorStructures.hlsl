@@ -24,7 +24,7 @@
 struct PostProcessorParams {
 	ToneMappingAttribs mToneMapAttribs;
 	float fAveLogLum 	DEFAULT_VALUE(1.f);
-	uint Padding0;
+	float fGamma		DEFAULT_VALUE(1.5f);
 	uint Padding1;
 	uint Padding2;
 };

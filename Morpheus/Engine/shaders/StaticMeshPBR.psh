@@ -1,0 +1,135 @@
+// PBR shader based on the Khronos WebGL PBR implementation
+// See https://github.com/KhronosGroup/glTF-WebGL-PBR
+// Supports both metallic roughness and specular glossiness inputs
+
+#include "BasicStructures.hlsl"
+#include "PBRShading.hlsl"
+#include "ToneMapping.hlsl"
+
+cbuffer cbGlobalAttribs
+{
+    RendererGlobalData mGlobals;
+}
+
+cbuffer cbGLTFAttribs
+{
+    GLTFRendererShaderParameters g_RenderParameters;
+    GLTFMaterialShaderInfo       g_MaterialInfo;
+}
+
+#if GLTF_PBR_USE_IBL
+TextureCube  g_IrradianceMap;
+SamplerState g_IrradianceMap_sampler;
+
+TextureCube  g_PrefilteredEnvMap;
+SamplerState g_PrefilteredEnvMap_sampler;
+
+Texture2D     g_BRDF_LUT;
+SamplerState  g_BRDF_LUT_sampler;
+#endif
+
+Texture2D    g_ColorMap;
+SamplerState g_ColorMap_sampler;
+
+Texture2D    g_PhysicalDescriptorMap;
+SamplerState g_PhysicalDescriptorMap_sampler;
+
+Texture2D    g_NormalMap;
+SamplerState g_NormalMap_sampler;
+
+#if GLTF_PBR_USE_AO
+Texture2D    g_AOMap;
+SamplerState g_AOMap_sampler;
+#endif
+
+#if GLTF_PBR_USE_EMISSIVE
+Texture2D    g_EmissiveMap;
+SamplerState g_EmissiveMap_sampler;
+#endif
+
+
+void main(in  float4 ClipPos     : SV_Position,
+          in  float3 WorldPos    : WORLD_POS,
+          in  float3 Normal      : NORMAL,
+          in  float2 UV0         : UV0,
+          in  bool   IsFrontFace : SV_IsFrontFace,
+          out float4 OutColor    : SV_Target)
+{
+    float4 BaseColor = g_ColorMap.Sample(g_ColorMap_sampler, UV0);
+    BaseColor = SRGBtoLINEAR(BaseColor) * g_MaterialInfo.BaseColorFactor;
+
+    float2 NormalMapUV  = UV0;
+
+    // We have to compute gradients in uniform flow control to avoid issues with perturbed normal
+    float3 dWorldPos_dx = ddx(WorldPos);
+    float3 dWorldPos_dy = ddy(WorldPos);
+    float2 dNormalMapUV_dx = ddx(NormalMapUV);
+    float2 dNormalMapUV_dy = ddy(NormalMapUV);
+
+    if (g_MaterialInfo.UseAlphaMask != 0 && BaseColor.a < g_MaterialInfo.AlphaMaskCutoff)
+    {
+        discard;
+    }
+
+    float3 TSNormal = g_NormalMap.Sample(g_NormalMap_sampler, NormalMapUV).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+
+    float Occlusion = 1.0;
+#if GLTF_PBR_USE_AO
+    Occlusion = g_AOMap.Sample(g_AOMap_sampler, UV0).r;
+#endif
+
+    float3 Emissive = float3(0.0, 0.0, 0.0);
+#if GLTF_PBR_USE_EMISSIVE
+    Emissive = g_EmissiveMap.Sample(g_EmissiveMap_sampler, UV0).rgb;
+#endif
+
+    float4 PhysicalDesc = g_PhysicalDescriptorMap.Sample(g_PhysicalDescriptorMap_sampler, UV0);
+    
+    float metallic;
+    if (g_MaterialInfo.Workflow == PBR_WORKFLOW_SPECULAR_GLOSINESS)
+    {
+        PhysicalDesc.rgb = SRGBtoLINEAR(PhysicalDesc.rgb) * g_MaterialInfo.SpecularFactor.rgb;
+        const float u_GlossinessFactor = 1.0;
+        PhysicalDesc.a *= u_GlossinessFactor;
+    }
+    else if(g_MaterialInfo.Workflow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
+    {
+        PhysicalDesc.g = saturate(PhysicalDesc.g * g_MaterialInfo.RoughnessFactor);
+        PhysicalDesc.b = saturate(PhysicalDesc.b * g_MaterialInfo.MetallicFactor);
+    }
+    SurfaceReflectanceInfo SrfInfo = GLTF_PBR_GetSurfaceReflectance(g_MaterialInfo.Workflow, BaseColor, PhysicalDesc, metallic);
+
+    // LIGHTING
+    float3 perturbedNormal = GLTF_PBR_PerturbNormal(dWorldPos_dx, dWorldPos_dy, dNormalMapUV_dx, dNormalMapUV_dy, 
+                                                    Normal, TSNormal, g_MaterialInfo.NormalTextureUVSelector >= 0.0, IsFrontFace);
+    float3 view = normalize(mGlobals.mCamera.f4Position.xyz - WorldPos.xyz); // Direction from surface point to camera
+
+    float3 color = float3(0.0, 0.0, 0.0);
+    color += GLTF_PBR_ApplyDirectionalLight(mGlobals.mLightAttribs.f4Direction.xyz, 
+		mGlobals.mLightAttribs.f4Intensity.rgb, SrfInfo, perturbedNormal, view);
+
+    // Calculate lighting contribution from image based lighting source (IBL)
+    GLTF_PBR_IBL_Contribution IBLContrib;
+    IBLContrib.f3Diffuse  = float3(0.0, 0.0, 0.0);
+    IBLContrib.f3Specular = float3(0.0, 0.0, 0.0);
+#if GLTF_PBR_USE_IBL
+    IBLContrib =
+        GLTF_PBR_GetIBLContribution(SrfInfo, perturbedNormal, view, float(g_RenderParameters.PrefilteredCubeMipLevels),
+                           g_BRDF_LUT,          g_BRDF_LUT_sampler, 
+                           g_IrradianceMap,     g_IrradianceMap_sampler,
+                           g_PrefilteredEnvMap, g_PrefilteredEnvMap_sampler);
+    color += (IBLContrib.f3Diffuse + IBLContrib.f3Specular) * g_RenderParameters.IBLScale;
+#endif
+
+#if GLTF_PBR_USE_AO
+    color = lerp(color, color * Occlusion, g_RenderParameters.OcclusionStrength);
+#endif
+
+#if GLTF_PBR_USE_EMISSIVE
+    const float u_EmissiveFactor = 1.0;
+    Emissive = SRGBtoLINEAR(Emissive);
+    color += Emissive.rgb * g_MaterialInfo.EmissiveFactor.rgb * g_RenderParameters.EmissionScale;
+#endif
+
+    OutColor = float4(color, BaseColor.a);
+}

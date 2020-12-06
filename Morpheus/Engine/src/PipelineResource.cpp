@@ -10,14 +10,6 @@ namespace Morpheus {
 		return this;
 	}
 
-	void PipelineResource::Init(DG::IPipelineState* state,
-		std::vector<DG::LayoutElement> layoutElements,
-		VertexAttributeIndices attributeIndices) {
-		mState = state;
-		mVertexLayout = layoutElements;
-		mAttributeIndices = attributeIndices;
-	}
-
 	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(const std::string& str) {
 		if (str == "SWAP_CHAIN_COLOR_BUFFER_FORMAT") {
 			return mManager->GetParent()->GetSwapChain()
@@ -458,7 +450,8 @@ namespace Morpheus {
 		desc->DepthWriteEnable = json.value("DepthWriteEnable", desc->DepthWriteEnable);
 	}
 
-	void PipelineLoader::Load(const std::string& source, PipelineResource* resource,
+	void PipelineLoader::Load(const std::string& source, 
+		PipelineResource* resource,
 		const ShaderPreprocessorConfig* overrides) {
 
 		std::cout << "Loading " << source << "..." << std::endl;
@@ -532,7 +525,9 @@ namespace Morpheus {
 				variable->Set(globalBuffer);
 			}
 
-			resource->Init(state, layoutElements, attribIndices);
+			// Allow changes of instancing type later
+			resource->SetAll(state, layoutElements, attribIndices,
+				InstancingType::INSTANCED_STATIC_TRANSFORMS);
 
 			for (auto it : strings) {
 				delete[] it;
@@ -693,6 +688,32 @@ namespace Morpheus {
 		mState->Release();
 	}
 
+	void ResourceCache<PipelineResource>::ActuallyLoad(const std::string& source, PipelineResource* into, 
+		const ShaderPreprocessorConfig* overrides) {
+		
+		auto factoryIt = mPipelineFactories.find(source);
+
+		// See if this corresponds to one of our pipeline factories
+		if (factoryIt != mPipelineFactories.end()) {
+			
+			std::cout << "Loading Internal Pipeline " << source << "..." << std::endl;
+
+			// Spawn from factory
+			factoryIt->second(
+				mManager->GetParent()->GetDevice(),
+				mManager,
+				mManager->GetParent()->GetRenderer(),
+				mLoader.GetShaderLoader(),
+				into,
+				overrides);
+
+			into->mSource = source;
+		} else {
+			// Spawn from json
+			mLoader.Load(source, into, overrides);
+		}
+	}
+
 	Resource* ResourceCache<PipelineResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
@@ -704,7 +725,7 @@ namespace Morpheus {
 		}
 
 		PipelineResource* resource = new PipelineResource(mManager);
-		mLoader.Load(src, resource, overrides);
+		ActuallyLoad(src, resource, overrides);
 		resource->mSource = params_cast->mSource;
 		mCachedResources[src] = resource;
 		return resource;
@@ -721,6 +742,7 @@ namespace Morpheus {
 
 		PipelineResource* resource = new PipelineResource(mManager);
 		mCachedResources[src] = resource;
+
 		// Load this later
 		mDefferedResources.push_back(std::make_pair(resource, *params_cast));
 		return resource;
@@ -728,7 +750,7 @@ namespace Morpheus {
 
 	void ResourceCache<PipelineResource>::ProcessDeferred() {
 		for (auto& resource : mDefferedResources) {
-			mLoader.Load(resource.second.mSource, resource.first, &resource.second.mOverrides);
+			ActuallyLoad(resource.second.mSource, resource.first, &resource.second.mOverrides);
 			resource.first->mSource = resource.second.mSource;
 		}
 

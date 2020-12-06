@@ -1,15 +1,8 @@
-struct DefaultRendererGlobals {
-	float4x4 	mView;
-	float4x4 	mProjection;
-	float4x4 	mViewProjection;
-	float4x4 	mViewProjectionInverse;
-	float3 		mEye;
-	float 		mTime;
-};
+#include "BasicStructures.hlsl"
 
 cbuffer Globals
 {
-   	DefaultRendererGlobals mGlobals;
+   	RendererGlobalData mGlobals;
 };
 
 struct PSInput 
@@ -32,8 +25,8 @@ void main(in uint VertId : SV_VertexID,
 
 	PSIn.Position = vPos;
 
-	vPos = mGlobals.mViewProjectionInverse * vPos;
+	vPos = mul(vPos, mGlobals.mCamera.mViewProjInv);
 	vPos /= vPos.w;
 
-	PSIn.Direction = vPos.xyz - mGlobals.mEye;
+	PSIn.Direction = vPos.xyz - mGlobals.mCamera.f4Position.xyz;
 }

@@ -127,6 +127,10 @@ list(APPEND SOURCE
 	src/HdriToCubemap.cpp
 	src/EditorCameraController.cpp
 	src/PostProcessor.cpp
+	src/Pipelines/PipelineFactory.cpp
+	src/Pipelines/PBRStaticMesh.cpp
+	src/Pipelines/BasicTextured.cpp
+	src/Pipelines/Skybox.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

@@ -19,6 +19,7 @@ void main(in FullScreenTriangleVSOutput VSOut,
 
 	float3 outputColor = ToneMap(inputColor, 
 		mParams.mToneMapAttribs, mParams.fAveLogLum);
-
-	Color = float4(outputColor, 1.0);
+		
+	// Gamma correction
+	Color = float4(pow(outputColor, float3(1.0 / mParams.fGamma)), 1.0);
 }
