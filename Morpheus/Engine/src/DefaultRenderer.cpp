@@ -441,6 +441,10 @@ namespace Morpheus {
 		return mEngine->GetSwapChain()->GetDesc().DepthBufferFormat;
 	}
 
+	DG::ITextureView* DefaultRenderer::GetLUTShaderResourceView() {
+		return mCookTorranceLut.GetShaderView();
+	}
+
 	RenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
 		std::stack<Transform*> transformStack;
 		transformStack.emplace(&mIdentityTransform);

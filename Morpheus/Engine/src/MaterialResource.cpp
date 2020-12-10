@@ -33,6 +33,11 @@ namespace Morpheus {
 		const std::vector<TextureResource*>& textures,
 		const std::string& source) {
 
+		pipeline->AddRef();
+		for (auto tex : textures) {
+			tex->AddRef();
+		}
+
 		mResourceBinding = binding;
 		mPipeline = pipeline;
 		mTextures = textures;
@@ -56,7 +61,9 @@ namespace Morpheus {
 		mManager(manager) {
 	}
 
-	void MaterialLoader::Load(const std::string& source, MaterialResource* loadinto) {
+	void MaterialLoader::Load(const std::string& source, 
+		const MaterialPrototypeFactory& prototypeFactory, 
+		MaterialResource* loadinto) {
 		std::cout << "Loading " << source << "..." << std::endl;
 
 		std::ifstream stream;
@@ -74,46 +81,72 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		Load(json, source, path, loadinto);
+		Load(json, source, path, prototypeFactory, loadinto);
 	}
 
 	void MaterialLoader::Load(const nlohmann::json& json, 
 		const std::string& source, const std::string& path,
+		const MaterialPrototypeFactory& prototypeFactory,
 		MaterialResource* loadinto) {
 
-		std::string pipeline_str;
-		json["Pipeline"].get_to(pipeline_str);
+		// Use a prototype to load the material
+		if (json.contains("Prototype")) {
 
-		auto pipeline = mManager->Load<PipelineResource>(pipeline_str);
+			std::string prototype_str;
+			json["Prototype"].get_to(prototype_str);
+		
+			std::unique_ptr<MaterialPrototype> materialPrototype(
+				prototypeFactory.Spawn(prototype_str, mManager, source, path, json));
 
-		DG::IShaderResourceBinding* binding = nullptr;
-		pipeline->GetState()->CreateShaderResourceBinding(&binding, true);
+			if (materialPrototype == nullptr) {
+				throw std::runtime_error("Could not find prototype!");
+			}
 
-		std::vector<TextureResource*> textures;
-		if (json.contains("Textures")) {
-			for (const auto& item : json["Textures"]) {
+			// Use the material prototype to initialize material
+			materialPrototype->InitializeMaterial(loadinto);
 
-				std::string binding_loc;
-				item["Binding"].get_to(binding_loc);
+		} else {
+			// Fall back to a default loader for the material
+			std::string pipeline_str;
+			json["Pipeline"].get_to(pipeline_str);
 
-				DG::SHADER_TYPE shader_type = ReadShaderType(item["ShaderType"]);
+			auto pipeline = mManager->Load<PipelineResource>(pipeline_str);
 
-				std::string source;
-				item["Source"].get_to(source);
+			DG::IShaderResourceBinding* binding = nullptr;
+			pipeline->GetState()->CreateShaderResourceBinding(&binding, true);
 
-				auto texture = mManager->Load<TextureResource>(source);
-				textures.emplace_back(texture);
+			std::vector<TextureResource*> textures;
+			if (json.contains("Textures")) {
+				for (const auto& item : json["Textures"]) {
 
-				auto variable = binding->GetVariableByName(shader_type, binding_loc.c_str());
-				if (variable) {
-					variable->Set(texture->GetShaderView());
-				} else {
-					std::cout << "Warning could not find binding " << binding_loc << "!" << std::endl;
+					std::string binding_loc;
+					item["Binding"].get_to(binding_loc);
+
+					DG::SHADER_TYPE shader_type = ReadShaderType(item["ShaderType"]);
+
+					std::string source;
+					item["Source"].get_to(source);
+
+					auto texture = mManager->Load<TextureResource>(source);
+					textures.emplace_back(texture);
+
+					auto variable = binding->GetVariableByName(shader_type, binding_loc.c_str());
+					if (variable) {
+						variable->Set(texture->GetShaderView());
+					} else {
+						std::cout << "Warning could not find binding " << binding_loc << "!" << std::endl;
+					}
 				}
 			}
-		}
 
-		loadinto->Init(binding, pipeline, textures, source);
+			loadinto->Init(binding, pipeline, textures, source);
+
+			for (auto tex : textures) {
+				tex->Release();
+			}
+
+			pipeline->Release();
+		}
 	}
 
 	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) 
@@ -134,7 +167,7 @@ namespace Morpheus {
 		}
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
-		mLoader.Load(src, resource);
+		mLoader.Load(src, mPrototypeFactory, resource);
 		mResources[src] = resource;
 		return resource;
 	}
@@ -156,7 +189,7 @@ namespace Morpheus {
 
 	void ResourceCache<MaterialResource>::ProcessDeferred() {
 		for (auto resource : mDeferredResources) {
-			mLoader.Load(resource.second.mSource, resource.first);
+			mLoader.Load(resource.second.mSource, mPrototypeFactory, resource.first);
 		}
 
 		mDeferredResources.clear();

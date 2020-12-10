@@ -118,5 +118,6 @@ namespace Morpheus {
 		RenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
+		DG::ITextureView* GetLUTShaderResourceView() override;
 	};
 }

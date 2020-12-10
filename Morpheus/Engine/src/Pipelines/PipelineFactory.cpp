@@ -1,4 +1,5 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
+#include <Engine/Pipelines/PBRStaticMesh.hpp>
 #include <Engine/PipelineResource.hpp>
 
 namespace Morpheus {
@@ -31,7 +32,10 @@ namespace Morpheus {
 
 	void ResourceCache<PipelineResource>::InitFactories() {
 		mPipelineFactories["BasicTextured"] = &CreateBasicTexturedPipeline;
-		mPipelineFactories["PBRStaticMesh"] = &CreatePBRStaticMeshPipeline;
+		mPipelineFactories["PBRStaticMesh"] = &CreatePBRStaticMeshPipeline<true, false, false>;
+		mPipelineFactories["PBRStaticMesh_AO"] = &CreatePBRStaticMeshPipeline<true, true, false>;
+		mPipelineFactories["PBRStaticMesh_AO_Emissive"] = &CreatePBRStaticMeshPipeline<true, true, true>;
+		mPipelineFactories["PBRStaticMesh_Emissive"] = &CreatePBRStaticMeshPipeline<true, false, true>;
 		mPipelineFactories["Skybox"] = &CreateSkyboxPipeline;
 	}
 }

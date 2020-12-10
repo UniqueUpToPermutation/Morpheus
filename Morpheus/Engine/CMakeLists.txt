@@ -128,9 +128,9 @@ list(APPEND SOURCE
 	src/EditorCameraController.cpp
 	src/PostProcessor.cpp
 	src/Pipelines/PipelineFactory.cpp
-	src/Pipelines/PBRStaticMesh.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp
+	src/MaterialPrototypes.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

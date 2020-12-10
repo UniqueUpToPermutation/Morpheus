@@ -175,10 +175,9 @@ GLTF_PBR_IBL_Contribution GLTF_PBR_GetIBLContribution(
 /// \param [in]  PhysicalDesc - Physical material description. For Metallic-roughness workflow,
 ///                             'g' channel stores roughness, 'b' channel stores metallic.
 /// \param [out] Metallic     - Metallic value used for shading.
-SurfaceReflectanceInfo GLTF_PBR_GetSurfaceReflectance(int        Workflow,
-                                                      float4     BaseColor,
-                                                      float4     PhysicalDesc,
-                                                      out float  Metallic)
+SurfaceReflectanceInfo GLTF_PBR_GetSurfaceReflectance(float4     BaseColor,
+													  float      Metallic,
+													  float      Roughness)
 {
     SurfaceReflectanceInfo SrfInfo;
 
@@ -186,41 +185,12 @@ SurfaceReflectanceInfo GLTF_PBR_GetSurfaceReflectance(int        Workflow,
 
     float3 f0 = float3(0.04, 0.04, 0.04);
 
-    // Metallic and Roughness material properties are packed together
-    // In glTF, these factors can be specified by fixed scalar values
-    // or from a metallic-roughness map
-    if (Workflow == PBR_WORKFLOW_SPECULAR_GLOSINESS)
-    {
-        SrfInfo.PerceptualRoughness = 1.0 - PhysicalDesc.a; // glossiness to roughness
-        f0 = PhysicalDesc.rgb;
+	// Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
+	// This layout intentionally reserves the 'r' channel for (optional) occlusion map data
+	SrfInfo.PerceptualRoughness = Roughness;
 
-        // f0 = specular
-        specularColor = f0;
-        float oneMinusSpecularStrength = 1.0 - max(max(f0.r, f0.g), f0.b);
-        SrfInfo.DiffuseColor = BaseColor.rgb * oneMinusSpecularStrength;
-
-        // do conversion between metallic M-R and S-G metallic
-        Metallic = GLTF_PBR_SolveMetallic(BaseColor.rgb, specularColor, oneMinusSpecularStrength);
-    }
-    else if (Workflow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
-    {
-        // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
-        // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        SrfInfo.PerceptualRoughness = PhysicalDesc.g;
-        Metallic                    = PhysicalDesc.b;
-
-        SrfInfo.DiffuseColor  = BaseColor.rgb * (float3(1.0, 1.0, 1.0) - f0) * (1.0 - Metallic);
-        specularColor         = lerp(f0, BaseColor.rgb, Metallic);
-    }
-
-//#ifdef ALPHAMODE_OPAQUE
-//    baseColor.a = 1.0;
-//#endif
-//
-//#ifdef MATERIAL_UNLIT
-//    gl_FragColor = float4(gammaCorrection(baseColor.rgb), baseColor.a);
-//    return;
-//#endif
+	SrfInfo.DiffuseColor  = BaseColor.rgb * (float3(1.0, 1.0, 1.0) - f0) * (1.0 - Metallic);
+	specularColor         = lerp(f0, BaseColor.rgb, Metallic);
 
     SrfInfo.PerceptualRoughness = clamp(SrfInfo.PerceptualRoughness, 0.0, 1.0);
 

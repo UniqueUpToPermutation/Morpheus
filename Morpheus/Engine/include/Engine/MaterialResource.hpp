@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <Engine/Resource.hpp>
+#include <Engine/MaterialPrototypes.hpp>
 
 #include "EngineFactory.h"
 #include "RefCntAutoPtr.hpp"
@@ -15,7 +16,6 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
-
 	template <>
 	class ResourceCache<MaterialResource>;
 
@@ -27,6 +27,7 @@ namespace Morpheus {
 		std::string mSource;
 		ResourceCache<MaterialResource>* mCache;
 		entt::entity mEntity;
+		std::unique_ptr<MaterialPrototype> mPrototype;
 
 		void Init(DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
@@ -76,6 +77,7 @@ namespace Morpheus {
 
 		friend class MaterialLoader;
 		friend class ResourceCache<MaterialResource>;
+		friend class MaterialPrototype;
 	};
 
 	template <>
@@ -97,12 +99,14 @@ namespace Morpheus {
 	public:
 		MaterialLoader(ResourceManager* manager);
 
-		void Load(const std::string& source, 
+		void Load(const std::string& source,
+			const MaterialPrototypeFactory& prototypeFactory,
 			MaterialResource* loadinto);
 
 		void Load(const nlohmann::json& json, 
 			const std::string& source, 
 			const std::string& path,
+			const MaterialPrototypeFactory& prototypeFactory,
 			MaterialResource* loadInto);
 	};
 
@@ -114,6 +118,7 @@ namespace Morpheus {
 		MaterialLoader mLoader;
 		std::vector<std::pair<MaterialResource*, LoadParams<MaterialResource>>> mDeferredResources;
 		entt::registry mViewRegistry;
+		MaterialPrototypeFactory mPrototypeFactory;
 
 	public:
 		ResourceCache(ResourceManager* manager);

@@ -66,6 +66,11 @@ struct GLTFMaterialShaderInfo
 	float   MetallicFactor;
 	float   RoughnessFactor;
 
+	float 	PrefilteredCubeMipLevels;
+	float 	IBLScale;
+    float 	OcclusionStrength;
+    float 	EmissionScale;
+
 	int     UseAlphaMask;	
 	float   AlphaMaskCutoff;
     float   Dummy0;

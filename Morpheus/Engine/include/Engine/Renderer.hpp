@@ -40,5 +40,6 @@ namespace Morpheus {
 
 		virtual DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const = 0;
 		virtual DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const = 0;
+		virtual DG::ITextureView* GetLUTShaderResourceView() = 0;
 	};
 }
