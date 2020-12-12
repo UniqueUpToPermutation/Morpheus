@@ -12,8 +12,8 @@ namespace Morpheus {
 	MaterialPrototypeFactory::MaterialPrototypeFactory() {
 		mMap["BasicTexturedMaterial"] = 
 			&AbstractConstructor<BasicTexturedMaterialPrototype>;
-		/*mMap["StaticMeshPBRMaterial"] = 
-			&AbstractConstructor<StaticMeshPBRMaterialPrototype>;*/
+		mMap["StaticMeshPBRMaterial"] = 
+			&AbstractConstructor<StaticMeshPBRMaterialPrototype>;
 	}
 
 	MaterialPrototype* MaterialPrototypeFactory::Spawn(
