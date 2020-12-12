@@ -20,17 +20,19 @@ namespace Morpheus {
 		DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
+		const std::vector<DG::IBuffer*>& buffers,
 		const std::string& source,
 		ResourceCache<MaterialResource>* cache) : 
 		Resource(manager),
 		mCache(cache) {
 		mEntity = cache->mViewRegistry.create();
-		Init(binding, pipeline, textures, source);
+		Init(binding, pipeline, textures, buffers, source);
 	}
 
 	void MaterialResource::Init(DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
+		const std::vector<DG::IBuffer*>& buffers,
 		const std::string& source) {
 
 		pipeline->AddRef();
@@ -38,6 +40,20 @@ namespace Morpheus {
 			tex->AddRef();
 		}
 
+		for (auto buf : mUniformBuffers) {
+			buf->Release();
+		}
+
+		if (mResourceBinding)
+			mResourceBinding->Release();
+		if (mPipeline)
+			mPipeline->Release();
+
+		for (auto item : mTextures) {
+			item->Release();
+		}
+
+		mUniformBuffers = buffers;
 		mResourceBinding = binding;
 		mPipeline = pipeline;
 		mTextures = textures;
@@ -45,10 +61,15 @@ namespace Morpheus {
 	}
 
 	MaterialResource::~MaterialResource() {
-		mResourceBinding->Release();
-		mPipeline->Release();
+		if (mResourceBinding)
+			mResourceBinding->Release();
+		if (mPipeline)
+			mPipeline->Release();
 		for (auto item : mTextures) {
 			item->Release();
+		}
+		for (auto buf : mUniformBuffers) {
+			buf->Release();
 		}
 		mCache->mViewRegistry.destroy(mEntity);
 	}
@@ -57,8 +78,10 @@ namespace Morpheus {
 		return this;
 	}
 
-	MaterialLoader::MaterialLoader(ResourceManager* manager) :
-		mManager(manager) {
+	MaterialLoader::MaterialLoader(ResourceManager* manager,
+		ResourceCache<MaterialResource>* cache) :
+		mManager(manager),
+		mCache(cache) {
 	}
 
 	void MaterialLoader::Load(const std::string& source, 
@@ -103,7 +126,7 @@ namespace Morpheus {
 			}
 
 			// Use the material prototype to initialize material
-			materialPrototype->InitializeMaterial(loadinto);
+			materialPrototype->InitializeMaterial(mManager, mCache, loadinto);
 
 		} else {
 			// Fall back to a default loader for the material
@@ -139,7 +162,8 @@ namespace Morpheus {
 				}
 			}
 
-			loadinto->Init(binding, pipeline, textures, source);
+			std::vector<DG::IBuffer*> buffers;
+			loadinto->Init(binding, pipeline, textures, buffers, source);
 
 			for (auto tex : textures) {
 				tex->Release();
@@ -149,8 +173,9 @@ namespace Morpheus {
 		}
 	}
 
-	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) 
-		: mManager(manager), mLoader(manager) {
+	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) : 
+		mManager(manager), 
+		mLoader(manager, this) {
 	}
 
 	ResourceCache<MaterialResource>::~ResourceCache() {

@@ -11,6 +11,8 @@ using float4x4 = Diligent::float4x4;
 #include <shaders/PBRStructures.hlsl>
 #include <nlohmann/json.hpp>
 
+#include <Engine/Resource.hpp>
+
 namespace DG = Diligent;
 
 namespace Morpheus {
@@ -19,17 +21,28 @@ namespace Morpheus {
 	class ResourceManager;
 	class PipelineResource;
 	class TextureResource;
+	class MaterialPrototype;
+
+	typedef std::function<MaterialPrototype*(
+		ResourceManager* manager,
+		const std::string&,
+		const std::string&,
+		const nlohmann::json& config)> prototype_spawner_t;
 
 	class MaterialPrototype {
 	protected:
-		void InitMaterial(MaterialResource* material,
+		void InternalInitialize(MaterialResource* material,
 			DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
-			const std::vector<TextureResource*>& textures);
+			const std::vector<TextureResource*>& textures,
+			const std::vector<DG::IBuffer*>& buffers);
 
 	public:
 		virtual ~MaterialPrototype() {}
-		virtual void InitializeMaterial(MaterialResource* into) = 0;
+		virtual void InitializeMaterial(
+			ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache, 
+			MaterialResource* into) = 0;
 		virtual MaterialPrototype* DeepCopy() const = 0;
 	};
 
@@ -44,12 +57,7 @@ namespace Morpheus {
 
 	class MaterialPrototypeFactory {
 	private:
-		std::unordered_map<std::string, 
-			std::function<MaterialPrototype*(
-				ResourceManager* manager,
-				const std::string&,
-				const std::string&,
-				const nlohmann::json& config)>> mMap;
+		std::unordered_map<std::string, prototype_spawner_t> mMap;
 
 	public:
 		MaterialPrototypeFactory();
@@ -61,6 +69,31 @@ namespace Morpheus {
 			const nlohmann::json& config) const;
 	};
 
+	void LoadPBRShaderInfo(const nlohmann::json& json, GLTFMaterialShaderInfo* result);
+
+	class JsonMaterialPrototype : public MaterialPrototype {
+	private:
+	PipelineResource* mPipeline;
+		std::vector<DG::Uint32> mVariableIndices;
+		std::vector<TextureResource*> mTextures;
+
+	public:
+		JsonMaterialPrototype(
+			const JsonMaterialPrototype& other);
+		JsonMaterialPrototype(
+			ResourceManager* manager,
+			const std::string& source, 
+			const std::string& path,
+			const nlohmann::json& config);
+		~JsonMaterialPrototype();
+
+		void InitializeMaterial(
+			ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache,
+			MaterialResource* into) override;
+		MaterialPrototype* DeepCopy() const override;
+	};
+
 	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
 	private:
 		TextureResource* mAlbedo;
@@ -70,6 +103,11 @@ namespace Morpheus {
 		TextureResource* mAO;
 		TextureResource* mEmissive;
 		PipelineResource* mPipeline;
+		GLTFMaterialShaderInfo mMaterialInfo;
+
+		DG::IBuffer* CreateMaterialInfoBuffer(
+			const GLTFMaterialShaderInfo& info,
+			ResourceManager* manager);
 
 	public:
 		StaticMeshPBRMaterialPrototype(
@@ -90,7 +128,10 @@ namespace Morpheus {
 			TextureResource* emissive = nullptr);
 		~StaticMeshPBRMaterialPrototype();
 
-		void InitializeMaterial(MaterialResource* into) override;
+		void InitializeMaterial(
+			ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache,
+			MaterialResource* into) override;
 		MaterialPrototype* DeepCopy() const override;
 	};
 
@@ -113,7 +154,10 @@ namespace Morpheus {
 			TextureResource* color);
 		~BasicTexturedMaterialPrototype();
 
-		void InitializeMaterial(MaterialResource* into) override;
+		void InitializeMaterial(
+			ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache,
+			MaterialResource* into) override;
 		MaterialPrototype* DeepCopy() const override;
 	};
 }

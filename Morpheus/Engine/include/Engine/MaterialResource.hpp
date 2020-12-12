@@ -24,6 +24,7 @@ namespace Morpheus {
 		DG::IShaderResourceBinding* mResourceBinding;
 		PipelineResource* mPipeline;
 		std::vector<TextureResource*> mTextures;
+		std::vector<DG::IBuffer*> mUniformBuffers;
 		std::string mSource;
 		ResourceCache<MaterialResource>* mCache;
 		entt::entity mEntity;
@@ -32,6 +33,7 @@ namespace Morpheus {
 		void Init(DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
+			const std::vector<DG::IBuffer*>& uniformBuffers,
 			const std::string& source);
 
 	public:
@@ -42,6 +44,7 @@ namespace Morpheus {
 			DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
+			const std::vector<DG::IBuffer*>& uniformBuffers,
 			const std::string& source,
 			ResourceCache<MaterialResource>* cache);
 		~MaterialResource();
@@ -95,9 +98,11 @@ namespace Morpheus {
 	class MaterialLoader {
 	private:
 		ResourceManager* mManager;
+		ResourceCache<MaterialResource>* mCache;
 
 	public:
-		MaterialLoader(ResourceManager* manager);
+		MaterialLoader(ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache);
 
 		void Load(const std::string& source,
 			const MaterialPrototypeFactory& prototypeFactory,
@@ -130,6 +135,12 @@ namespace Morpheus {
 		void Add(Resource* resource, const void* params) override;
 		void Unload(Resource* resource) override;
 		void Clear() override;
+
+		template <typename T, typename... Args>
+		inline T* CreateView(MaterialResource* resource, Args &&... args) {
+			return &mViewRegistry.template emplace<T, Args...>(
+				resource->mEntity, std::forward<Args>(args)...);
+		}
 
 		friend class MaterialResource;
 	};

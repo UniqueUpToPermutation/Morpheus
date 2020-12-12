@@ -127,7 +127,7 @@ namespace Morpheus {
         
 		mBlackTexture = nullptr;
         device->CreateTexture(TexDesc, &InitData, &mBlackTexture);
-        mBlackSRV = mBlackTexture ->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+        mBlackSRV = mBlackTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 
         TexDesc.Name = "Default normal map for renderer";
         for (auto& c : Data) c = 0x00FF7F7F;

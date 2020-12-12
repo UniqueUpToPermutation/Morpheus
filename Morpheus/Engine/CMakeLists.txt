@@ -131,6 +131,7 @@ list(APPEND SOURCE
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp
 	src/MaterialPrototypes.cpp
+	src/MaterialView.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

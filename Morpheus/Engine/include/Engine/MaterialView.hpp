@@ -21,8 +21,9 @@ namespace Morpheus {
 		DG::IShaderResourceVariable* mPrefilteredEnvMapLoc;
 	
 	public:
-		ImageBasedLightingView(MaterialResource* material,
-			const nlohmann::json& config);
+		ImageBasedLightingView(
+			DG::IShaderResourceVariable* irradianceMapLoc,
+			DG::IShaderResourceVariable* prefilteredEnvMapLoc);
 
 		void SetEnvironment(
 			DG::ITextureView* irradiance,
