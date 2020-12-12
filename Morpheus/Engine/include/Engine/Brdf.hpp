@@ -5,6 +5,7 @@
 #include "BasicMath.hpp"
 
 #include <Engine/ResourceManager.hpp>
+#include <Engine/LightProbe.hpp>
 
 namespace DG = Diligent;
 
@@ -65,7 +66,8 @@ namespace Morpheus {
 		LightProbeProcessor(DG::IRenderDevice* device);
 		~LightProbeProcessor();
 
-		void Initialize(ResourceManager* resourceManager,
+		void Initialize(
+			ResourceManager* resourceManager,
 			DG::TEXTURE_FORMAT irradianceFormat,
 			DG::TEXTURE_FORMAT prefilterEnvFormat,
 			const uint irradianceSamplesTheta = 32,
@@ -81,22 +83,34 @@ namespace Morpheus {
 			return mEnvironmentMapSamples;
 		}
 
-		void ComputeIrradiance(DG::IDeviceContext* context, 
+		void ComputeIrradiance(
+			DG::IDeviceContext* context, 
 			DG::ITextureView* incommingEnvironmentSRV,
 			DG::ITexture* outputCubemap);
 
-		void ComputePrefilteredEnvironment(DG::IDeviceContext* context, 
+		void ComputePrefilteredEnvironment(
+			DG::IDeviceContext* context, 
 			DG::ITextureView* incommingEnvironmentSRV,
 			DG::ITexture* outputCubemap);
 
-		DG::ITexture* ComputeIrradiance(DG::IRenderDevice* device,
+		DG::ITexture* ComputeIrradiance(
+			DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
 			DG::ITextureView* incommingEnvironmentSRV,
 			uint size);
 
-		DG::ITexture* ComputePrefilteredEnvironment(DG::IRenderDevice* device,
+		DG::ITexture* ComputePrefilteredEnvironment(
+			DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
 			DG::ITextureView* incommingEnvironmentSRV,
 			uint size);
+
+		LightProbe ComputeLightProbe(
+			DG::IRenderDevice* device,
+			DG::IDeviceContext* context,
+			ResourceCache<TextureResource>* textureCache,
+			DG::ITextureView* incommingEnvironmentSRV,
+			uint prefilteredEnvironmentSize = 256,
+			uint irradianceSize = 64);
 	};
 }

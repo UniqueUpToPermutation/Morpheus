@@ -13,7 +13,7 @@ namespace Morpheus {
 	class ResourceManager {
 	private:
 		std::unordered_map<entt::id_type, IResourceCache*> mResourceCaches;
-		std::vector<Resource*> mDisposalList;
+		std::vector<IResource*> mDisposalList;
 		ShaderPreprocessorConfig mShaderPreprocessorConfig;
 
 		Engine* mParent;
@@ -103,7 +103,7 @@ namespace Morpheus {
 			}
 		}
 
-		inline void RequestUnload(Resource* resource) {
+		inline void RequestUnload(IResource* resource) {
 			mDisposalList.emplace_back(resource);
 		}
 

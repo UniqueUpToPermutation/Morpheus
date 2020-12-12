@@ -14,6 +14,7 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 	class MaterialResource;
+	class LightProbe;
 
 	class ImageBasedLightingView {
 	private:
@@ -28,5 +29,8 @@ namespace Morpheus {
 		void SetEnvironment(
 			DG::ITextureView* irradiance,
 			DG::ITextureView* prefilteredEnvMap);
+
+		void SetEnvironment(
+			LightProbe* lightProbe);
 	};
 }

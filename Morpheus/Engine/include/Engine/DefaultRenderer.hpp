@@ -58,20 +58,23 @@ namespace Morpheus {
 		Transform* mTransform;
 	};
 
-	class DefaultRenderCache : public RenderCache {
+	class DefaultRenderCache : public IRenderCache {
 	public:
 		std::vector<StaticMeshCache> mStaticMeshes;
-		SkyboxComponent* mSkybox;
 
-		inline DefaultRenderCache() :
-			mSkybox(nullptr) {
+		SceneHeirarchy* mScene;
+		entt::entity mSkybox;
+
+		inline DefaultRenderCache(SceneHeirarchy* scene) :
+			mScene(scene),
+			mSkybox(entt::null) {
 		}
 		
 		~DefaultRenderCache() {
 		}
 	};
 
-	class DefaultRenderer : public Renderer {
+	class DefaultRenderer : public IRenderer {
 	private:
 		DynamicGlobalsBuffer<RendererGlobalData> mGlobals;
 
@@ -82,12 +85,11 @@ namespace Morpheus {
 		PostProcessor mPostProcessor;
 
 		DG::ITexture* mFrameBuffer;
-		DG::ITexture* mBlackTexture;
-		DG::ITextureView* mBlackSRV;
-		DG::ITexture* mWhiteTexture;
-		DG::ITextureView* mWhiteSRV;
-		DG::ITexture* mDefaultNormalTexture;
-		DG::ITextureView* mDefaultNormalSRV;
+
+		TextureResource* mBlackTexture;
+		TextureResource* mWhiteTexture;
+		TextureResource* mDefaultNormalTexture;
+
 		DG::ISampler* mDefaultSampler;
 
 		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
@@ -109,13 +111,13 @@ namespace Morpheus {
 		void RequestConfiguration(DG::EngineMtlCreateInfo* info) override;
 
 		void Initialize();
-		void Render(RenderCache* cache, EntityNode cameraNode) override;
+		void Render(IRenderCache* cache, EntityNode cameraNode) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() override;
 		uint GetMaxAnisotropy() override;
 
-		RenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
+		IRenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
 		DG::ITextureView* GetLUTShaderResourceView() override;

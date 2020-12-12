@@ -22,18 +22,18 @@ namespace Morpheus {
 		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
 	}
 
-	class TextureResource : public Resource {
+	class TextureResource : public IResource {
 	private:
 		DG::ITexture* mTexture;
 		std::string mSource;
 
 	public:
 		inline TextureResource(ResourceManager* manager, DG::ITexture* texture) :
-			Resource(manager), mTexture(texture) {
+			IResource(manager), mTexture(texture) {
 		}
 
 		inline TextureResource(ResourceManager* manager) :
-			Resource(manager), mTexture(nullptr) {
+			IResource(manager), mTexture(nullptr) {
 		}
 
 		~TextureResource();
@@ -99,7 +99,8 @@ namespace Morpheus {
 	template <>
 	class ResourceCache<TextureResource> : public IResourceCache {
 	private:
-		std::unordered_map<std::string, TextureResource*> mResources;
+		std::unordered_map<std::string, TextureResource*> mResourceMap;
+		std::set<TextureResource*> mResourceSet;
 		ResourceManager* mManager;
 		TextureLoader mLoader;
 		std::vector<std::pair<TextureResource*, LoadParams<TextureResource>>> mDeferredResources;
@@ -108,11 +109,17 @@ namespace Morpheus {
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
-		Resource* Load(const void* params) override;
-		Resource* DeferredLoad(const void* params) override;
+		TextureResource* MakeResource(DG::ITexture* texture, const std::string& source);
+		TextureResource* MakeResource(DG::ITexture* texture);
+
+		IResource* Load(const void* params) override;
+		IResource* DeferredLoad(const void* params) override;
 		void ProcessDeferred() override;
-		void Add(Resource* resource, const void* params) override;
-		void Unload(Resource* resource) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
 		void Clear() override;
+
+		void Add(TextureResource* resource, const std::string& source);
+		void Add(TextureResource* resource);
 	};
 }

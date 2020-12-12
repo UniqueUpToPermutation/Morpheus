@@ -714,7 +714,7 @@ namespace Morpheus {
 		}
 	}
 
-	Resource* ResourceCache<PipelineResource>::Load(const void* params) {
+	IResource* ResourceCache<PipelineResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
 		auto overrides = &params_cast->mOverrides;
@@ -731,7 +731,7 @@ namespace Morpheus {
 		return resource;
 	}
 
-	Resource* ResourceCache<PipelineResource>::DeferredLoad(const void* params) {
+	IResource* ResourceCache<PipelineResource>::DeferredLoad(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
 
@@ -757,7 +757,7 @@ namespace Morpheus {
 		mDefferedResources.clear();
 	}
 
-	void ResourceCache<PipelineResource>::Add(Resource* resource, const void* params) {
+	void ResourceCache<PipelineResource>::Add(IResource* resource, const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
 
@@ -773,7 +773,7 @@ namespace Morpheus {
 		mCachedResources[src] = pipeline;
 	}
 
-	void ResourceCache<PipelineResource>::Unload(Resource* resource) {
+	void ResourceCache<PipelineResource>::Unload(IResource* resource) {
 		auto pipeline = resource->ToPipeline();
 
 		auto it = mCachedResources.find(pipeline->GetSource());

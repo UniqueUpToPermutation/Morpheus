@@ -17,7 +17,7 @@ namespace Morpheus {
 		xcb_intern_atom_reply_t* atom_wm_delete_window = nullptr;
 	};
 
-	class PlatformLinux : public Platform {
+	class PlatformLinux : public IPlatform {
 	private:
 		Display* mDisplay;
 		Window mWindow;

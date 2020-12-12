@@ -19,7 +19,7 @@ namespace Morpheus {
 	template <>
 	class ResourceCache<MaterialResource>;
 
-	class MaterialResource : public Resource {
+	class MaterialResource : public IResource {
 	private:
 		DG::IShaderResourceBinding* mResourceBinding;
 		PipelineResource* mPipeline;
@@ -118,7 +118,7 @@ namespace Morpheus {
 	template <>
 	class ResourceCache<MaterialResource> : public IResourceCache {
 	private:
-		std::unordered_map<std::string, MaterialResource*> mResources;
+		std::unordered_map<std::string, MaterialResource*> mResourceMap;
 		ResourceManager* mManager;
 		MaterialLoader mLoader;
 		std::vector<std::pair<MaterialResource*, LoadParams<MaterialResource>>> mDeferredResources;
@@ -129,11 +129,11 @@ namespace Morpheus {
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
-		Resource* Load(const void* params) override;
-		Resource* DeferredLoad(const void* params) override;
+		IResource* Load(const void* params) override;
+		IResource* DeferredLoad(const void* params) override;
 		void ProcessDeferred() override;
-		void Add(Resource* resource, const void* params) override;
-		void Unload(Resource* resource) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
 		void Clear() override;
 
 		template <typename T, typename... Args>

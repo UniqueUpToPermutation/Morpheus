@@ -1,4 +1,4 @@
 {
 	"Material" 	: "material.json",
-	"Geometry"	: "test2.obj"
+	"Geometry"	: "sphere.obj"
 }

@@ -10,7 +10,7 @@ namespace Morpheus {
 	void CreatePBRStaticMeshPipeline(
 		DG::IRenderDevice* device,
 		ResourceManager* manager, 
-		Renderer* renderer, 
+		IRenderer* renderer, 
 		ShaderLoader* shaderLoader,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides) {

@@ -11,7 +11,7 @@ namespace Morpheus {
 	}
 
 	StaticMeshResource::StaticMeshResource(ResourceManager* manager) :
-		Resource(manager),
+		IResource(manager),
 		mMaterial(nullptr),
 		mGeometry(nullptr) {
 	}
@@ -19,7 +19,7 @@ namespace Morpheus {
 	StaticMeshResource::StaticMeshResource(ResourceManager* manager, 
 		MaterialResource* material,
 		GeometryResource* geometry) :
-		Resource(manager) {
+		IResource(manager) {
 		Init(material, geometry);
 	}
 
@@ -73,32 +73,32 @@ namespace Morpheus {
 		return this;
 	}
 
-	Resource* ResourceCache<StaticMeshResource>::Load(const void* params) {
+	IResource* ResourceCache<StaticMeshResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<StaticMeshResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			StaticMeshResource* resource = new StaticMeshResource(mManager);
 			mLoader.Load(params_cast->mSource, resource);
-			mResources[params_cast->mSource] = resource;
+			mResourceMap[params_cast->mSource] = resource;
 			return resource;
 		}
 	}
 
-	Resource* ResourceCache<StaticMeshResource>::DeferredLoad(const void* params) {
+	IResource* ResourceCache<StaticMeshResource>::DeferredLoad(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<StaticMeshResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			StaticMeshResource* resource = new StaticMeshResource(mManager);
 			mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
-			mResources[params_cast->mSource] = resource;
+			mResourceMap[params_cast->mSource] = resource;
 			return resource;
 		}
 	}
@@ -111,30 +111,30 @@ namespace Morpheus {
 		mDeferredResources.clear();
 	}
 
-	void ResourceCache<StaticMeshResource>::Add(Resource* resource, const void* params) {
+	void ResourceCache<StaticMeshResource>::Add(IResource* resource, const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<StaticMeshResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
 		auto staticMeshResource = resource->ToStaticMesh();
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			if (it->second != staticMeshResource)
 				Unload(it->second);
 			else
 				return;
 		} 
 
-		mResources[params_cast->mSource] = staticMeshResource;
+		mResourceMap[params_cast->mSource] = staticMeshResource;
 	}
 
-	void ResourceCache<StaticMeshResource>::Unload(Resource* resource) {
+	void ResourceCache<StaticMeshResource>::Unload(IResource* resource) {
 		auto mesh = resource->ToStaticMesh();
 
-		auto it = mResources.find(mesh->GetSource());
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(mesh->GetSource());
+		if (it != mResourceMap.end()) {
 			if (it->second == mesh) {
-				mResources.erase(it);
+				mResourceMap.erase(it);
 			}
 		}
 
@@ -142,11 +142,11 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<StaticMeshResource>::Clear() {
-		for (auto& item : mResources) {
+		for (auto& item : mResourceMap) {
 			item.second->ResetRefCount();
 			delete item.second;
 		}
 
-		mResources.clear();
+		mResourceMap.clear();
 	}
 }

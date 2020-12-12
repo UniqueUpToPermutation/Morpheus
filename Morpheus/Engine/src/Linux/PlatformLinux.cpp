@@ -439,7 +439,7 @@ namespace Morpheus
 		return nullptr;
 	}
 
-	Platform* CreatePlatform() {
+	IPlatform* CreatePlatform() {
 		return new PlatformLinux();
 	}
 }

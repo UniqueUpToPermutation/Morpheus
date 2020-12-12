@@ -33,7 +33,7 @@ namespace Morpheus {
 		INSTANCED_STATIC_TRANSFORMS
 	};
 
-	class PipelineResource : public Resource {
+	class PipelineResource : public IResource {
 	private:
 		DG::IPipelineState* mState;
 		std::string mSource;
@@ -49,7 +49,7 @@ namespace Morpheus {
 		~PipelineResource();
 
 		inline PipelineResource(ResourceManager* manager) :
-			Resource(manager),
+			IResource(manager),
 			mState(nullptr),
 			mInstancingType(InstancingType::INSTANCED_STATIC_TRANSFORMS) {
 		}
@@ -59,7 +59,7 @@ namespace Morpheus {
 			const std::vector<DG::LayoutElement>& layoutElements,
 			VertexAttributeIndices attributeIndices,
 			InstancingType instancingType) : 
-			Resource(manager),
+			IResource(manager),
 			mInstancingType(instancingType),
 			mState(state),
 			mVertexLayout(layoutElements),
@@ -214,11 +214,11 @@ namespace Morpheus {
 			return &mLoader;
 		}
 
-		Resource* Load(const void* params) override;
-		Resource* DeferredLoad(const void* params) override;
+		IResource* Load(const void* params) override;
+		IResource* DeferredLoad(const void* params) override;
 		void ProcessDeferred() override;
-		void Add(Resource* resource, const void* params) override;
-		void Unload(Resource* resource) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
 		void Clear() override;
 	};
 }

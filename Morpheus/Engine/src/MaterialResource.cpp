@@ -9,7 +9,7 @@ namespace Morpheus {
 
 	MaterialResource::MaterialResource(ResourceManager* manager,
 		ResourceCache<MaterialResource>* cache) :
-		Resource(manager),
+		IResource(manager),
 		mResourceBinding(nullptr),
 		mPipeline(nullptr),
 		mCache(cache) {
@@ -23,7 +23,7 @@ namespace Morpheus {
 		const std::vector<DG::IBuffer*>& buffers,
 		const std::string& source,
 		ResourceCache<MaterialResource>* cache) : 
-		Resource(manager),
+		IResource(manager),
 		mCache(cache) {
 		mEntity = cache->mViewRegistry.create();
 		Init(binding, pipeline, textures, buffers, source);
@@ -182,32 +182,32 @@ namespace Morpheus {
 		Clear();
 	}
 
-	Resource* ResourceCache<MaterialResource>::Load(const void* params) {
+	IResource* ResourceCache<MaterialResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 
-		auto it = mResources.find(src);
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(src);
+		if (it != mResourceMap.end()) {
 			return it->second;
 		}
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
 		mLoader.Load(src, mPrototypeFactory, resource);
-		mResources[src] = resource;
+		mResourceMap[src] = resource;
 		return resource;
 	}
 
-	Resource* ResourceCache<MaterialResource>::DeferredLoad(const void* params) {
+	IResource* ResourceCache<MaterialResource>::DeferredLoad(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 
-		auto it = mResources.find(src);
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(src);
+		if (it != mResourceMap.end()) {
 			return it->second;
 		}
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
-		mResources[src] = resource;
+		mResourceMap[src] = resource;
 		mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
 		return resource;
 	}
@@ -220,29 +220,29 @@ namespace Morpheus {
 		mDeferredResources.clear();
 	}
 
-	void ResourceCache<MaterialResource>::Add(Resource* resource, const void* params) {
+	void ResourceCache<MaterialResource>::Add(IResource* resource, const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 
 		auto pipeline = resource->ToMaterial();
 
-		auto it = mResources.find(src);
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(src);
+		if (it != mResourceMap.end()) {
 			if (it->second != pipeline)
 				Unload(it->second);
 			else
 				return;
 		}
-		mResources[src] = pipeline;
+		mResourceMap[src] = pipeline;
 	}
 
-	void ResourceCache<MaterialResource>::Unload(Resource* resource) {
+	void ResourceCache<MaterialResource>::Unload(IResource* resource) {
 		auto mat = resource->ToMaterial();
 
-		auto it = mResources.find(mat->GetSource());
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(mat->GetSource());
+		if (it != mResourceMap.end()) {
 			if (it->second == mat) {
-				mResources.erase(it);
+				mResourceMap.erase(it);
 			}
 		}
 
@@ -250,7 +250,7 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<MaterialResource>::Clear() {
-		for (auto& item : mResources) {
+		for (auto& item : mResourceMap) {
 			item.second->ResetRefCount();
 			delete item.second;
 		}

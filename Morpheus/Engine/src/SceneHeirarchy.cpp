@@ -35,7 +35,7 @@ namespace Morpheus {
 		}
 	}
 
-	void SceneHeirarchy::BuildRenderCache(Renderer* renderer) {
+	void SceneHeirarchy::BuildRenderCache(IRenderer* renderer) {
 		if (mRenderCache) {
 			delete mRenderCache;
 		}

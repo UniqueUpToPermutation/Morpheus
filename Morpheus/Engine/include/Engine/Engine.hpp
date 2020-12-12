@@ -31,7 +31,7 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 
-	class Renderer;
+	class IRenderer;
 	class SceneHeirarchy;
 
 	class Engine : public DG::NativeAppBase {
@@ -115,10 +115,10 @@ namespace Morpheus {
 		std::vector<DG::DisplayModeAttribs>	mDisplayModes;
 
 		InputController		mInputController;
-		Platform*			mPlatform			= nullptr;
+		IPlatform*			mPlatform			= nullptr;
 		ResourceManager* 	mResourceManager 	= nullptr;
 		SceneHeirarchy* 	mSceneHeirarchy 	= nullptr;
-		Renderer*			mRenderer 			= nullptr;
+		IRenderer*			mRenderer 			= nullptr;
 
 		int          mInitialWindowWidth  	= 0;
 		int          mInitialWindowHeight 	= 0;
@@ -205,10 +205,10 @@ namespace Morpheus {
 		inline DG::ISwapChain* GetSwapChain() {
 			return mSwapChain;
 		}
-		inline Platform* GetPlatform() {
+		inline IPlatform* GetPlatform() {
 			return mPlatform;
 		}
-		inline Renderer* GetRenderer() {
+		inline IRenderer* GetRenderer() {
 			return mRenderer;
 		}
 		inline ResourceManager* GetResourceManager() {

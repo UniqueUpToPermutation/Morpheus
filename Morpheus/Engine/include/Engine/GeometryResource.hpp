@@ -12,7 +12,7 @@ namespace Assimp {
 }
 
 namespace Morpheus {
-	class GeometryResource : public Resource {
+	class GeometryResource : public IResource {
 	private:
 		DG::IBuffer* mVertexBuffer;
 		DG::IBuffer* mIndexBuffer;
@@ -115,7 +115,7 @@ namespace Morpheus {
 	template <>
 	class ResourceCache<GeometryResource> : public IResourceCache {
 	private:
-		std::unordered_map<std::string, GeometryResource*> mResources;
+		std::unordered_map<std::string, GeometryResource*> mResourceMap;
 		ResourceManager* mManager;
 		GeometryLoader mLoader;
 		std::vector<std::pair<GeometryResource*, LoadParams<GeometryResource>>> mDeferredResources;
@@ -124,11 +124,11 @@ namespace Morpheus {
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
-		Resource* Load(const void* params) override;
-		Resource* DeferredLoad(const void* params) override;
+		IResource* Load(const void* params) override;
+		IResource* DeferredLoad(const void* params) override;
 		void ProcessDeferred() override;
-		void Add(Resource* resource, const void* params) override;
-		void Unload(Resource* resource) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
 		void Clear() override;
 	};
 }

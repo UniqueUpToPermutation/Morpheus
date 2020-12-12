@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 
 namespace Morpheus {
-	class StaticMeshResource : public Resource {
+	class StaticMeshResource : public IResource {
 	private:
 		MaterialResource* mMaterial;
 		GeometryResource* mGeometry;
@@ -73,7 +73,7 @@ namespace Morpheus {
 	template <>
 	class ResourceCache<StaticMeshResource> : public IResourceCache {
 	private:
-		std::unordered_map<std::string, StaticMeshResource*> mResources;
+		std::unordered_map<std::string, StaticMeshResource*> mResourceMap;
 		ResourceManager* mManager;
 		StaticMeshLoader mLoader;
 		std::vector<std::pair<StaticMeshResource*, LoadParams<StaticMeshResource>>> mDeferredResources;
@@ -84,11 +84,11 @@ namespace Morpheus {
 			mManager(manager) {
 		}
 
-		Resource* Load(const void* params) override;
-		Resource* DeferredLoad(const void* params) override;
+		IResource* Load(const void* params) override;
+		IResource* DeferredLoad(const void* params) override;
 		void ProcessDeferred() override;
-		void Add(Resource* resource, const void* params) override;
-		void Unload(Resource* resource) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
 		void Clear() override;
 	};
 }

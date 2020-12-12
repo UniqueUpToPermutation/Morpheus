@@ -411,4 +411,26 @@ namespace Morpheus {
 		ComputePrefilteredEnvironment(context, incommingEnvironmentSRV, result);
 		return result;
 	}
+
+	LightProbe LightProbeProcessor::ComputeLightProbe(
+		DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		ResourceCache<TextureResource>* textureCache,
+		DG::ITextureView* incommingEnvironmentSRV,
+		uint prefilteredEnvironmentSize,
+		uint irradianceSize) {
+
+		DG::ITexture* irradiance = ComputeIrradiance(device, context, incommingEnvironmentSRV, irradianceSize);
+		DG::ITexture* preEnv = ComputePrefilteredEnvironment(device, context, incommingEnvironmentSRV, prefilteredEnvironmentSize);
+
+		TextureResource* irradianceResource = textureCache->MakeResource(irradiance);
+		TextureResource* preEnvResource = textureCache->MakeResource(preEnv);
+
+		LightProbe probe(irradianceResource, preEnvResource);
+		
+		irradianceResource->Release();
+		preEnvResource->Release();
+	
+		return probe;
+	}
 }

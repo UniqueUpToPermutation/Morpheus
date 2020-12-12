@@ -118,30 +118,30 @@ namespace Morpheus {
         TextureSubResData       Level0Data{Data.data(), TexDim * 4};
         TextureData             InitData{&Level0Data, 1};
 
-		mWhiteTexture = nullptr;
-        device->CreateTexture(TexDesc, &InitData, &mWhiteTexture);
-        mWhiteSRV = mWhiteTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		DG::ITexture* whiteTex = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &whiteTex);
+        auto whiteSRV = whiteTex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 
         TexDesc.Name = "Black texture for renderer";
         for (auto& c : Data) c = 0;
         
-		mBlackTexture = nullptr;
-        device->CreateTexture(TexDesc, &InitData, &mBlackTexture);
-        mBlackSRV = mBlackTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		DG::ITexture* blackTex = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &blackTex);
+        auto blackSRV = blackTex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 
         TexDesc.Name = "Default normal map for renderer";
         for (auto& c : Data) c = 0x00FF7F7F;
 
-		mDefaultNormalTexture = nullptr;
-        device->CreateTexture(TexDesc, &InitData, &mDefaultNormalTexture);
-        mDefaultNormalSRV = mDefaultNormalTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		DG::ITexture* defaultNormalTex = nullptr;
+        device->CreateTexture(TexDesc, &InitData, &defaultNormalTex);
+        auto defaultNormalSRV = defaultNormalTex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 
         // clang-format off
         StateTransitionDesc Barriers[] = 
         {
-            {mWhiteTexture,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
-            {mBlackTexture,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
-            {mDefaultNormalTexture, RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true} 
+            {whiteTex,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
+            {blackTex,         RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true},
+            {defaultNormalTex, RESOURCE_STATE_UNKNOWN, RESOURCE_STATE_SHADER_RESOURCE, true} 
         };
 
         // clang-format on
@@ -149,9 +149,14 @@ namespace Morpheus {
 
         mDefaultSampler = nullptr;
         device->CreateSampler(Sam_LinearClamp, &mDefaultSampler);
-        mWhiteSRV->SetSampler(mDefaultSampler);
-        mBlackSRV->SetSampler(mDefaultSampler);
-        mDefaultNormalSRV->SetSampler(mDefaultSampler);
+        whiteSRV->SetSampler(mDefaultSampler);
+        blackSRV->SetSampler(mDefaultSampler);
+        defaultNormalSRV->SetSampler(mDefaultSampler);
+
+		auto textureCache = mEngine->GetResourceManager()->GetCache<TextureResource>();
+		mWhiteTexture = textureCache->MakeResource(whiteTex, "WHITE_TEXTURE");
+		mBlackTexture = textureCache->MakeResource(blackTex, "BLACK_TEXTURE");
+		mDefaultNormalTexture = textureCache->MakeResource(defaultNormalTex, "DEFAULT_NORMAL_TEXTURE");
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
@@ -360,11 +365,12 @@ namespace Morpheus {
 		}
 	}
 
-	void DefaultRenderer::Render(RenderCache* cache, EntityNode cameraNode) {
+	void DefaultRenderer::Render(IRenderCache* cache, EntityNode cameraNode) {
 		DefaultRenderCache* cacheCast = dynamic_cast<DefaultRenderCache*>(cache);
 
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
+		auto registry = cacheCast->mScene->GetRegistry();
 
 		if (!context || !swapChain)
 			return;
@@ -390,8 +396,10 @@ namespace Morpheus {
 			RenderStaticMeshes(cacheCast->mStaticMeshes);
 
 			// Render skybox
-			if (cacheCast->mSkybox)
-				RenderSkybox(cacheCast->mSkybox);
+			if (cacheCast->mSkybox != entt::null) {
+				auto& skyboxComponent = registry->get<SkyboxComponent>(cacheCast->mSkybox);
+				RenderSkybox(&skyboxComponent);
+			}
 		} else {
 			context->SetRenderTargets(1, &pRTV, pDSV, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -445,15 +453,19 @@ namespace Morpheus {
 		return mCookTorranceLut.GetShaderView();
 	}
 
-	RenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
+	IRenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
 		std::stack<Transform*> transformStack;
 		transformStack.emplace(&mIdentityTransform);
 
 		mIdentityTransform.UpdateCache();
 		
 		auto registry = scene->GetRegistry();
+		auto device = mEngine->GetDevice();
+		auto resourceManager = mEngine->GetResourceManager();
+		auto immediateContext = mEngine->GetImmediateContext();
+		auto textureCache = resourceManager->GetCache<TextureResource>();
 
-		DefaultRenderCache* cache = new DefaultRenderCache();
+		DefaultRenderCache* cache = new DefaultRenderCache(scene);
 
 		for (auto it = scene->GetDoubleIterator(); it; ++it) {
 			if (it.GetDirection() == IteratorDirection::DOWN) {
@@ -488,11 +500,31 @@ namespace Morpheus {
 		auto skybox_view = registry->view<SkyboxComponent>();
 
 		for (auto entity : skybox_view) {
-			auto& skybox = skybox_view.get<SkyboxComponent>(entity);
-			if (cache->mSkybox) {
+			if (cache->mSkybox != entt::null) {
 				std::cout << "Warning: multiple skyboxes detected!" << std::endl;
 			}
-			cache->mSkybox = &skybox;
+			cache->mSkybox = entity;
+
+			auto& skybox = skybox_view.get<SkyboxComponent>(entity);
+
+			// Build light probe if this skybox has none
+			auto lightProbe = registry->try_get<LightProbe>(entity);
+			if (!lightProbe) {
+
+				std::cout << "Warning: skybox detected without light probe! Running light probe processor..." << std::endl;
+
+				LightProbeProcessor processor(device);
+				processor.Initialize(resourceManager, 
+					DG::TEX_FORMAT_RGBA16_FLOAT,
+					DG::TEX_FORMAT_RGBA16_FLOAT);
+
+				LightProbe newProbe = processor.ComputeLightProbe(device,
+					immediateContext, textureCache, 
+					skybox.GetCubemap()->GetShaderView());
+
+				// Add light probe to skybox
+				registry->emplace<LightProbe>(entity, newProbe);
+			}
 		}
 
 		auto camera_view = registry->view<Camera>();

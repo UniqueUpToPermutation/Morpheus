@@ -18,15 +18,15 @@ namespace Morpheus {
 			GeometryResource,
 			StaticMeshResource>;
 
-	class Resource;
+	class IResource;
 
 	class IResourceCache {
 	public:
-		virtual Resource* Load(const void* params) = 0;
-		virtual Resource* DeferredLoad(const void* params) = 0;
+		virtual IResource* Load(const void* params) = 0;
+		virtual IResource* DeferredLoad(const void* params) = 0;
 		virtual void ProcessDeferred() = 0;
-		virtual void Add(Resource* resource, const void* params) = 0;
-		virtual void Unload(Resource* resource) = 0;
+		virtual void Add(IResource* resource, const void* params) = 0;
+		virtual void Unload(IResource* resource) = 0;
 		virtual void Clear() = 0;
 		virtual ~IResourceCache() {
 		}
@@ -41,17 +41,17 @@ namespace Morpheus {
 	template <typename T>
 	struct ResourceConvert;
 
-	class Resource {
+	class IResource {
 	private:
 		unsigned int mRefCount = 0;
 		ResourceManager* mManager;
 
 	public:
-		Resource(ResourceManager* manager) : 
+		IResource(ResourceManager* manager) : 
 			mManager(manager) {
 		}
 
-		virtual ~Resource() {
+		virtual ~IResource() {
 			assert(mRefCount == 0);
 		}
 
@@ -89,35 +89,35 @@ namespace Morpheus {
 
 	template <>
 	struct ResourceConvert<PipelineResource> {
-		static inline PipelineResource* Convert(Resource* resource) {
+		static inline PipelineResource* Convert(IResource* resource) {
 			return resource->ToPipeline();
 		}
 	};
 
 	template <>
 	struct ResourceConvert<GeometryResource> {
-		static inline GeometryResource* Convert(Resource* resource) {
+		static inline GeometryResource* Convert(IResource* resource) {
 			return resource->ToGeometry();
 		}
 	};
 
 	template <>
 	struct ResourceConvert<MaterialResource> {
-		static inline MaterialResource* Convert(Resource* resource) {
+		static inline MaterialResource* Convert(IResource* resource) {
 			return resource->ToMaterial();
 		}
 	};
 
 	template <>
 	struct ResourceConvert<TextureResource> {
-		static inline TextureResource* Convert(Resource* resource) {
+		static inline TextureResource* Convert(IResource* resource) {
 			return resource->ToTexture();
 		}
 	};
 
 	template <>
 	struct ResourceConvert<StaticMeshResource> {
-		static inline StaticMeshResource* Convert(Resource* resource) {
+		static inline StaticMeshResource* Convert(IResource* resource) {
 			return resource->ToStaticMesh();
 		}
 	};

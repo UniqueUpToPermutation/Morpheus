@@ -560,32 +560,32 @@ namespace Morpheus {
 		Clear();
 	}
 
-	Resource* ResourceCache<TextureResource>::Load(const void* params) {
+	IResource* ResourceCache<TextureResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			auto result = new TextureResource(mManager);
 			mLoader.Load(params_cast->mSource, result);
-			mResources[params_cast->mSource] = result;
+			mResourceMap[params_cast->mSource] = result;
 			return result;
 		}
 	}
 
-	Resource* ResourceCache<TextureResource>::DeferredLoad(const void* params) {
+	IResource* ResourceCache<TextureResource>::DeferredLoad(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			auto result = new TextureResource(mManager);
 			mDeferredResources.emplace_back(std::make_pair(result, *params_cast));
-			mResources[params_cast->mSource] = result;
+			mResourceMap[params_cast->mSource] = result;
 			return result;
 		}
 	}
@@ -598,43 +598,46 @@ namespace Morpheus {
 		mDeferredResources.clear();
 	}
 
-	void ResourceCache<TextureResource>::Add(Resource* resource, const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
-		
-		auto it = mResources.find(params_cast->mSource);
-
-		auto geometryResource = resource->ToTexture();
-
-		if (it != mResources.end()) {
-			if (it->second != geometryResource)
-				Unload(it->second);
-			else
-				return;
-		} 
-
-		mResources[params_cast->mSource] = geometryResource;
+	void ResourceCache<TextureResource>::Add(TextureResource* tex, const std::string& source) {
+		tex->mSource = source;
+		mResourceMap[source] = tex;
+		mResourceSet.emplace(tex);
 	}
 
-	void ResourceCache<TextureResource>::Unload(Resource* resource) {
+	void ResourceCache<TextureResource>::Add(TextureResource* tex) {
+		mResourceSet.emplace(tex);
+	}
+
+	void ResourceCache<TextureResource>::Add(IResource* resource, const void* params) {
+		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
 		auto tex = resource->ToTexture();
 
-		auto it = mResources.find(tex->GetSource());
-		if (it != mResources.end()) {
+		Add(tex, params_cast->mSource);
+	}
+
+	void ResourceCache<TextureResource>::Unload(IResource* resource) {
+		auto tex = resource->ToTexture();
+
+		auto it = mResourceMap.find(tex->GetSource());
+		if (it != mResourceMap.end()) {
 			if (it->second == tex) {
-				mResources.erase(it);
+				mResourceMap.erase(it);
 			}
 		}
+
+		mResourceSet.erase(tex);
 
 		delete resource;
 	}
 
 	void ResourceCache<TextureResource>::Clear() {
-		for (auto& item : mResources) {
-			item.second->ResetRefCount();
-			delete item.second;
+		for (auto& item : mResourceSet) {
+			item->ResetRefCount();
+			delete item;
 		}
 
-		mResources.clear();
+		mResourceSet.clear();
+		mResourceMap.clear();
 	}
 
 	gli::target DGToGli(DG::RESOURCE_DIMENSION dim) {
@@ -1032,5 +1035,23 @@ namespace Morpheus {
 		Morpheus::SaveGli(mTexture, path,
 			GetManager()->GetParent()->GetImmediateContext(),
 			GetManager()->GetParent()->GetDevice());
+	}
+
+	TextureResource* ResourceCache<TextureResource>::MakeResource(
+		DG::ITexture* texture, const std::string& source) {
+
+		std::cout << "Creating texture resource " << source << "..." << std::endl;
+
+		TextureResource* res = new TextureResource(mManager, texture);
+		res->AddRef();
+		Add(res, source);
+		return res;
+	}
+
+	TextureResource* ResourceCache<TextureResource>::MakeResource(DG::ITexture* texture) {
+		TextureResource* res = new TextureResource(mManager, texture);
+		res->AddRef();
+		Add(res);
+		return res;
 	}
 }

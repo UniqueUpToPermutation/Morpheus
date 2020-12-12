@@ -2,30 +2,30 @@
 #include <Engine/ResourceManager.hpp>
 
 namespace Morpheus {
-	void Resource::Release() {
+	void IResource::Release() {
 		--mRefCount;
 		if (mRefCount == 0) {
 			mManager->RequestUnload(this);
 		}
 	}
 
-	PipelineResource* Resource::ToPipeline() {
+	PipelineResource* IResource::ToPipeline() {
 		return nullptr;
 	}
 
-	GeometryResource* Resource::ToGeometry() {
+	GeometryResource* IResource::ToGeometry() {
 		return nullptr;
 	}
 
-	MaterialResource* Resource::ToMaterial() {
+	MaterialResource* IResource::ToMaterial() {
 		return nullptr;
 	}
 
-	TextureResource* Resource::ToTexture() {
+	TextureResource* IResource::ToTexture() {
 		return nullptr;
 	}
 
-	StaticMeshResource* Resource::ToStaticMesh() {
+	StaticMeshResource* IResource::ToStaticMesh() {
 		return nullptr;
 	}
 }

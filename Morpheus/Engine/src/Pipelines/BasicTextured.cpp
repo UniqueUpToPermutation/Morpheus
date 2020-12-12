@@ -4,7 +4,7 @@
 namespace Morpheus {
 	void CreateBasicTexturedPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
-		Renderer* renderer,
+		IRenderer* renderer,
 		ShaderLoader* shaderLoader,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides) {

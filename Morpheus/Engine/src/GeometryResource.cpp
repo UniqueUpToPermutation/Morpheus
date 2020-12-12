@@ -25,12 +25,12 @@ namespace Morpheus {
 		DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
 		uint vertexBufferOffset, PipelineResource* pipeline, 
 		const BoundingBox& aabb) : 
-		Resource(manager) {
+		IResource(manager) {
 		Init(vertexBuffer, indexBuffer, vertexBufferOffset, pipeline, aabb);
 	}
 
 	GeometryResource::GeometryResource(ResourceManager* manager) :
-		Resource(manager),
+		IResource(manager),
 		mVertexBuffer(nullptr),
 		mIndexBuffer(nullptr),
 		mPipeline(nullptr) {
@@ -345,12 +345,12 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<GeometryResource>::Clear() {
-		for (auto& item : mResources) {
+		for (auto& item : mResourceMap) {
 			item.second->ResetRefCount();
 			delete item.second;
 		}
 
-		mResources.clear();
+		mResourceMap.clear();
 	}
 
 	ResourceCache<GeometryResource>::ResourceCache(ResourceManager* manager) : 
@@ -362,12 +362,12 @@ namespace Morpheus {
 		Clear();
 	}
 
-	Resource* ResourceCache<GeometryResource>::Load(const void* params) {
+	IResource* ResourceCache<GeometryResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			PipelineResource* pipeline = nullptr;
@@ -385,23 +385,23 @@ namespace Morpheus {
 				pipeline->Release();
 			}
 
-			mResources[params_cast->mSource] = resource;
+			mResourceMap[params_cast->mSource] = resource;
 			return resource;
 		}
 	}
 
-	Resource* ResourceCache<GeometryResource>::DeferredLoad(const void* params) {
+	IResource* ResourceCache<GeometryResource>::DeferredLoad(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			return it->second;
 		} else {
 			auto resource = new GeometryResource(mManager);
 			mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
 
-			mResources[params_cast->mSource] = resource;
+			mResourceMap[params_cast->mSource] = resource;
 			return resource;
 		}
 	}
@@ -428,30 +428,30 @@ namespace Morpheus {
 		mDeferredResources.clear();
 	}
 
-	void ResourceCache<GeometryResource>::Add(Resource* resource, const void* params) {
+	void ResourceCache<GeometryResource>::Add(IResource* resource, const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
-		auto it = mResources.find(params_cast->mSource);
+		auto it = mResourceMap.find(params_cast->mSource);
 
 		auto geometryResource = resource->ToGeometry();
 
-		if (it != mResources.end()) {
+		if (it != mResourceMap.end()) {
 			if (it->second != geometryResource)
 				Unload(it->second);
 			else
 				return;
 		} 
 
-		mResources[params_cast->mSource] = geometryResource;
+		mResourceMap[params_cast->mSource] = geometryResource;
 	}
 
-	void ResourceCache<GeometryResource>::Unload(Resource* resource) {
+	void ResourceCache<GeometryResource>::Unload(IResource* resource) {
 		auto geo = resource->ToGeometry();
 
-		auto it = mResources.find(geo->GetSource());
-		if (it != mResources.end()) {
+		auto it = mResourceMap.find(geo->GetSource());
+		if (it != mResourceMap.end()) {
 			if (it->second == geo) {
-				mResources.erase(it);
+				mResourceMap.erase(it);
 			}
 		}
 

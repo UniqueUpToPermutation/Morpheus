@@ -25,8 +25,8 @@ namespace Morpheus {
 
 	class SceneHeirarchy;
 	class Camera;
-	class RenderCache;
-	class Renderer;
+	class IRenderCache;
+	class IRenderer;
 
 	struct EntityNode {
 	private:
@@ -179,7 +179,7 @@ namespace Morpheus {
 		int mRootsBegin = -1;
 		int mRootsEnd = -1;
 
-		RenderCache* mRenderCache = nullptr;
+		IRenderCache* mRenderCache = nullptr;
 
 		void DestroyChild(int node);
 
@@ -212,7 +212,7 @@ namespace Morpheus {
 			return NodeDoubleIterator(GetRoot());
 		}
 
-		inline RenderCache* GetRenderCache() {
+		inline IRenderCache* GetRenderCache() {
 			return mRenderCache;
 		}
 
@@ -227,7 +227,7 @@ namespace Morpheus {
 		}
 
 		void SetCurrentCamera(CameraComponent* component);
-		void BuildRenderCache(Renderer* renderer);
+		void BuildRenderCache(IRenderer* renderer);
 		void Clear();
 
 		inline entt::registry* GetRegistry() {

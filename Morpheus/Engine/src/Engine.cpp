@@ -984,7 +984,7 @@ namespace Morpheus
 
 	void Engine::Render()
 	{
-		RenderCache* cache = nullptr;
+		IRenderCache* cache = nullptr;
 		EntityNode camera = EntityNode::Invalid();
 
 		if (mSceneHeirarchy) {

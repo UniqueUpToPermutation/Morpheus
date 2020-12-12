@@ -3,13 +3,12 @@
 namespace Morpheus {
 	class Engine;
 	class EngineApp;
-	class Platform;
 	class PlatformLinux;
 	class PlatformWindows;
 
-	class Platform {
+	class IPlatform {
 	public:
-		virtual ~Platform() {
+		virtual ~IPlatform() {
 		}
 
 		virtual int Initialize(Engine* engine, int argc, char** argv) = 0;
@@ -22,5 +21,5 @@ namespace Morpheus {
 		virtual PlatformWindows* ToWindows() = 0;
 	};
 
-	Platform* CreatePlatform();
+	IPlatform* CreatePlatform();
 }

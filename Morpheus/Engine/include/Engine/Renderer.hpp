@@ -9,17 +9,17 @@ namespace Morpheus {
 
 	class SceneHeirarchy;
 
-	class RenderCache {
+	class IRenderCache {
 	public:
-		virtual ~RenderCache() {
+		virtual ~IRenderCache() {
 		}
 	};
 
 	class Camera;
 
-	class Renderer {
+	class IRenderer {
 	public:
-		virtual ~Renderer() {
+		virtual ~IRenderer() {
 		}
 		virtual void RequestConfiguration(DG::EngineD3D11CreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineD3D12CreateInfo* info) = 0;
@@ -27,9 +27,9 @@ namespace Morpheus {
 		virtual void RequestConfiguration(DG::EngineVkCreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineMtlCreateInfo* info) = 0;
 		virtual void Initialize() = 0;
-		virtual void Render(RenderCache* cache, EntityNode cameraNode) = 0;
+		virtual void Render(IRenderCache* cache, EntityNode cameraNode) = 0;
 
-		virtual RenderCache* BuildRenderCache(SceneHeirarchy* scene) = 0;
+		virtual IRenderCache* BuildRenderCache(SceneHeirarchy* scene) = 0;
 
 		// This buffer will be bound as a constant to all pipelines
 		virtual DG::IBuffer* GetGlobalsBuffer() = 0;

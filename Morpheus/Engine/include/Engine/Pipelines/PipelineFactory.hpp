@@ -9,7 +9,7 @@ namespace Morpheus {
 	typedef std::function<void(
 		DG::IRenderDevice*, 
 		ResourceManager*, 
-		Renderer*, 
+		IRenderer*, 
 		ShaderLoader*,
 		PipelineResource*,
 		const ShaderPreprocessorConfig*)> factory_func_t;
@@ -24,14 +24,14 @@ namespace Morpheus {
 
 	void CreateBasicTexturedPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
-		Renderer* renderer,
+		IRenderer* renderer,
 		ShaderLoader* shaderLoader,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides = nullptr);
 
 	void CreateSkyboxPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
-		Renderer* renderer,
+		IRenderer* renderer,
 		ShaderLoader* shaderLoader,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides);

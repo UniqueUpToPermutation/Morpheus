@@ -1,4 +1,5 @@
 #include <Engine/MaterialView.hpp>
+#include <Engine/LightProbe.hpp>
 
 namespace Morpheus {
 
@@ -15,5 +16,11 @@ namespace Morpheus {
 
 		mIrradianceMapLoc->Set(irradiance);
 		mPrefilteredEnvMapLoc->Set(prefilteredEnvMap);
+	}
+
+	void ImageBasedLightingView::SetEnvironment(
+		LightProbe* lightProbe) {
+		mIrradianceMapLoc->Set(lightProbe->GetIrradianceView());
+		mPrefilteredEnvMapLoc->Set(lightProbe->GetPrefilteredEnvView());
 	}
 }
