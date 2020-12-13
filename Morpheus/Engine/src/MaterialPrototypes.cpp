@@ -176,48 +176,67 @@ namespace Morpheus {
 		const std::string& path,
 		const nlohmann::json& config) {
 
-		std::string pipeline_src = "PBRStaticMesh";
-		std::string albedo_src = "WHITE_TEXTURE";
-		std::string roughness_src = "BLACK_TEXTURE";
-		std::string metallic_src = "BLACK_TEXTURE";
-		std::string normal_src = "DEFAULT_NORMAL_TEXTURE";
+		std::string pipeline_src = 	"PBRStaticMesh";
+		std::string albedo_src = 	"WHITE_TEXTURE";
+		std::string roughness_src =	"BLACK_TEXTURE";
+		std::string metallic_src = 	"BLACK_TEXTURE";
+		std::string normal_src = 	"DEFAULT_NORMAL_TEXTURE";
+
+		auto usePath = [](const std::string& s) {
+			if (s == "WHITE_TEXTURE")
+				return false;
+			else if (s == "BLACK_TEXTURE")
+				return false;
+			else if (s == "DEFAULT_NORMAL_TEXTURE")
+				return false;
+			else 
+				return true;
+		};
 		
 		if (config.contains("Pipeline"))
 			config["Pipeline"].get_to(pipeline_src);
 
 		if (config.contains("Albedo")) {
 			config["Albedo"].get_to(albedo_src);
-			albedo_src = path + "/" + albedo_src;
+			if (usePath(albedo_src))
+				albedo_src = path + "/" + albedo_src;
 		}
 		if (config.contains("Roughness")) {
 			config["Roughness"].get_to(roughness_src);
-			roughness_src = path + "/" + roughness_src;
+			if (usePath(roughness_src))
+				roughness_src = path + "/" + roughness_src;
 		}
 		if (config.contains("Metallic")) {
 			config["Metallic"].get_to(metallic_src);
-			metallic_src = path + "/" + metallic_src;
+			if (usePath(metallic_src))
+				metallic_src = path + "/" + metallic_src;
 		}
 		if (config.contains("Normal")) {
 			config["Normal"].get_to(normal_src);
-			normal_src = path + "/" + normal_src;
+			if (usePath(normal_src))
+				normal_src = path + "/" + normal_src;
 		}
 
-		mPipeline = manager->Load<PipelineResource>(pipeline_src);
-		mAlbedo = manager->Load<TextureResource>(albedo_src);
-		mRoughness = manager->Load<TextureResource>(roughness_src);
-		mMetallic = manager->Load<TextureResource>(metallic_src);
-		mNormal = manager->Load<TextureResource>(normal_src);
+		mPipeline = 	manager->Load<PipelineResource>(pipeline_src);
+		mAlbedo = 		manager->Load<TextureResource>(albedo_src);
+		mRoughness = 	manager->Load<TextureResource>(roughness_src);
+		mMetallic = 	manager->Load<TextureResource>(metallic_src);
+		mNormal = 		manager->Load<TextureResource>(normal_src);
 
 		if (config.contains("AO")) {
 			std::string ao_src;
 			config["AO"].get_to(ao_src);
-			mAO = manager->Load<TextureResource>(path + "/" + ao_src);
+			if (usePath(ao_src))
+				ao_src = path + "/" + ao_src;
+			mAO = manager->Load<TextureResource>(ao_src);
 		}
 
 		if (config.contains("Emissive")) {
 			std::string emissive_src;
 			config["Emissive"].get_to(emissive_src);
-			mEmissive = manager->Load<TextureResource>(path + "/" + emissive_src);
+			if (usePath(emissive_src))
+				emissive_src = path + "/" + emissive_src;
+			mEmissive = manager->Load<TextureResource>(emissive_src);
 		}
 
 		LoadPBRShaderInfo(config, &mMaterialInfo);

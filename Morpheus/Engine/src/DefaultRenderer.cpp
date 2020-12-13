@@ -351,7 +351,7 @@ namespace Morpheus {
 
 				// Render all of these static meshes in a batch
 				auto geometry = mesh->GetGeometry();
-				Uint32  offsets[]  = { 0, (DG::Uint32)currentInstanceIdx };
+				Uint32  offsets[]  = { 0, (DG::Uint32)(currentInstanceIdx * sizeof(DG::float4x4)) };
 				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
 				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
 					RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);

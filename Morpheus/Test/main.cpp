@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
 	SceneHeirarchy* scene = new SceneHeirarchy();
 	auto root = scene->GetRoot();
 
-	auto resource = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
+	auto sphereMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
 
 	std::default_random_engine generator;
 	std::uniform_real_distribution<double> distribution(0.0, 2 * DG::PI);
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 	for (int x = -5; x <= 5; ++x) {
 		for (int y = -5; y <= 5; ++y) {
 			auto meshNode = scene->CreateChild(root);
-			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(resource);
+			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(sphereMesh);
 			Transform* transform = meshNode.AddComponent<Transform>();
 			transform->mTranslation.x = x * 4.0f;
 			transform->mTranslation.z = y * 4.0f;
@@ -37,6 +37,13 @@ int main(int argc, char** argv) {
 				distribution(generator));
 		}
 	}
+
+	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh2.json");
+	auto meshNode = scene->CreateChild(root);
+	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
+	Transform* transform = meshNode.AddComponent<Transform>();
+	transform->mTranslation.y = 3.0f;
+	transform->mScale = DG::float3(4.0f, 4.0f, 4.0f);
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 
@@ -55,28 +62,10 @@ int main(int argc, char** argv) {
 
 	scene->GetCameraNode().AddComponent<EditorCameraController>(scene);
 
-	/*
-	LightProbeProcessor processor(en.GetDevice());
-	processor.Initialize(en.GetResourceManager(), 
-		DG::TEX_FORMAT_RGBA16_FLOAT, 
-		DG::TEX_FORMAT_RGBA16_FLOAT, 
-		64, 128);
-	auto tex = processor.ComputeIrradiance(en.GetDevice(), en.GetImmediateContext(), skybox_texture->GetShaderView(), 256);
-	auto tex2 = processor.ComputePrefilteredEnvironment(en.GetDevice(), en.GetImmediateContext(), skybox_texture->GetShaderView(), 256);
-
-	auto tex_res = new TextureResource(en.GetResourceManager(), tex);
-	tex_res->AddRef();
-	en.GetResourceManager()->Add(tex_res, "PROCESSED RESOURCE");
-
-	auto tex_res2 = new TextureResource(en.GetResourceManager(), tex2);
-	tex_res2->AddRef();
-	en.GetResourceManager()->Add(tex_res2, "PROCESSED RESOURCE 2");
-	*/
-
 	auto skybox = scene->CreateChild(root);
 	skybox.AddComponent<SkyboxComponent>(tex_res);
 
-	resource->Release();
+	sphereMesh->Release();
 
 	en.SetScene(scene);
 
