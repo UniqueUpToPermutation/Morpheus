@@ -92,10 +92,10 @@ namespace Morpheus {
 
 		DG::ISampler* mDefaultSampler;
 
-		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache);
+		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache, LightProbe* globalLightProbe);
 		void RenderSkybox(SkyboxComponent* skybox);
 		void ReallocateIntermediateFramebuffer(uint width, uint height);
-		void WriteGlobalData(EntityNode cameraNode);
+		void WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe);
 
 	public:
 		DefaultRenderer(Engine* engine, 

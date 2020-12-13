@@ -95,12 +95,12 @@ void main(in  float4 ClipPos     : SV_Position,
 
     // LIGHTING
     float3 perturbedNormal = GLTF_PBR_PerturbNormal(dWorldPos_dx, dWorldPos_dy, dNormalMapUV_dx, dNormalMapUV_dy, 
-                                                    Normal, TSNormal, g_MaterialInfo.NormalTextureUVSelector >= 0.0, IsFrontFace);
+                                                    Normal, TSNormal, true, IsFrontFace);
     float3 view = normalize(mGlobals.mCamera.f4Position.xyz - WorldPos.xyz); // Direction from surface point to camera
 
     float3 color = float3(0.0, 0.0, 0.0);
-    color += GLTF_PBR_ApplyDirectionalLight(mGlobals.mLightAttribs.f4Direction.xyz, 
-		mGlobals.mLightAttribs.f4Intensity.rgb, SrfInfo, perturbedNormal, view);
+    color += GLTF_PBR_ApplyDirectionalLight(mGlobals.mGlobalLighting.f4Direction.xyz, 
+		mGlobals.mGlobalLighting.f4Intensity.rgb, SrfInfo, perturbedNormal, view);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     GLTF_PBR_IBL_Contribution IBLContrib;
@@ -108,7 +108,7 @@ void main(in  float4 ClipPos     : SV_Position,
     IBLContrib.f3Specular = float3(0.0, 0.0, 0.0);
 #if GLTF_PBR_USE_IBL
     IBLContrib =
-        GLTF_PBR_GetIBLContribution(SrfInfo, perturbedNormal, view, float(g_MaterialInfo.PrefilteredCubeMipLevels),
+        GLTF_PBR_GetIBLContribution(SrfInfo, perturbedNormal, view, mGlobals.mGlobalLighting.fGlobalEnvMapLevels,
                            g_BRDF_LUT,          g_BRDF_LUT_sampler, 
                            g_IrradianceMap,     g_IrradianceMap_sampler,
                            g_PrefilteredEnvMap, g_PrefilteredEnvMap_sampler);

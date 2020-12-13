@@ -108,6 +108,11 @@ struct LightAttribs
     float4 f4Intensity      DEFAULT_VALUE(float4(1, 1, 1, 1));
 
     ShadowMapAttribs ShadowAttribs;
+
+	float fGlobalEnvMapLevels	DEFAULT_VALUE(0.0);
+	float fDummy0;
+	float fDummy1;
+	float fDummy2;
 };
 #ifdef CHECK_STRUCT_ALIGNMENT
     CHECK_STRUCT_ALIGNMENT(LightAttribs);

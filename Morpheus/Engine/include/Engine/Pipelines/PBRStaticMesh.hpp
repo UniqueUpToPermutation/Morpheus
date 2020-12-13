@@ -67,7 +67,7 @@ namespace Morpheus {
 			"internal/StaticMeshPBR.vsh",
 			"StaticMesh PBR VS",
 			"main",
-			overrides,
+			&newOverrides,
 			shaderLoader);
 
 		auto pbrStaticMeshPS = LoadShader(device,
@@ -75,7 +75,7 @@ namespace Morpheus {
 			"internal/StaticMeshPBR.psh",
 			"StaticMesh PBR PS",
 			"main",
-			overrides,
+			&newOverrides,
 			shaderLoader);
 
 		DG::SamplerDesc SamLinearClampDesc

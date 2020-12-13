@@ -146,8 +146,28 @@ namespace Morpheus {
 		return mBuffer;
 	}
 
+	DG::float4 ReadFloat4(const nlohmann::json& json, const std::string& name, const DG::float4& defaultValue) {
+		if (json.contains(name)) {
+			std::vector<float> fvec;
+			json[name].get_to(fvec);
+			assert(fvec.size() == 4);
+			return DG::float4(fvec[0], fvec[1], fvec[2], fvec[3]);
+		} else {
+			return defaultValue;
+		}
+	}
+
 	void LoadPBRShaderInfo(const nlohmann::json& json, GLTFMaterialShaderInfo* result) {
-		*result = GLTFMaterialShaderInfo();
+		result->AlphaMaskCutoff = json.value("AlphaMaskCutoff", 0.5f);
+		result->BaseColorFactor = ReadFloat4(json, "BaseColorFactor", DG::float4(1.0f, 1.0f, 1.0f, 1.0f));
+		result->IBLScale = json.value("IBLScale", 1.0f);
+		result->MetallicFactor = json.value("MetallicFactor", 1.0f);
+		result->EmissionScale = json.value("EmissionScale", 1.0f);
+		result->EmissiveFactor = ReadFloat4(json, "EmissiveFactor", DG::float4(1.0f, 1.0f, 1.0f, 1.0f));
+		result->OcclusionStrength = json.value("OcclusionStrength", 1.0f);
+		result->RoughnessFactor = json.value("RoughnessFactor", 1.0f);
+		result->SpecularFactor = ReadFloat4(json, "SpecularFactor", DG::float4(1.0f, 1.0f, 1.0f, 1.0f));
+		result->UseAlphaMask = json.value("UseAlphaMask", false);
 	}
 
 	StaticMeshPBRMaterialPrototype::StaticMeshPBRMaterialPrototype(
@@ -156,23 +176,37 @@ namespace Morpheus {
 		const std::string& path,
 		const nlohmann::json& config) {
 
-		std::string pipeline_src;
-		std::string albedo_src;
-		std::string roughness_src;
-		std::string metallic_src;
-		std::string normal_src;
+		std::string pipeline_src = "PBRStaticMesh";
+		std::string albedo_src = "WHITE_TEXTURE";
+		std::string roughness_src = "BLACK_TEXTURE";
+		std::string metallic_src = "BLACK_TEXTURE";
+		std::string normal_src = "DEFAULT_NORMAL_TEXTURE";
 		
-		config["Pipeline"].get_to(pipeline_src);
-		config["Albedo"].get_to(albedo_src);
-		config["Roughness"].get_to(roughness_src);
-		config["Metallic"].get_to(metallic_src);
-		config["Normal"].get_to(normal_src);
+		if (config.contains("Pipeline"))
+			config["Pipeline"].get_to(pipeline_src);
 
-		mPipeline = manager->Load<PipelineResource>(path + "/" + pipeline_src);
-		mAlbedo = manager->Load<TextureResource>(path + "/" + albedo_src);
-		mRoughness = manager->Load<TextureResource>(path + "/" + roughness_src);
-		mMetallic = manager->Load<TextureResource>(path + "/" + metallic_src);
-		mNormal = manager->Load<TextureResource>(path + "/" + normal_src);
+		if (config.contains("Albedo")) {
+			config["Albedo"].get_to(albedo_src);
+			albedo_src = path + "/" + albedo_src;
+		}
+		if (config.contains("Roughness")) {
+			config["Roughness"].get_to(roughness_src);
+			roughness_src = path + "/" + roughness_src;
+		}
+		if (config.contains("Metallic")) {
+			config["Metallic"].get_to(metallic_src);
+			metallic_src = path + "/" + metallic_src;
+		}
+		if (config.contains("Normal")) {
+			config["Normal"].get_to(normal_src);
+			normal_src = path + "/" + normal_src;
+		}
+
+		mPipeline = manager->Load<PipelineResource>(pipeline_src);
+		mAlbedo = manager->Load<TextureResource>(albedo_src);
+		mRoughness = manager->Load<TextureResource>(roughness_src);
+		mMetallic = manager->Load<TextureResource>(metallic_src);
+		mNormal = manager->Load<TextureResource>(normal_src);
 
 		if (config.contains("AO")) {
 			std::string ao_src;
@@ -241,10 +275,10 @@ namespace Morpheus {
 		mPipeline->GetState()->CreateShaderResourceBinding(&srb, true);
 		
 		// DO STUFF
-		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_ColorMap")->Set(mAlbedo->GetTexture());
-		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_RoughnessMap")->Set(mRoughness->GetTexture());
-		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_MetallicMap")->Set(mMetallic->GetTexture());
-		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_NormalMap")->Set(mNormal->GetTexture());
+		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_ColorMap")->Set(mAlbedo->GetShaderView());
+		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_RoughnessMap")->Set(mRoughness->GetShaderView());
+		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_MetallicMap")->Set(mMetallic->GetShaderView());
+		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_NormalMap")->Set(mNormal->GetShaderView());
 
 		std::vector<TextureResource*> textures;
 		textures.emplace_back(mAlbedo);
@@ -253,12 +287,12 @@ namespace Morpheus {
 		textures.emplace_back(mNormal);
 
 		if (mAO) {
-			srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_AOMap")->Set(mAO->GetTexture());
+			srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_AOMap")->Set(mAO->GetShaderView());
 			textures.emplace_back(mAO);
 		}
 
 		if (mEmissive) {
-			srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_EmissiveMap")->Set(mEmissive->GetTexture());
+			srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "g_EmissiveMap")->Set(mEmissive->GetShaderView());
 			textures.emplace_back(mEmissive);
 		}
 

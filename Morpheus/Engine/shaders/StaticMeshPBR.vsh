@@ -1,6 +1,6 @@
 #include "PBRStructures.hlsl"
 #include "VertexProcessing.hlsl"
-#include "BasicStrctures.hlsl"
+#include "BasicStructures.hlsl"
 
 struct VSInput
 {
@@ -14,7 +14,7 @@ struct VSInput
 	float4 World3 	: ATTRIB6;
 };
 
-cbuffer cbGlobalAttribs
+cbuffer Globals
 {
     RendererGlobalData mGlobals;
 }
@@ -31,10 +31,13 @@ void main(in  VSInput  VSIn,
 		VSIn.World2, 
 		VSIn.World3);
 
+	Transform = transpose(Transform);
+
     GLTF_TransformedVertex TransformedVert = GLTF_TransformVertex(VSIn.Pos, VSIn.Normal, Transform);
 
     ClipPos  = mul(float4(TransformedVert.WorldPos, 1.0), mGlobals.mCamera.mViewProj);
     WorldPos = TransformedVert.WorldPos;
     Normal   = TransformedVert.Normal;
+
     UV0      = VSIn.UV0;
 }

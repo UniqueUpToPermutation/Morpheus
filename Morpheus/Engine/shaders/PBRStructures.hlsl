@@ -56,25 +56,15 @@ struct GLTFMaterialShaderInfo
 	float4  EmissiveFactor;
 	float4  SpecularFactor;
 
-	int     Workflow;
-	float   BaseColorTextureUVSelector;
-	float   PhysicalDescriptorTextureUVSelector;
-	float   NormalTextureUVSelector; 
-
-	float   OcclusionTextureUVSelector;
-	float   EmissiveTextureUVSelector;
-	float   MetallicFactor;
-	float   RoughnessFactor;
-
-	float 	PrefilteredCubeMipLevels;
 	float 	IBLScale;
     float 	OcclusionStrength;
     float 	EmissionScale;
-
 	int     UseAlphaMask;	
+
 	float   AlphaMaskCutoff;
-    float   Dummy0;
-    float   Dummy1;
+	float   MetallicFactor;
+	float   RoughnessFactor;
+	float 	Dummy0;
 };
 #ifdef CHECK_STRUCT_ALIGNMENT
 	CHECK_STRUCT_ALIGNMENT(GLTFMaterialShaderInfo);

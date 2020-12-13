@@ -96,13 +96,13 @@ namespace Morpheus {
 
 	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
 	private:
-		TextureResource* mAlbedo;
-		TextureResource* mRoughness;
-		TextureResource* mMetallic;
-		TextureResource* mNormal;
-		TextureResource* mAO;
-		TextureResource* mEmissive;
-		PipelineResource* mPipeline;
+		TextureResource* mAlbedo = nullptr;
+		TextureResource* mRoughness = nullptr;
+		TextureResource* mMetallic = nullptr;
+		TextureResource* mNormal = nullptr;
+		TextureResource* mAO = nullptr;
+		TextureResource* mEmissive = nullptr;
+		PipelineResource* mPipeline = nullptr;
 		GLTFMaterialShaderInfo mMaterialInfo;
 
 		DG::IBuffer* CreateMaterialInfoBuffer(

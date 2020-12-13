@@ -6,6 +6,7 @@
 #include <Engine/TextureResource.hpp>
 #include <Engine/MaterialResource.hpp>
 #include <Engine/StaticMeshResource.hpp>
+#include <Engine/MaterialView.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -173,7 +174,7 @@ namespace Morpheus {
 		mDefaultNormalTexture->Release();
 	}
 
-	void DefaultRenderer::WriteGlobalData(EntityNode cameraNode) {
+	void DefaultRenderer::WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe) {
 
 		auto camera = cameraNode.GetComponent<Camera>();
 		auto camera_transform = cameraNode.TryGetComponent<Transform>();
@@ -208,6 +209,8 @@ namespace Morpheus {
 		data.mCamera.mProjInvT = data.mCamera.mProjT.Inverse();
 		data.mCamera.mViewInvT = data.mCamera.mViewT.Inverse();
 		data.mCamera.mViewProjInvT = data.mCamera.mViewProjT.Inverse();
+		data.mGlobalLighting.fGlobalEnvMapLevels = 
+			(float)globalLightProbe->GetPrefilteredEnvMap()->GetTexture()->GetDesc().MipLevels;
 
 		mGlobals.Write(context, data);
 	}
@@ -275,7 +278,10 @@ namespace Morpheus {
 		context->Draw(attribs);
 	}
 
-	void DefaultRenderer::RenderStaticMeshes(std::vector<StaticMeshCache>& cache) {
+	void DefaultRenderer::RenderStaticMeshes(
+		std::vector<StaticMeshCache>& cache,
+		LightProbe* lightProbe) {
+
 		auto pipelineComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
 			return c1.mStaticMesh->GetPipeline() < c2.mStaticMesh->GetPipeline();
 		};
@@ -333,6 +339,11 @@ namespace Morpheus {
 
 				// Change material
 				if (material != currentMaterial) {
+					auto iblView = material->GetView<ImageBasedLightingView>();
+					if (iblView && lightProbe) {
+						iblView->SetEnvironment(lightProbe);
+					}
+
 					context->CommitShaderResources(material->GetResourceBinding(), 
 						RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 					currentMaterial = material;
@@ -389,16 +400,23 @@ namespace Morpheus {
 			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
+			SkyboxComponent* skyboxComponent = nullptr;
+			LightProbe* globalLightProbe = nullptr;
+			
+			if (cacheCast->mSkybox != entt::null) {
+				skyboxComponent = registry->try_get<SkyboxComponent>(cacheCast->mSkybox);
+				globalLightProbe = registry->try_get<LightProbe>(cacheCast->mSkybox);
+			}
+
 			// Write global data to globals buffer
-			WriteGlobalData(cameraNode);
+			WriteGlobalData(cameraNode, globalLightProbe);
 
 			// Render all static meshes in the scene
-			RenderStaticMeshes(cacheCast->mStaticMeshes);
+			RenderStaticMeshes(cacheCast->mStaticMeshes, globalLightProbe);
 
 			// Render skybox
-			if (cacheCast->mSkybox != entt::null) {
-				auto& skyboxComponent = registry->get<SkyboxComponent>(cacheCast->mSkybox);
-				RenderSkybox(&skyboxComponent);
+			if (skyboxComponent) {
+				RenderSkybox(skyboxComponent);
 			}
 		} else {
 			context->SetRenderTargets(1, &pRTV, pDSV, 
