@@ -15,5 +15,5 @@ void main(in float4 Pos      : SV_Position,
 
 	float2 lookup_uv = float2(theta / (2 * PI) + 0.5, phi / PI);
 
-	Color = g_HDRI.Sample(g_HDRI_sampler, lookup_uv);
+	Color = g_HDRI.SampleLevel(g_HDRI_sampler, lookup_uv, 0);
 }

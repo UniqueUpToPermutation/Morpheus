@@ -83,7 +83,7 @@ namespace Morpheus {
 
 		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
 
-		VertexAttributeIndices attributes = pipeline->GetAttributeIndices();
+		VertexAttributeLayout attributes = pipeline->GetAttributeLayout();
 		std::vector<DG::LayoutElement> layout = pipeline->GetVertexLayout();
 		std::vector<uint> offsets;
 		offsets.emplace_back(0);
@@ -97,6 +97,12 @@ namespace Morpheus {
 		}
 
 		uint stride = offsets[offsets.size() - 1];
+
+		// Override stride if specified.
+		if (attributes.mStride > 0) {
+			stride = attributes.mStride;
+		}
+
 		int positionOffset = -1;
 		int uvOffset = -1;
 		int normalOffset = -1;

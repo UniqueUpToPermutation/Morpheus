@@ -88,6 +88,8 @@ namespace Morpheus {
 		mEngine(engine), 
 		mPostProcessor(engine->GetDevice()),
 		mFrameBuffer(nullptr),
+		mResolveBuffer(nullptr),
+		mMSAADepthBuffer(nullptr),
 		mGlobals(engine->GetDevice()) {
 
 		auto device = mEngine->GetDevice();
@@ -168,6 +170,16 @@ namespace Morpheus {
 			mFrameBuffer = nullptr;
 		}
 
+		if (mResolveBuffer) {
+			mResolveBuffer->Release();
+			mResolveBuffer = nullptr;
+		}
+
+		if (mMSAADepthBuffer) {
+			mMSAADepthBuffer->Release();
+			mMSAADepthBuffer = nullptr;
+		}
+
 		mDefaultSampler->Release();
 		mWhiteTexture->Release();
 		mBlackTexture->Release();
@@ -223,6 +235,16 @@ namespace Morpheus {
 			mFrameBuffer = nullptr;
 		}
 
+		if (mResolveBuffer) {
+			mResolveBuffer->Release();
+			mResolveBuffer = nullptr;
+		}
+
+		if (mMSAADepthBuffer) {
+			mMSAADepthBuffer->Release();
+			mMSAADepthBuffer = nullptr;
+		}
+
 		DG::TextureDesc desc;
 		desc.Width = width;
 		desc.Height = height;
@@ -232,9 +254,32 @@ namespace Morpheus {
 		desc.Usage = DG::USAGE_DEFAULT;
 		desc.Format = GetIntermediateFramebufferFormat();
 		desc.MipLevels = 1;
+		desc.SampleCount = GetMSAASamples();
 		
 		auto device = mEngine->GetDevice();
 		device->CreateTexture(desc, nullptr, &mFrameBuffer);
+
+		if (desc.SampleCount > 1) {
+			DG::TextureDesc desc;
+			desc.Width = width;
+			desc.Height = height;
+			desc.BindFlags = DG::BIND_SHADER_RESOURCE;
+			desc.Name = "Resolve Buffer";
+			desc.Type = DG::RESOURCE_DIM_TEX_2D;
+			desc.Usage = DG::USAGE_DEFAULT;
+			desc.Format = GetIntermediateFramebufferFormat();
+			desc.MipLevels = 1;
+
+			device->CreateTexture(desc, nullptr, &mResolveBuffer);
+
+			desc.BindFlags = DG::BIND_DEPTH_STENCIL;
+			desc.Name = "Intermediate Depth Buffer";
+			desc.Format = GetIntermediateDepthbufferFormat();
+			desc.MipLevels = 1;
+			desc.SampleCount = GetMSAASamples();
+
+			device->CreateTexture(desc, nullptr, &mMSAADepthBuffer);
+		}
 	}
 	
 	void DefaultRenderer::OnWindowResized(uint width, uint height) {
@@ -320,7 +365,7 @@ namespace Morpheus {
 
 			for (; currentIdx + currentInstanceIdx < meshCount && currentInstanceIdx < maxInstances;
 				++currentInstanceIdx) {
-				ptr[currentInstanceIdx] = cache[currentIdx + currentInstanceIdx].mTransform->GetCache();
+				ptr[currentInstanceIdx] = cache[currentIdx + currentInstanceIdx].mTransform->GetCache().Transpose();
 			}
 
 			context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
@@ -388,16 +433,24 @@ namespace Morpheus {
 
 		ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
 		ITextureView* pDSV = swapChain->GetDepthBufferDSV();
+		ITextureView* intermediateDepthView = nullptr;
+
+		if (mMSAADepthBuffer) {
+			intermediateDepthView = mMSAADepthBuffer->GetDefaultView(DG::TEXTURE_VIEW_DEPTH_STENCIL);
+		} else {
+			intermediateDepthView = pDSV;
+		}
 
 		float rgba[4] = {0.5, 0.5, 0.5, 1.0};
 
 		if (cameraNode.IsValid() && cacheCast) {
 			auto rtView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET);
-			context->SetRenderTargets(1, &rtView, pDSV,
+			context->SetRenderTargets(1, &rtView, intermediateDepthView,
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			context->ClearRenderTarget(rtView, rgba, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
+			context->ClearDepthStencil(intermediateDepthView, 
+				CLEAR_DEPTH_FLAG, 1.f, 0, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			SkyboxComponent* skyboxComponent = nullptr;
@@ -418,22 +471,35 @@ namespace Morpheus {
 			if (skyboxComponent) {
 				RenderSkybox(skyboxComponent);
 			}
+
+			// Resolve MSAA before post processing
+			if (mResolveBuffer != nullptr) {
+				DG::ResolveTextureSubresourceAttribs resolveAttribs;
+				resolveAttribs.DstTextureTransitionMode = RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+				resolveAttribs.SrcTextureTransitionMode = RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+				context->ResolveTextureSubresource(mFrameBuffer, mResolveBuffer, resolveAttribs);
+			}
+
+			// Restore default render target in case the sample has changed it
+			context->SetRenderTargets(1, &pRTV, pDSV,
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Pass through post processor
+			auto srView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+			PostProcessorParams ppParams;
+			mPostProcessor.SetAttributes(context, ppParams);
+			mPostProcessor.Draw(context, srView);
+
 		} else {
 			context->SetRenderTargets(1, &pRTV, pDSV, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Restore default render target in case the sample has changed it
+			context->SetRenderTargets(1, &pRTV, pDSV,
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		}
-
-		// Restore default render target in case the sample has changed it
-		context->SetRenderTargets(1, &pRTV, pDSV,
-			RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		// Pass through post processor
-		auto srView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
-		PostProcessorParams ppParams;
-		mPostProcessor.SetAttributes(context, ppParams);
-		mPostProcessor.Draw(context, srView);
 
 		auto imGui = mEngine->GetUI();
 
@@ -451,12 +517,16 @@ namespace Morpheus {
 		}
 	}
 
-	DG::FILTER_TYPE DefaultRenderer::GetDefaultFilter() {
+	DG::FILTER_TYPE DefaultRenderer::GetDefaultFilter() const {
 		return DG::FILTER_TYPE_LINEAR;
 	}
 
-	uint DefaultRenderer::GetMaxAnisotropy() {
-		return 0;
+	uint DefaultRenderer::GetMaxAnisotropy() const {
+		return 32;
+	}
+
+	uint DefaultRenderer::GetMSAASamples() const {
+		return 1;
 	}
 
 	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateFramebufferFormat() const {

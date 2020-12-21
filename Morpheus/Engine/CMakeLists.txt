@@ -130,6 +130,7 @@ list(APPEND SOURCE
 	src/Pipelines/PipelineFactory.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp
+	src/Pipelines/StaticMeshPBR.cpp
 	src/MaterialPrototypes.cpp
 	src/MaterialView.cpp
 	../../lodepng/lodepng.cpp

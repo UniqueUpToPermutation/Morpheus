@@ -1,5 +1,5 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
-#include <Engine/Pipelines/PBRStaticMesh.hpp>
+#include <Engine/Pipelines/GLTFPBRStaticMesh.hpp>
 #include <Engine/PipelineResource.hpp>
 
 namespace Morpheus {
@@ -32,10 +32,11 @@ namespace Morpheus {
 
 	void ResourceCache<PipelineResource>::InitFactories() {
 		mPipelineFactories["BasicTextured"] = &CreateBasicTexturedPipeline;
-		mPipelineFactories["PBRStaticMesh"] = &CreatePBRStaticMeshPipeline<true, false, false>;
-		mPipelineFactories["PBRStaticMesh_AO"] = &CreatePBRStaticMeshPipeline<true, true, false>;
-		mPipelineFactories["PBRStaticMesh_AO_Emissive"] = &CreatePBRStaticMeshPipeline<true, true, true>;
-		mPipelineFactories["PBRStaticMesh_Emissive"] = &CreatePBRStaticMeshPipeline<true, false, true>;
+		mPipelineFactories["GLTFPBRStaticMesh"] = &CreateGLTFPBRStaticMeshPipeline<true, false, false>;
+		mPipelineFactories["GLTFPBRStaticMesh_AO"] = &CreateGLTFPBRStaticMeshPipeline<true, true, false>;
+		mPipelineFactories["GLTFPBRStaticMesh_AO_Emissive"] = &CreateGLTFPBRStaticMeshPipeline<true, true, true>;
+		mPipelineFactories["GLTFPBRStaticMesh_Emissive"] = &CreateGLTFPBRStaticMeshPipeline<true, false, true>;
 		mPipelineFactories["Skybox"] = &CreateSkyboxPipeline;
+		mPipelineFactories["PBRStaticMesh"] = &CreateStaticMeshPBRPipeline;
 	}
 }

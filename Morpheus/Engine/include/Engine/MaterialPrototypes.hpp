@@ -8,7 +8,7 @@ using float3 = Diligent::float3;
 using float4 = Diligent::float4;
 using float4x4 = Diligent::float4x4;
 
-#include <shaders/PBRStructures.hlsl>
+#include <shaders/GLTFPBRStructures.hlsl>
 #include <nlohmann/json.hpp>
 
 #include <Engine/Resource.hpp>
@@ -94,7 +94,7 @@ namespace Morpheus {
 		MaterialPrototype* DeepCopy() const override;
 	};
 
-	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
+	class GLTFStaticMeshPBRMaterialPrototype : public MaterialPrototype {
 	private:
 		TextureResource* mAlbedo = nullptr;
 		TextureResource* mRoughness = nullptr;
@@ -110,6 +110,39 @@ namespace Morpheus {
 			ResourceManager* manager);
 
 	public:
+		GLTFStaticMeshPBRMaterialPrototype(
+			const GLTFStaticMeshPBRMaterialPrototype& other);
+		GLTFStaticMeshPBRMaterialPrototype(
+			ResourceManager* manager,
+			const std::string& source, 
+			const std::string& path,
+			const nlohmann::json& config);
+		GLTFStaticMeshPBRMaterialPrototype(
+			PipelineResource* pipeline,
+			const GLTFMaterialShaderInfo& info,
+			TextureResource* albedo,
+			TextureResource* roughness,
+			TextureResource* metallic,
+			TextureResource* normal,
+			TextureResource* ao = nullptr,
+			TextureResource* emissive = nullptr);
+		~GLTFStaticMeshPBRMaterialPrototype();
+
+		void InitializeMaterial(
+			ResourceManager* manager,
+			ResourceCache<MaterialResource>* cache,
+			MaterialResource* into) override;
+		MaterialPrototype* DeepCopy() const override;
+	};
+	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
+	private:
+		PipelineResource* mPipeline = nullptr;
+		TextureResource* mAlbedo = nullptr;
+		TextureResource* mNormal = nullptr;
+		TextureResource* mRoughness = nullptr;
+		TextureResource* mMetallic = nullptr;
+
+	public:
 		StaticMeshPBRMaterialPrototype(
 			const StaticMeshPBRMaterialPrototype& other);
 		StaticMeshPBRMaterialPrototype(
@@ -119,19 +152,17 @@ namespace Morpheus {
 			const nlohmann::json& config);
 		StaticMeshPBRMaterialPrototype(
 			PipelineResource* pipeline,
-			const GLTFMaterialShaderInfo& info,
 			TextureResource* albedo,
-			TextureResource* roughness,
-			TextureResource* metallic,
 			TextureResource* normal,
-			TextureResource* ao = nullptr,
-			TextureResource* emissive = nullptr);
+			TextureResource* metallic,
+			TextureResource* roughness);
 		~StaticMeshPBRMaterialPrototype();
 
 		void InitializeMaterial(
 			ResourceManager* manager,
 			ResourceCache<MaterialResource>* cache,
 			MaterialResource* into) override;
+
 		MaterialPrototype* DeepCopy() const override;
 	};
 

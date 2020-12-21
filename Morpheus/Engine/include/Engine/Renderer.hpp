@@ -33,8 +33,9 @@ namespace Morpheus {
 
 		// This buffer will be bound as a constant to all pipelines
 		virtual DG::IBuffer* GetGlobalsBuffer() = 0;
-		virtual DG::FILTER_TYPE GetDefaultFilter() = 0;
-		virtual uint GetMaxAnisotropy() = 0;
+		virtual DG::FILTER_TYPE GetDefaultFilter() const = 0;
+		virtual uint GetMaxAnisotropy() const = 0;
+		virtual uint GetMSAASamples() const = 0;
 
 		virtual void OnWindowResized(uint width, uint height) = 0;
 

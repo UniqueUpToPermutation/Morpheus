@@ -85,6 +85,8 @@ namespace Morpheus {
 		PostProcessor mPostProcessor;
 
 		DG::ITexture* mFrameBuffer;
+		DG::ITexture* mMSAADepthBuffer;
+		DG::ITexture* mResolveBuffer;
 
 		TextureResource* mBlackTexture;
 		TextureResource* mWhiteTexture;
@@ -114,8 +116,9 @@ namespace Morpheus {
 		void Render(IRenderCache* cache, EntityNode cameraNode) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
-		DG::FILTER_TYPE GetDefaultFilter() override;
-		uint GetMaxAnisotropy() override;
+		DG::FILTER_TYPE GetDefaultFilter() const override;
+		uint GetMaxAnisotropy() const override;
+		uint GetMSAASamples() const override;
 
 		IRenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;

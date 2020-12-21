@@ -12,6 +12,10 @@
 	"RasterizerDesc" : {
 		"CullMode" 		: "CULL_MODE_NONE"
 	},
+
+	"SampleDesc" 	: {
+		"Count"		: 1
+	},
 	 
 	"DepthStencilDesc" : {
 		"DepthEnable" 	: false

@@ -31,6 +31,8 @@ namespace Morpheus {
 			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
 		};
 
+		SamLinearClampDesc.MaxAnisotropy = renderer->GetMaxAnisotropy();
+
 		DG::IPipelineState* result = nullptr;
 
 		// Create Irradiance Pipeline
@@ -47,6 +49,9 @@ namespace Morpheus {
 		GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
 		GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
 		GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
+
+		// Number of MSAA samples
+		GraphicsPipeline.SmplDesc.Count = renderer->GetMSAASamples();
 
 		std::vector<DG::LayoutElement> layoutElements = {
 			DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
@@ -89,7 +94,7 @@ namespace Morpheus {
 		basicTexturedVS->Release();
 		basicTexturedPS->Release();
 
-		VertexAttributeIndices indx;
+		VertexAttributeLayout indx;
 		indx.mPosition = 0;
 		indx.mUV = 1;
 

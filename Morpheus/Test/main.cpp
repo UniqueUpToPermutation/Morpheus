@@ -22,9 +22,6 @@ int main(int argc, char** argv) {
 
 	auto sphereMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
 
-	std::default_random_engine generator;
-	std::uniform_real_distribution<double> distribution(0.0, 2 * DG::PI);
-
 	for (int x = -5; x <= 5; ++x) {
 		for (int y = -5; y <= 5; ++y) {
 			auto meshNode = scene->CreateChild(root);
@@ -32,18 +29,15 @@ int main(int argc, char** argv) {
 			Transform* transform = meshNode.AddComponent<Transform>();
 			transform->mTranslation.x = x * 4.0f;
 			transform->mTranslation.z = y * 4.0f;
-
-			transform->mRotation = DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), 
-				distribution(generator));
 		}
 	}
 
-	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh2.json");
+	/*auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
 	auto meshNode = scene->CreateChild(root);
 	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
 	Transform* transform = meshNode.AddComponent<Transform>();
-	transform->mTranslation.y = 3.0f;
-	transform->mScale = DG::float3(4.0f, 4.0f, 4.0f);
+	transform->mTranslation.y = 8.0f;
+	transform->mScale = DG::float3(8.0f, 8.0f, 8.0f);*/
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 

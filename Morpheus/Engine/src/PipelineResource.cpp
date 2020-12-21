@@ -143,6 +143,24 @@ namespace Morpheus {
 		}
 	}
 
+	void PipelineLoader::ReadSampleDesc(const nlohmann::json& json, DG::SampleDesc* desc) {
+
+		if (json.contains("Count")) {
+			auto& count_json = json["Count"];
+			if (count_json.is_string()) {
+				std::string val;
+				count_json.get_to(val);
+				if (val == "RENDERER_DEFAULT") {
+					desc->Count = mManager->GetParent()->GetRenderer()->GetMSAASamples();
+				}
+			}
+			else 
+				desc->Count = json.value("Count", desc->Count);
+		}
+
+		desc->Quality = json.value("Quality", desc->Quality);
+	}
+
 	void PipelineLoader::ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc) {
 		if (json.contains("StencilFunc")) {
 			desc->StencilFunc = ReadComparisonFunc(json.value("StencilFunc", ""));
@@ -238,8 +256,8 @@ namespace Morpheus {
 		}
 	}
 
-	VertexAttributeIndices PipelineLoader::ReadVertexAttributes(const nlohmann::json& json) {
-		VertexAttributeIndices attribs;
+	VertexAttributeLayout PipelineLoader::ReadVertexAttributes(const nlohmann::json& json) {
+		VertexAttributeLayout attribs;
 		attribs.mPosition 	= json.value("Position", attribs.mPosition);
 		attribs.mUV 		= json.value("UV", attribs.mUV);
 		attribs.mNormal 	= json.value("Normal", attribs.mNormal);
@@ -499,7 +517,7 @@ namespace Morpheus {
 				}
 			};
 
-			VertexAttributeIndices attribIndices;
+			VertexAttributeLayout attribIndices;
 			if (json.contains("Attributes")) {
 				attribIndices = ReadVertexAttributes(json["Attributes"]);
 			}
@@ -609,6 +627,13 @@ namespace Morpheus {
 		if (json.contains("RasterizerDesc")) {
 			ReadRasterizerDesc(json["RasterizerDesc"],
 				&info.GraphicsPipeline.RasterizerDesc);
+		}
+
+		if (json.contains("SampleDesc")) {
+			ReadSampleDesc(json["SampleDesc"], &info.GraphicsPipeline.SmplDesc);
+		} else {
+			// By default use the number of MSAA samples used by the renderer
+			info.GraphicsPipeline.SmplDesc.Count = mManager->GetParent()->GetRenderer()->GetMSAASamples();
 		}
 
 		if (json.contains("InputLayout")) {

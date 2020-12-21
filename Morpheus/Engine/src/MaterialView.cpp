@@ -14,13 +14,17 @@ namespace Morpheus {
 		DG::ITextureView* irradiance,
 		DG::ITextureView* prefilteredEnvMap) {
 
-		mIrradianceMapLoc->Set(irradiance);
-		mPrefilteredEnvMapLoc->Set(prefilteredEnvMap);
+		if (mIrradianceMapLoc)
+			mIrradianceMapLoc->Set(irradiance);
+		if (mPrefilteredEnvMapLoc)
+			mPrefilteredEnvMapLoc->Set(prefilteredEnvMap);
 	}
 
 	void ImageBasedLightingView::SetEnvironment(
 		LightProbe* lightProbe) {
-		mIrradianceMapLoc->Set(lightProbe->GetIrradianceView());
-		mPrefilteredEnvMapLoc->Set(lightProbe->GetPrefilteredEnvView());
+		if (mIrradianceMapLoc)
+			mIrradianceMapLoc->Set(lightProbe->GetIrradianceView());
+		if (mPrefilteredEnvMapLoc)
+			mPrefilteredEnvMapLoc->Set(lightProbe->GetPrefilteredEnvView());
 	}
 }

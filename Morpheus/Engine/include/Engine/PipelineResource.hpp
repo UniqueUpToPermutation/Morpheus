@@ -17,13 +17,16 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 
-	struct VertexAttributeIndices {
+	struct VertexAttributeLayout {
 	public:
 		int mPosition	= -1;
 		int mUV			= -1;
 		int mNormal 	= -1;
 		int mTangent 	= -1;
 		int mBitangent	= -1;
+
+		// If this is -1, then assume dense packing
+		int mStride 	= -1; 
 	};
 
 	enum class InstancingType {
@@ -38,12 +41,12 @@ namespace Morpheus {
 		DG::IPipelineState* mState;
 		std::string mSource;
 		std::vector<DG::LayoutElement> mVertexLayout;
-		VertexAttributeIndices mAttributeIndices;
+		VertexAttributeLayout mAttributeLayout;
 		InstancingType mInstancingType;
 
 		void Init(DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
-			VertexAttributeIndices attributeIndices);
+			VertexAttributeLayout attributeLayout);
 
 	public:
 		~PipelineResource();
@@ -57,18 +60,18 @@ namespace Morpheus {
 		inline PipelineResource(ResourceManager* manager, 
 			DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
-			VertexAttributeIndices attributeIndices,
+			VertexAttributeLayout attributeLayout,
 			InstancingType instancingType) : 
 			IResource(manager),
 			mInstancingType(instancingType),
 			mState(state),
 			mVertexLayout(layoutElements),
-			mAttributeIndices(attributeIndices) {
+			mAttributeLayout(attributeLayout) {
 		}
 
 		inline void SetAll(DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
-			VertexAttributeIndices attributeIndices,
+			VertexAttributeLayout attributeLayout,
 			InstancingType instancingType) {
 
 			if (mState) {
@@ -79,7 +82,7 @@ namespace Morpheus {
 			mState = state;
 			mVertexLayout = layoutElements;
 			mInstancingType = instancingType;
-			mAttributeIndices = attributeIndices;
+			mAttributeLayout = attributeLayout;
 		}
 
 		inline bool IsReady() const {
@@ -106,8 +109,8 @@ namespace Morpheus {
 			return mVertexLayout;
 		}
 
-		inline VertexAttributeIndices GetAttributeIndices() const {
-			return mAttributeIndices;
+		inline VertexAttributeLayout GetAttributeLayout() const {
+			return mAttributeLayout;
 		}
 
 		PipelineResource* ToPipeline() override;
@@ -149,11 +152,12 @@ namespace Morpheus {
 		DG::FILL_MODE ReadFillMode(const std::string& str);
 		DG::STENCIL_OP ReadStencilOp(const std::string& str);
 		DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
+		void ReadSampleDesc(const nlohmann::json& json, DG::SampleDesc* desc);
 		void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
 		std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
 		DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
 		DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);
-		VertexAttributeIndices ReadVertexAttributes(const nlohmann::json& json);
+		VertexAttributeLayout ReadVertexAttributes(const nlohmann::json& json);
 		DG::SHADER_RESOURCE_VARIABLE_TYPE ReadShaderResourceVariableType(const nlohmann::json& json);
 		DG::PipelineResourceLayoutDesc ReadResourceLayout(const nlohmann::json& json,
 			std::vector<DG::ShaderResourceVariableDesc>* variables,
