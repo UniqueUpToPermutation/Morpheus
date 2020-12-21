@@ -38,4 +38,17 @@ void SH9(float3 position, out float sh[9]) {
 		position.y * position.y);
 }
 
+void MakeLambertFilter9(out float filter[9]) {
+	// l = 0
+	filter[0] = 1.0;
+
+	// l = 1
+	for (uint i = 1; i < 4; ++i)
+		filter[i] = 2.0 / 3.0;
+
+	// l = 2
+	for (uint i = 4; i < 9; ++i)
+		filter[i] = 1.0 / 4.0;
+}
+
 #endif

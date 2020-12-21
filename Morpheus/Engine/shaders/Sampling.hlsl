@@ -35,4 +35,12 @@ float3 ImportanceSampleGGX(float2 Xi, float Roughness, float3 N)
     return TangentX * H.x + TangentY * H.y + N * H.z;
 }
 
+float3 SampleSphere(float2 Xi) {
+	float u = Xi.x * 2.0 - 1.0;
+	float sinphi = sqrt(1.0 - u * u);
+	float theta = 2.0 * PI * Xi.y;
+	return float3(sinphi * cos(theta),
+		sinphi * sin(theta), u);
+}
+
 #endif

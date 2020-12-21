@@ -47,6 +47,14 @@ namespace Morpheus {
         uint  NumSamples;
         float Dummy;
     };
+
+	struct LightProbeProcessorConfig {
+		uint mIrradianceSamplesTheta = 32;
+		uint mIrradianceSamplesPhi = 64;
+		uint mIrradianceSHSamples = 5000;
+		bool bEnvMapOptimizeSamples = true;
+		uint mEnvMapSamples = 256;
+	};
 	class LightProbeProcessor {
 	private:
 		DG::IPipelineState* mIrradiancePipeline;
@@ -61,6 +69,7 @@ namespace Morpheus {
 		DG::TEXTURE_FORMAT mPrefilteredEnvFormat;
 
 		uint mEnvironmentMapSamples;
+		uint mIrradianceSHSamples;
 
 	public:
 		LightProbeProcessor(DG::IRenderDevice* device);
@@ -70,10 +79,7 @@ namespace Morpheus {
 			ResourceManager* resourceManager,
 			DG::TEXTURE_FORMAT irradianceFormat,
 			DG::TEXTURE_FORMAT prefilterEnvFormat,
-			const uint irradianceSamplesTheta = 32,
-			const uint irradianceSamplesPhi = 64,
-			const bool envMapOptimizeSamples = true,
-			const uint envMapSamples = 256);
+			const LightProbeProcessorConfig& config = LightProbeProcessorConfig());
 
 		inline void SetEnvironmentMapSamples(uint envMapSamples) {
 			mEnvironmentMapSamples = envMapSamples;
@@ -87,6 +93,17 @@ namespace Morpheus {
 			DG::IDeviceContext* context, 
 			DG::ITextureView* incommingEnvironmentSRV,
 			DG::ITexture* outputCubemap);
+
+		void ComputeIrradianceSH(
+			DG::IDeviceContext* context,
+			DG::ITextureView* incommingEnvironmentSRV,
+			DG::IBufferView* outputBufferView);
+
+		DG::IBuffer* ComputeIrradianceSH(
+			DG::IRenderDevice* device,
+			DG::IDeviceContext* context,
+			DG::ITextureView* incommingEnvironmentSRV
+		);
 
 		void ComputePrefilteredEnvironment(
 			DG::IDeviceContext* context, 
