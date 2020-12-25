@@ -94,6 +94,8 @@ namespace Morpheus {
 
 		DG::ISampler* mDefaultSampler;
 
+		bool bUseSHIrradiance;
+
 		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache, LightProbe* globalLightProbe);
 		void RenderSkybox(SkyboxComponent* skybox);
 		void ReallocateIntermediateFramebuffer(uint width, uint height);
@@ -124,5 +126,7 @@ namespace Morpheus {
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
 		DG::ITextureView* GetLUTShaderResourceView() override;
+		bool GetUseSHIrradiance() const override;
+		bool GetUseIBL() const override;
 	};
 }

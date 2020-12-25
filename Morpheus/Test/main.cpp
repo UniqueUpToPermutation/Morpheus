@@ -27,17 +27,19 @@ int main(int argc, char** argv) {
 			auto meshNode = scene->CreateChild(root);
 			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(sphereMesh);
 			Transform* transform = meshNode.AddComponent<Transform>();
-			transform->mTranslation.x = x * 4.0f;
-			transform->mTranslation.z = y * 4.0f;
+			transform->mTranslation.x = x * 3.0f;
+			transform->mTranslation.z = y * 3.0f;
 		}
 	}
 
-	/*auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
+	/*
+	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
 	auto meshNode = scene->CreateChild(root);
 	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
 	Transform* transform = meshNode.AddComponent<Transform>();
 	transform->mTranslation.y = 8.0f;
-	transform->mScale = DG::float3(8.0f, 8.0f, 8.0f);*/
+	transform->mScale = DG::float3(8.0f, 8.0f, 8.0f);
+	*/
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 

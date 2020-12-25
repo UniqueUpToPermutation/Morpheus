@@ -129,5 +129,12 @@ namespace Morpheus {
 			DG::ITextureView* incommingEnvironmentSRV,
 			uint prefilteredEnvironmentSize = 256,
 			uint irradianceSize = 64);
+
+		LightProbe ComputeLightProbeSH(
+			DG::IRenderDevice* device,
+			DG::IDeviceContext* context,
+			ResourceCache<TextureResource>* textureCache,
+			DG::ITextureView* incommingEnvironmentSRV,
+			uint prefilteredEnvironmentSize = 256);
 	};
 }

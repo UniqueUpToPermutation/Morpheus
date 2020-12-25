@@ -324,7 +324,7 @@ namespace Morpheus {
 
 		// Create image based lighting view
 		cache->CreateView<ImageBasedLightingView>(into, 
-			irradianceMapLoc, prefilteredEnvMapLoc);
+			irradianceMapLoc, nullptr, prefilteredEnvMapLoc);
 
 		// Tranfers material info to the GPU
 		std::vector<DG::IBuffer*> buffers;
@@ -475,11 +475,12 @@ namespace Morpheus {
 		textures.emplace_back(mNormal);
 
 		auto irradianceMapLoc = srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mIrradianceMap");
+		auto irradianceSHLoc = srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "IrradianceSH");
 		auto prefilteredEnvMapLoc = srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap");
 
 		// Create image based lighting view
 		cache->CreateView<ImageBasedLightingView>(into, 
-			irradianceMapLoc, prefilteredEnvMapLoc);
+			irradianceMapLoc, irradianceSHLoc, prefilteredEnvMapLoc);
 
 		std::vector<DG::IBuffer*> buffers;
 		InternalInitialize(into, srb, mPipeline, textures, buffers);

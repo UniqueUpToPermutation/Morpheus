@@ -1,6 +1,18 @@
 #include "BasicStructures.hlsl"
 #include "Math.hlsl"
 
+#ifndef USE_IBL
+	#define USE_IBL true
+#endif
+
+#ifndef USE_SH
+	#define USE_SH true
+#endif
+
+#if USE_SH
+#include "SphericalHarmonics.hlsl"
+#endif
+
 cbuffer Globals
 {
     RendererGlobalData mGlobals;
@@ -19,8 +31,19 @@ Texture2D		mNormalMap;
 SamplerState	mNormalMap_sampler;
 
 #if USE_IBL
+#if USE_SH
+
+// Use spherical harmonics for diffuse IBL
+cbuffer IrradianceSH {
+	float4 mIrradianceSH[9]; 
+};
+
+#else 
+
+// Use precomputed irradiance map for diffuse IBL (tends to be noisy)
 TextureCube   mIrradianceMap;
 SamplerState  mIrradianceMap_sampler;
+#endif
 
 TextureCube   mPrefilteredEnvMap;
 SamplerState  mPrefilteredEnvMap_sampler;
@@ -66,8 +89,16 @@ void main(in float4 ClipPos : SV_Position,
 	// Get diffuse contribution factor (as with direct lighting).
 	float3 kd = lerp(float3(1.0) - F, float3(0.0), metalness);
 
+#if USE_SH
+	// Reconstruct irradiance from spherical harmonics
+	float3 irradianceSample = reconstructSH9(mIrradianceSH, N).rgb;
+#else 
+	// Reconstruct irradiance from cubemap
+	float3 irradianceSample = mIrradianceMap.Sample(mIrradianceMap_sampler, N).rgb;
+#endif
+
 	// Irradiance map contains exitant radiance assuming Lambertian BRDF, no need to scale by 1/PI here either.
-	float3 diffuseIBL = kd * albedo * mIrradianceMap.Sample(mIrradianceMap_sampler, N);
+	float3 diffuseIBL = kd * albedo * irradianceSample;
 
 	// Sample pre-filtered specular reflection environment at correct mipmap level.
 	float3 specularIrradiance = mPrefilteredEnvMap.SampleLevel(mPrefilteredEnvMap_sampler, Lr, roughness * (env_levels - 1)).rgb;

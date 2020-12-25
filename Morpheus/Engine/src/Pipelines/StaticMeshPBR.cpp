@@ -14,19 +14,33 @@ namespace Morpheus {
 			newOverrides.mDefines = overrides->mDefines;
 		}
 
-		bool bUseIBL = true;
+		bool bUseSH = renderer->GetUseSHIrradiance();
+		bool bUseIBL = renderer->GetUseIBL();
 
 		auto itUseIBL = newOverrides.mDefines.find("USE_IBL");
 		if (itUseIBL != newOverrides.mDefines.end()) {
-			if (itUseIBL->second == "0") {
+			if (itUseIBL->second == "0" || itUseIBL->second == "false") {
 				bUseIBL = false;
-			} else if (itUseIBL->second == "1") {
+			} else if (itUseIBL->second == "1" || itUseIBL->second == "true") {
 				bUseIBL = true;
 			} else {
 				throw std::runtime_error("USE_IBL macro has invalid value!");
 			}
 		} else {
 			newOverrides.mDefines["USE_IBL"] = bUseIBL ? "1" : "0";
+		}
+
+		auto itUseSH = newOverrides.mDefines.find("USE_SH");
+		if (itUseSH != newOverrides.mDefines.end()) {
+			if (itUseSH->second == "0" || itUseSH->second == "false") {
+				bUseSH = false;
+			} else if (itUseSH->second == "1" || itUseSH->second == "true") {
+				bUseSH = true;
+			} else {
+				throw std::runtime_error("USE_IBL macro has invalid value!");
+			}
+		} else {
+			newOverrides.mDefines["USE_SH"] = bUseSH ? "1" : "0";
 		}
 
 		auto pbrStaticMeshVS = LoadShader(device, 
@@ -128,10 +142,18 @@ namespace Morpheus {
 			DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
 
 		if (bUseIBL) {
-			Vars.emplace_back(DG::ShaderResourceVariableDesc{
-				DG::SHADER_TYPE_PIXEL, 
-				"mIrradianceMap", 
-				DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+			if (bUseSH) {
+				Vars.emplace_back(DG::ShaderResourceVariableDesc{
+					DG::SHADER_TYPE_PIXEL, 
+					"IrradianceSH", 
+					DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+			}
+			else {
+				Vars.emplace_back(DG::ShaderResourceVariableDesc{
+					DG::SHADER_TYPE_PIXEL, 
+					"mIrradianceMap", 
+					DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+			}
 			Vars.emplace_back(DG::ShaderResourceVariableDesc{
 				DG::SHADER_TYPE_PIXEL, 
 				"mPrefilteredEnvMap", 
@@ -163,9 +185,11 @@ namespace Morpheus {
 		});
 
 		if (bUseIBL) {
-			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-				DG::SHADER_TYPE_PIXEL, "mIrradianceMap_sampler", SamLinearClampDesc
-			});
+			if (!bUseSH) {
+				ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+					DG::SHADER_TYPE_PIXEL, "mIrradianceMap_sampler", SamLinearClampDesc
+				});
+			}
 			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
 				DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap_sampler", SamLinearClampDesc
 			});

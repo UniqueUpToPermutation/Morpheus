@@ -1,6 +1,10 @@
 #ifndef _VERTEX_PROCESSING_H_
 #define _VERTEX_PROCESSING_H_
 
+#ifndef PI
+#   define  PI 3.141592653589793
+#endif
+
 float3x3 InverseTranspose3x3(float3x3 M)
 {
     // Note that in HLSL, M_t[0] is the first row, while in GLSL, it is the 

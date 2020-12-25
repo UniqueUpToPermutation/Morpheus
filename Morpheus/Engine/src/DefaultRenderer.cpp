@@ -90,7 +90,8 @@ namespace Morpheus {
 		mFrameBuffer(nullptr),
 		mResolveBuffer(nullptr),
 		mMSAADepthBuffer(nullptr),
-		mGlobals(engine->GetDevice()) {
+		mGlobals(engine->GetDevice()),
+		bUseSHIrradiance(true) {
 
 		auto device = mEngine->GetDevice();
 		auto context = mEngine->GetImmediateContext();
@@ -541,6 +542,14 @@ namespace Morpheus {
 		return mCookTorranceLut.GetShaderView();
 	}
 
+	bool DefaultRenderer::GetUseSHIrradiance() const {
+		return bUseSHIrradiance;
+	}
+
+	bool DefaultRenderer::GetUseIBL() const {
+		return true;
+	}
+
 	IRenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
 		std::stack<Transform*> transformStack;
 		transformStack.emplace(&mIdentityTransform);
@@ -606,10 +615,18 @@ namespace Morpheus {
 					DG::TEX_FORMAT_RGBA16_FLOAT,
 					DG::TEX_FORMAT_RGBA16_FLOAT);
 
-				LightProbe newProbe = processor.ComputeLightProbe(device,
-					immediateContext, textureCache, 
-					skybox.GetCubemap()->GetShaderView());
-
+				LightProbe newProbe;
+				
+				if (bUseSHIrradiance) {
+					newProbe = processor.ComputeLightProbeSH(device,
+						immediateContext, textureCache,
+						skybox.GetCubemap()->GetShaderView());
+				} else {
+					newProbe = processor.ComputeLightProbe(device,
+						immediateContext, textureCache, 
+						skybox.GetCubemap()->GetShaderView());
+				}
+				
 				// Add light probe to skybox
 				registry->emplace<LightProbe>(entity, newProbe);
 			}

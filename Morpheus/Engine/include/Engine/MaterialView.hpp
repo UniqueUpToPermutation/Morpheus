@@ -20,14 +20,17 @@ namespace Morpheus {
 	private:
 		DG::IShaderResourceVariable* mIrradianceMapLoc;
 		DG::IShaderResourceVariable* mPrefilteredEnvMapLoc;
+		DG::IShaderResourceVariable* mIrradianceSHLoc;
 	
 	public:
 		ImageBasedLightingView(
 			DG::IShaderResourceVariable* irradianceMapLoc,
+			DG::IShaderResourceVariable* irradianceMapSHLoc,
 			DG::IShaderResourceVariable* prefilteredEnvMapLoc);
 
 		void SetEnvironment(
 			DG::ITextureView* irradiance,
+			DG::IBufferView* irradianceMapSH,
 			DG::ITextureView* prefilteredEnvMap);
 
 		void SetEnvironment(

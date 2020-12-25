@@ -9,7 +9,52 @@
 #define SH_C_21 SH_C_2n2
 #define SH_C_22 0.54627421529
 
+float4 reconstructSH9(float4 coeffs[9], float3 normal) {
+	return (
+		SH_C_0 * coeffs[0] +
+		SH_C_1 * normal.y * coeffs[1] + 
+		SH_C_1 * normal.z * coeffs[2] + 
+		SH_C_1 * normal.x * coeffs[3] + 
+		SH_C_2n2 * normal.x * normal.y * coeffs[4] +
+		SH_C_2n1 * normal.y * normal.z * coeffs[5] +
+		SH_C_20 * (-normal.x * normal.x - 
+			normal.y * normal.y + 2.0 * normal.z * normal.z) * coeffs[6] +
+		SH_C_21 * normal.z * normal.x * coeffs[7] + 
+		SH_C_22 * (normal.x * normal.x - normal.y * normal.y) * coeffs[8]
+    );
+}
+
 float3 reconstructSH9(float3 coeffs[9], float3 normal) {
+	return (
+		SH_C_0 * coeffs[0] +
+		SH_C_1 * normal.y * coeffs[1] + 
+		SH_C_1 * normal.z * coeffs[2] + 
+		SH_C_1 * normal.x * coeffs[3] + 
+		SH_C_2n2 * normal.x * normal.y * coeffs[4] +
+		SH_C_2n1 * normal.y * normal.z * coeffs[5] +
+		SH_C_20 * (-normal.x * normal.x - 
+			normal.y * normal.y + 2.0 * normal.z * normal.z) * coeffs[6] +
+		SH_C_21 * normal.z * normal.x * coeffs[7] + 
+		SH_C_22 * (normal.x * normal.x - normal.y * normal.y) * coeffs[8]
+    );
+}
+
+float2 reconstructSH9(float2 coeffs[9], float3 normal) {
+	return (
+		SH_C_0 * coeffs[0] +
+		SH_C_1 * normal.y * coeffs[1] + 
+		SH_C_1 * normal.z * coeffs[2] + 
+		SH_C_1 * normal.x * coeffs[3] + 
+		SH_C_2n2 * normal.x * normal.y * coeffs[4] +
+		SH_C_2n1 * normal.y * normal.z * coeffs[5] +
+		SH_C_20 * (-normal.x * normal.x - 
+			normal.y * normal.y + 2.0 * normal.z * normal.z) * coeffs[6] +
+		SH_C_21 * normal.z * normal.x * coeffs[7] + 
+		SH_C_22 * (normal.x * normal.x - normal.y * normal.y) * coeffs[8]
+    );
+}
+
+float reconstructSH9(float coeffs[9], float3 normal) {
 	return (
 		SH_C_0 * coeffs[0] +
 		SH_C_1 * normal.y * coeffs[1] + 

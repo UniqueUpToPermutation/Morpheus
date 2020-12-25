@@ -61,11 +61,15 @@ namespace Morpheus {
 		pipeline->Release();
 	}
 
-	void CookTorranceLUT::SavePng(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device) {
+	void CookTorranceLUT::SavePng(const std::string& path, 
+		DG::IDeviceContext* context, 
+		DG::IRenderDevice* device) {
 		Morpheus::SavePng(mLut, path, context, device);
 	}
 
-	void CookTorranceLUT::SaveGli(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device) {
+	void CookTorranceLUT::SaveGli(const std::string& path, 
+		DG::IDeviceContext* context, 
+		DG::IRenderDevice* device) {
 		Morpheus::SaveGli(mLut, path, context, device);
 	}
 
@@ -351,12 +355,23 @@ namespace Morpheus {
 			throw std::runtime_error("Initialize has not been called!");
 		}
 
+		context->SetPipelineState(mSHIrradiancePipeline);
+
 		mSHIrradianceSRB->GetVariableByName(DG::SHADER_TYPE_COMPUTE, "mEnvironmentMap")->Set(incommingEnvironmentSRV);
 		mSHIrradianceSRB->GetVariableByName(DG::SHADER_TYPE_COMPUTE, "mCoeffsOut")->Set(outputBufferView);
+
 		context->CommitShaderResources(mSHIrradianceSRB, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		
 		DG::DispatchComputeAttribs attribs;		
 		context->DispatchCompute(attribs);
+
+		// clang-format off
+		DG::StateTransitionDesc Barriers[] = 
+		{
+			{outputBufferView->GetBuffer(), DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
+		};
+		// clang-format on
+		context->TransitionResourceStates(_countof(Barriers), Barriers);
 	}
 
 	DG::IBuffer* LightProbeProcessor::ComputeIrradianceSH(
@@ -367,7 +382,7 @@ namespace Morpheus {
 		DG::BufferDesc BuffDesc;
 		BuffDesc.Name              = "SH Coeffs Out";
 		BuffDesc.Usage             = DG::USAGE_DEFAULT;
-		BuffDesc.BindFlags         = DG::BIND_SHADER_RESOURCE | DG::BIND_UNORDERED_ACCESS;
+		BuffDesc.BindFlags         = DG::BIND_UNIFORM_BUFFER | DG::BIND_UNORDERED_ACCESS;
 		BuffDesc.Mode              = DG::BUFFER_MODE_FORMATTED;
 		BuffDesc.ElementByteStride = sizeof(DG::float4);
 		BuffDesc.uiSizeInBytes     = sizeof(DG::float4) * 9;
@@ -514,10 +529,30 @@ namespace Morpheus {
 
 		TextureResource* irradianceResource = textureCache->MakeResource(irradiance);
 		TextureResource* preEnvResource = textureCache->MakeResource(preEnv);
+		DG::RefCntAutoPtr<DG::IBuffer> irradianceSH(nullptr);
 
-		LightProbe probe(irradianceResource, preEnvResource);
+		LightProbe probe(irradianceResource, irradianceSH, preEnvResource);
 		
 		irradianceResource->Release();
+		preEnvResource->Release();
+	
+		return probe;
+	}
+
+	LightProbe LightProbeProcessor::ComputeLightProbeSH(
+		DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		ResourceCache<TextureResource>* textureCache,
+		DG::ITextureView* incommingEnvironmentSRV,
+		uint prefilteredEnvironmentSize) {
+
+		DG::RefCntAutoPtr<DG::IBuffer> irradianceSH(ComputeIrradianceSH(device, context, incommingEnvironmentSRV));
+		DG::ITexture* preEnv = ComputePrefilteredEnvironment(device, context, incommingEnvironmentSRV, prefilteredEnvironmentSize);
+
+		TextureResource* preEnvResource = textureCache->MakeResource(preEnv);
+
+		LightProbe probe(nullptr, irradianceSH, preEnvResource);
+		
 		preEnvResource->Release();
 	
 		return probe;
