@@ -32,10 +32,6 @@ namespace Morpheus {
 
 	void ResourceCache<PipelineResource>::InitFactories() {
 		mPipelineFactories["BasicTextured"] = &CreateBasicTexturedPipeline;
-		mPipelineFactories["GLTFPBRStaticMesh"] = &CreateGLTFPBRStaticMeshPipeline<true, false, false>;
-		mPipelineFactories["GLTFPBRStaticMesh_AO"] = &CreateGLTFPBRStaticMeshPipeline<true, true, false>;
-		mPipelineFactories["GLTFPBRStaticMesh_AO_Emissive"] = &CreateGLTFPBRStaticMeshPipeline<true, true, true>;
-		mPipelineFactories["GLTFPBRStaticMesh_Emissive"] = &CreateGLTFPBRStaticMeshPipeline<true, false, true>;
 		mPipelineFactories["Skybox"] = &CreateSkyboxPipeline;
 		mPipelineFactories["PBRStaticMesh"] = &CreateStaticMeshPBRPipeline;
 	}
