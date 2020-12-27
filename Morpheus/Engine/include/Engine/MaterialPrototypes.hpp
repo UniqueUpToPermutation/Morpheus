@@ -8,9 +8,7 @@ using float3 = Diligent::float3;
 using float4 = Diligent::float4;
 using float4x4 = Diligent::float4x4;
 
-#include <shaders/GLTFPBRStructures.hlsl>
 #include <nlohmann/json.hpp>
-
 #include <Engine/Resource.hpp>
 
 namespace DG = Diligent;
@@ -69,8 +67,6 @@ namespace Morpheus {
 			const nlohmann::json& config) const;
 	};
 
-	void LoadPBRShaderInfo(const nlohmann::json& json, GLTFMaterialShaderInfo* result);
-
 	class JsonMaterialPrototype : public MaterialPrototype {
 	private:
 	PipelineResource* mPipeline;
@@ -94,46 +90,6 @@ namespace Morpheus {
 		MaterialPrototype* DeepCopy() const override;
 	};
 
-	class GLTFStaticMeshPBRMaterialPrototype : public MaterialPrototype {
-	private:
-		TextureResource* mAlbedo = nullptr;
-		TextureResource* mRoughness = nullptr;
-		TextureResource* mMetallic = nullptr;
-		TextureResource* mNormal = nullptr;
-		TextureResource* mAO = nullptr;
-		TextureResource* mEmissive = nullptr;
-		PipelineResource* mPipeline = nullptr;
-		GLTFMaterialShaderInfo mMaterialInfo;
-
-		DG::IBuffer* CreateMaterialInfoBuffer(
-			const GLTFMaterialShaderInfo& info,
-			ResourceManager* manager);
-
-	public:
-		GLTFStaticMeshPBRMaterialPrototype(
-			const GLTFStaticMeshPBRMaterialPrototype& other);
-		GLTFStaticMeshPBRMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
-		GLTFStaticMeshPBRMaterialPrototype(
-			PipelineResource* pipeline,
-			const GLTFMaterialShaderInfo& info,
-			TextureResource* albedo,
-			TextureResource* roughness,
-			TextureResource* metallic,
-			TextureResource* normal,
-			TextureResource* ao = nullptr,
-			TextureResource* emissive = nullptr);
-		~GLTFStaticMeshPBRMaterialPrototype();
-
-		void InitializeMaterial(
-			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
-			MaterialResource* into) override;
-		MaterialPrototype* DeepCopy() const override;
-	};
 	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
 	private:
 		PipelineResource* mPipeline = nullptr;

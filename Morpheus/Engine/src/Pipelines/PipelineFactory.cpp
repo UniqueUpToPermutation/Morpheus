@@ -1,5 +1,4 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
-#include <Engine/Pipelines/GLTFPBRStaticMesh.hpp>
 #include <Engine/PipelineResource.hpp>
 
 namespace Morpheus {
