@@ -130,6 +130,7 @@ namespace Morpheus {
 		int          mSelectedDisplayMode  	= 0;
 		bool         bVSync               	= false;
 		bool         bFullScreenMode      	= false;
+		bool         bUseSRGBSwapChain		= false;
 		bool         bShowAdaptersDialog  	= true;
 		bool         bShowUI              	= true;
 		bool         bForceNonSeprblProgs 	= true;

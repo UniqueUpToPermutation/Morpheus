@@ -101,7 +101,11 @@ namespace Morpheus {
 			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
 
 			device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipeline);
-			mPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mAttribs")->Set(mParameterBuffer);
+
+			auto ppAttribsVar = mPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mAttribs");
+			if (ppAttribsVar)
+				ppAttribsVar->Set(mParameterBuffer);
+				
 			mPipeline->CreateShaderResourceBinding(&mShaderResources, true);
 		}
 

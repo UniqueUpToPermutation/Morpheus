@@ -1,3 +1,4 @@
+
 TextureCube  mTexture;
 SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix
 
@@ -15,5 +16,7 @@ struct PSOutput
 void main(in PSInput PSIn,
 	out PSOutput PSOut) {
 
-	PSOut.Color = mTexture.Sample(mTexture_sampler, PSIn.Direction); 
+	float3 color = mTexture.Sample(mTexture_sampler, PSIn.Direction).rgb;
+
+	PSOut.Color = float4(color, 1.0);
 }

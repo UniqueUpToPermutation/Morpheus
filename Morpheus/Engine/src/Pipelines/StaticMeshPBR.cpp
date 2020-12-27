@@ -59,20 +59,23 @@ namespace Morpheus {
 			&newOverrides,
 			shaderLoader);
 
+		auto anisotropyFactor = renderer->GetMaxAnisotropy();
+		auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
+
 		DG::SamplerDesc SamLinearClampDesc
 		{
-			DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, 
+			filterType, filterType, filterType, 
 			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
 		};
 
 		DG::SamplerDesc SamLinearWrapDesc 
 		{
-			DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, 
+			filterType, filterType, filterType, 
 			DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP
 		};
 
-		SamLinearClampDesc.MaxAnisotropy = renderer->GetMaxAnisotropy();
-		SamLinearWrapDesc.MaxAnisotropy = renderer->GetMaxAnisotropy();
+		SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
+		SamLinearWrapDesc.MaxAnisotropy = anisotropyFactor;
 
 		DG::IPipelineState* result = nullptr;
 
@@ -212,9 +215,9 @@ namespace Morpheus {
 			globalsVar->Set(renderer->GetGlobalsBuffer());
 
 		if (bUseIBL) {
-			result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT")->Set(
-				renderer->GetLUTShaderResourceView()
-			);
+			auto lutVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT");
+			if (lutVar)
+				lutVar->Set(renderer->GetLUTShaderResourceView());
 		}
 
 		pbrStaticMeshVS->Release();

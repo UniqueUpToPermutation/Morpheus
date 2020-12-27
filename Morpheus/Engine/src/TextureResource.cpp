@@ -63,19 +63,19 @@ namespace Morpheus {
 	TextureLoader::TextureLoader(ResourceManager* manager) : mManager(manager) {
 	}
 
-	void TextureLoader::Load(const std::string& source, TextureResource* resource) {
-		auto pos = source.rfind('.');
+	void TextureLoader::Load(const LoadParams<TextureResource>& params, TextureResource* resource) {
+		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
 		}
-		auto ext = source.substr(pos);
+		auto ext = params.mSource.substr(pos);
 
 		if (ext == ".ktx" || ext == ".dds") {
-			LoadGli(source, resource);
+			LoadGli(params, resource);
 		} else if (ext == ".hdr") {
-			LoadStb(source, resource);
+			LoadStb(params, resource);
 		} else {
-			LoadDiligent(source, resource);
+			LoadDiligent(params, resource);
 		}
 	}
 
@@ -148,17 +148,17 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureLoader::LoadGli(const std::string& source, TextureResource* resource) {
+	void TextureLoader::LoadGli(const LoadParams<TextureResource>& params, TextureResource* resource) {
 		auto device = mManager->GetParent()->GetDevice();
 
-		gli::texture tex = gli::load(source);
+		gli::texture tex = gli::load(params.mSource);
 		if (tex.empty()) {
-			std::cout << "Failed to load texture " << source << "!" << std::endl;
+			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
 			throw std::runtime_error("Failed to load texture!");
 		}
 
 		DG::TextureDesc desc;
-		desc.Name = source.c_str();
+		desc.Name = params.mSource.c_str();
 
 		auto Target = tex.target();
 		auto Format = tex.format();
@@ -231,7 +231,7 @@ namespace Morpheus {
 		DG::ITexture* out_texture = nullptr;
 		device->CreateTexture(desc, &data, &out_texture);
 
-		resource->mSource = source;
+		resource->mSource = params.mSource;
 		resource->mTexture = out_texture;
 
 		for (auto& data : expanded_datas) {
@@ -239,17 +239,18 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureLoader::LoadDiligent(const std::string& source, TextureResource* texture) {
+	void TextureLoader::LoadDiligent(const LoadParams<TextureResource>& params, TextureResource* texture) {
 		DG::TextureLoadInfo loadInfo;
-		loadInfo.IsSRGB = true;
+		loadInfo.IsSRGB = params.bIsSRGB;
+		loadInfo.GenerateMips = params.bGenerateMips;
 		DG::ITexture* tex = nullptr;
 
-		std::cout << "Loading " << source << "..." << std::endl;
+		std::cout << "Loading " << params.mSource << "..." << std::endl;
 
-		CreateTextureFromFile(source.c_str(), loadInfo, mManager->GetParent()->GetDevice(), &tex);
+		CreateTextureFromFile(params.mSource.c_str(), loadInfo, mManager->GetParent()->GetDevice(), &tex);
 		
 		texture->mTexture = tex;
-		texture->mSource = source;
+		texture->mSource = params.mSource;
 	}
 
 	inline float LinearToSRGB(float x)
@@ -394,22 +395,22 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureLoader::LoadStb(const std::string& source, TextureResource* texture) {
+	void TextureLoader::LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture) {
 		unsigned char* pixel_data = nullptr;
 		bool b_hdr;
 		int comp;
 		int x;
 		int y;
 
-		if (stbi_is_hdr(source.c_str())) {
-			float* pixels = stbi_loadf(source.c_str(), &x, &y, &comp, 0);
+		if (stbi_is_hdr(params.mSource.c_str())) {
+			float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
 			if(pixels) {
 				pixel_data = reinterpret_cast<unsigned char*>(pixels);
 				b_hdr = true;
 			}
         }
         else {
-			unsigned char* pixels = stbi_load(source.c_str(), &x, &y, &comp, 0);
+			unsigned char* pixels = stbi_load(params.mSource.c_str(), &x, &y, &comp, 0);
 			if(pixels) {
 				pixel_data = pixels;
 				b_hdr = false;
@@ -417,7 +418,7 @@ namespace Morpheus {
         }
 
         if (!pixel_data) {
-			throw std::runtime_error("Failed to load image file: " + source);
+			throw std::runtime_error("Failed to load image file: " + params.mSource);
         }
 
 		DG::TEXTURE_FORMAT format;
@@ -526,7 +527,7 @@ namespace Morpheus {
 		desc.Width = x;
 		desc.Height = y;
 		desc.MipLevels = 0;
-		desc.Name = source.c_str();
+		desc.Name = params.mSource.c_str();
 		desc.Format = format;
 		desc.Type = DG::RESOURCE_DIM_TEX_2D;
 		desc.Usage = DG::USAGE_IMMUTABLE;
@@ -541,7 +542,7 @@ namespace Morpheus {
 		mManager->GetParent()->GetDevice()->CreateTexture(desc, &data, &tex);
 
 		texture->mTexture = tex;
-		texture->mSource = source;
+		texture->mSource = params.mSource;
 
 		for (size_t i = 0; i < mipCount; ++i) {
 			if (b_hdr) {
@@ -569,7 +570,7 @@ namespace Morpheus {
 			return it->second;
 		} else {
 			auto result = new TextureResource(mManager);
-			mLoader.Load(params_cast->mSource, result);
+			mLoader.Load(*params_cast, result);
 			mResourceMap[params_cast->mSource] = result;
 			return result;
 		}
@@ -592,7 +593,7 @@ namespace Morpheus {
 
 	void ResourceCache<TextureResource>::ProcessDeferred() {
 		for (auto resource : mDeferredResources) {
-			mLoader.Load(resource.second.mSource, resource.first);
+			mLoader.Load(resource.second, resource.first);
 		}
 
 		mDeferredResources.clear();

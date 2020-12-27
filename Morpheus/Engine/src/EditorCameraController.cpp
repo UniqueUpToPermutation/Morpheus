@@ -23,14 +23,14 @@ namespace Morpheus {
 			viewUp = DG::normalize(viewUp);
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_LEFT) {
-				mAzimuth += mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
+				mAzimuth -= mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
 				mElevation += mMouseRotationSpeedY * (float)(mouseState.PosY - lastState.PosY);
 
 				transform->mRotation = GetViewQuat();
 			}
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_RIGHT) {
-				transform->mTranslation += mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
+				transform->mTranslation -= mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
 				transform->mTranslation -= mMousePanSpeedY * (float)(mouseState.PosY - lastState.PosY) * viewUp;
 			}
 
@@ -43,11 +43,11 @@ namespace Morpheus {
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveLeft)) {
-				transform->mTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				transform->mTranslation -= (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveRight)) {
-				transform->mTranslation -= (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				transform->mTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 		}
 	}

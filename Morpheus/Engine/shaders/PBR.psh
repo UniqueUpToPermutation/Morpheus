@@ -1,5 +1,6 @@
 #include "BasicStructures.hlsl"
 #include "Math.hlsl"
+#include "Gamma.hlsl"
 
 #ifndef USE_IBL
 	#define USE_IBL true

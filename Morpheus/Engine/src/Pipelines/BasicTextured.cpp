@@ -25,13 +25,16 @@ namespace Morpheus {
 			overrides,
 			shaderLoader);
 
+		auto anisotropyFactor = renderer->GetMaxAnisotropy();
+		auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
+
 		DG::SamplerDesc SamLinearClampDesc
 		{
-			DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, DG::FILTER_TYPE_LINEAR, 
+			filterType, filterType, filterType, 
 			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
 		};
 
-		SamLinearClampDesc.MaxAnisotropy = renderer->GetMaxAnisotropy();
+		SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
 
 		DG::IPipelineState* result = nullptr;
 

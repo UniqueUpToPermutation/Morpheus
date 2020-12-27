@@ -20,7 +20,8 @@ namespace Morpheus {
 		~HDRIToCubemapConverter();
 
 		void Initialize(ResourceManager* resourceManager, 
-			DG::TEXTURE_FORMAT cubemapFormat);
+			DG::TEXTURE_FORMAT cubemapFormat,
+			bool bConvertSRGBToLinear = false);
 
 		void Convert(DG::IDeviceContext* context, 
 			DG::ITextureView* hdri,

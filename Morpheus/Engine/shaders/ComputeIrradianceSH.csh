@@ -37,10 +37,9 @@ void main(uint3 Idx : SV_DISPATCHTHREADID)
 		}
 	}
 
-	// Compensate for the area of the domain of integration and sample count
+	// Compensate for the sample count
 	for (uint i = 0; i < 9; ++i) {
-		// Note that the domain of integration has area 4 pi. 
-		colorResults[i] *= 4 * PI / SAMPLE_COUNT;
+		colorResults[i] *= 4.0 * PI / SAMPLE_COUNT;
 	}
 
 	// Apply lambert filter

@@ -486,10 +486,15 @@ namespace Morpheus {
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			// Pass through post processor
-			auto srView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+			DG::ITextureView* framebufferView = nullptr;
+			if (mResolveBuffer != nullptr)
+				framebufferView = mResolveBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+			else
+				framebufferView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+
 			PostProcessorParams ppParams;
 			mPostProcessor.SetAttributes(context, ppParams);
-			mPostProcessor.Draw(context, srView);
+			mPostProcessor.Draw(context, framebufferView);
 
 		} else {
 			context->SetRenderTargets(1, &pRTV, pDSV, 
@@ -523,11 +528,11 @@ namespace Morpheus {
 	}
 
 	uint DefaultRenderer::GetMaxAnisotropy() const {
-		return 32;
+		return 16;
 	}
 
 	uint DefaultRenderer::GetMSAASamples() const {
-		return 1;
+		return 8;
 	}
 
 	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateFramebufferFormat() const {
@@ -617,7 +622,7 @@ namespace Morpheus {
 
 				LightProbe newProbe;
 				
-				if (bUseSHIrradiance) {
+				if (GetUseSHIrradiance()) {
 					newProbe = processor.ComputeLightProbeSH(device,
 						immediateContext, textureCache,
 						skybox.GetCubemap()->GetShaderView());

@@ -32,14 +32,14 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	/*
+	
 	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
 	auto meshNode = scene->CreateChild(root);
 	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
 	Transform* transform = meshNode.AddComponent<Transform>();
 	transform->mTranslation.y = 8.0f;
 	transform->mScale = DG::float3(8.0f, 8.0f, 8.0f);
-	*/
+	transform->mRotation = DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI);
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 

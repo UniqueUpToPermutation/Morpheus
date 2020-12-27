@@ -36,31 +36,14 @@
 
 
 // Tone mapping mode
-#define TONE_MAPPING_MODE_EXP           0
-#define TONE_MAPPING_MODE_REINHARD      1
-#define TONE_MAPPING_MODE_REINHARD_MOD  2
-#define TONE_MAPPING_MODE_UNCHARTED2    3
-#define TONE_MAPPING_FILMIC_ALU         4
-#define TONE_MAPPING_LOGARITHMIC        5
-#define TONE_MAPPING_ADAPTIVE_LOG       6
+#define TONE_MAPPING_MODE_REINHARD 0
 
 struct ToneMappingAttribs
 {
-    // Tone mapping mode.
-    int   iToneMappingMode                  DEFAULT_VALUE(TONE_MAPPING_MODE_UNCHARTED2);
-    // Automatically compute exposure to use in tone mapping.
-    BOOL  bAutoExposure                     DEFAULT_VALUE(TRUE);
-    // Middle gray value used by tone mapping operators.
-    float fMiddleGray                       DEFAULT_VALUE(0.18f);
-    // Simulate eye adaptation to light changes.
-    BOOL  bLightAdaptation                  DEFAULT_VALUE(TRUE);
-
-    // White point to use in tone mapping.
-    float fWhitePoint                       DEFAULT_VALUE(3.f);
-    // Luminance point to use in tone mapping.
-    float fLuminanceSaturation              DEFAULT_VALUE(1.f);
-    uint Padding0;
-    uint Padding1;
+	float mExposure		DEFAULT_VALUE(1.0f);
+	float mPureWhite	DEFAULT_VALUE(1.0f);
+	float mPadding0;
+	float mPadding1;
 };
 #ifdef CHECK_STRUCT_ALIGNMENT
     CHECK_STRUCT_ALIGNMENT(ToneMappingAttribs);

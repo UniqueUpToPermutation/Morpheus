@@ -23,10 +23,10 @@
 
 struct PostProcessorParams {
 	ToneMappingAttribs mToneMapAttribs;
-	float fAveLogLum 	DEFAULT_VALUE(1.f);
-	float fGamma		DEFAULT_VALUE(1.5f);
-	uint Padding1;
-	uint Padding2;
+	float mGamma		DEFAULT_VALUE(2.2f);
+	float mPadding0;
+	float mPadding1;
+	float mPadding2;
 };
 
 #ifdef CHECK_STRUCT_ALIGNMENT

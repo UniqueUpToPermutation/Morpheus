@@ -55,7 +55,31 @@ namespace Morpheus {
 		config["Color"].get_to(color_src);
 		config["Pipeline"].get_to(pipeline_src);
 
-		mColor = manager->Load<TextureResource>(path + "/" + color_src);
+		auto usePath = [](const std::string& s) {
+			if (s == "WHITE_TEXTURE")
+				return false;
+			else if (s == "BLACK_TEXTURE")
+				return false;
+			else if (s == "DEFAULT_NORMAL_TEXTURE")
+				return false;
+			else 
+				return true;
+		};
+
+		if (config.contains("Pipeline"))
+			config["Pipeline"].get_to(pipeline_src);
+
+		if (config.contains("Color")) {
+			config["Color"].get_to(color_src);
+			if (usePath(color_src))
+				color_src = path + "/" + color_src;
+		}
+
+		LoadParams<TextureResource> params;
+		params.mSource = color_src;
+		params.bIsSRGB = true; // Gamma correct albedo!
+
+		mColor = manager->Load<TextureResource>(params);
 		mPipeline = manager->Load<PipelineResource>(path + "/" + pipeline_src);
 	}
 
@@ -220,7 +244,12 @@ namespace Morpheus {
 		}
 
 		mPipeline = 	manager->Load<PipelineResource>(pipeline_src);
-		mAlbedo = 		manager->Load<TextureResource>(albedo_src);
+
+		LoadParams<TextureResource> albedo_params;
+		albedo_params.mSource = albedo_src;
+		albedo_params.bIsSRGB = true; // Gamma correct albedo!
+
+		mAlbedo = 		manager->Load<TextureResource>(albedo_params);
 		mRoughness = 	manager->Load<TextureResource>(roughness_src);
 		mMetallic = 	manager->Load<TextureResource>(metallic_src);
 		mNormal = 		manager->Load<TextureResource>(normal_src);
@@ -415,7 +444,12 @@ namespace Morpheus {
 		}
 
 		mPipeline = 	manager->Load<PipelineResource>(pipeline_src);
-		mAlbedo = 		manager->Load<TextureResource>(albedo_src);
+
+		LoadParams<TextureResource> albedo_params;
+		albedo_params.mSource = albedo_src;
+		albedo_params.bIsSRGB = true; // Gamma correct albedo!
+
+		mAlbedo = 		manager->Load<TextureResource>(albedo_params);
 		mRoughness =	manager->Load<TextureResource>(roughness_src);
 		mNormal =		manager->Load<TextureResource>(normal_src);
 		mMetallic = 	manager->Load<TextureResource>(metallic_src);

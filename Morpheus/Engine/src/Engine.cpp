@@ -220,6 +220,12 @@ namespace Morpheus
 	void Engine::GetEngineInitializationAttribs(RENDER_DEVICE_TYPE DeviceType, 
 		EngineCreateInfo& EngineCI, 
 		SwapChainDesc& SCDesc) {
+
+		if (!bUseSRGBSwapChain) {
+			SCDesc.ColorBufferFormat = DG::TEX_FORMAT_RGBA8_UNORM;
+		} else {
+			SCDesc.ColorBufferFormat = DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
+		}
 			
 		switch (DeviceType)
  	   {
@@ -360,9 +366,11 @@ namespace Morpheus
 				if (m_AdapterType != ADAPTER_TYPE_SOFTWARE)
 				{
 					Uint32 NumDisplayModes = 0;
-					pFactoryD3D11->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, TEX_FORMAT_RGBA8_UNORM_SRGB, NumDisplayModes, nullptr);
+					pFactoryD3D11->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, 
+						EngineCI.ColorBufferFormat, NumDisplayModes, nullptr);
 					m_DisplayModes.resize(NumDisplayModes);
-					pFactoryD3D11->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, TEX_FORMAT_RGBA8_UNORM_SRGB, NumDisplayModes, m_DisplayModes.data());
+					pFactoryD3D11->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, 
+						EngineCI.ColorBufferFormat, NumDisplayModes, m_DisplayModes.data());
 				}
 
 				EngineCI.AdapterId = m_AdapterId;
@@ -448,9 +456,11 @@ namespace Morpheus
 				if (m_AdapterType != ADAPTER_TYPE_SOFTWARE)
 				{
 					Uint32 NumDisplayModes = 0;
-					pFactoryD3D12->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, TEX_FORMAT_RGBA8_UNORM_SRGB, NumDisplayModes, nullptr);
+					pFactoryD3D12->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, 
+						EngineCI.ColorBufferFormat, NumDisplayModes, nullptr);
 					m_DisplayModes.resize(NumDisplayModes);
-					pFactoryD3D12->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, TEX_FORMAT_RGBA8_UNORM_SRGB, NumDisplayModes, m_DisplayModes.data());
+					pFactoryD3D12->EnumerateDisplayModes(EngineCI.MinimumFeatureLevel, m_AdapterId, 0, 
+						EngineCI.ColorBufferFormat, NumDisplayModes, m_DisplayModes.data());
 				}
 
 				EngineCI.AdapterId = m_AdapterId;
@@ -499,6 +509,7 @@ namespace Morpheus
 				}
 
 				GetEngineInitializationAttribs(mDeviceType, EngineCI, mSwapChainInitDesc);
+
 				if (EngineCI.NumDeferredContexts != 0)
 				{
 					LOG_ERROR_MESSAGE("Deferred contexts are not supported in OpenGL mode");

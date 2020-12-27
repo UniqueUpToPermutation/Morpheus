@@ -5,8 +5,11 @@ namespace Morpheus {
 		mPipeline = manager->Load<PipelineResource>("Skybox");
 
 		mPipeline->GetState()->CreateShaderResourceBinding(&mResourceBinding, true);
-		if (mCubemap)
-			mResourceBinding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mCubemap->GetShaderView());
+		if (mCubemap) {
+			auto textureVar = mResourceBinding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture");
+			if (textureVar)
+				textureVar->Set(mCubemap->GetShaderView());
+		}
 	}
 
 	void SkyboxComponent::SetCubemap(TextureResource* resource) {

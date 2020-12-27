@@ -150,7 +150,14 @@ namespace Morpheus {
 					std::string source;
 					item["Source"].get_to(source);
 
-					auto texture = mManager->Load<TextureResource>(source);
+					bool bIsSRGB = item.value("bIsSRGB", false);
+					bool bGenerateMips = item.value("bGenerateMips", true);
+
+					auto params = LoadParams<TextureResource>::FromString(source);
+					params.bIsSRGB = bIsSRGB;
+					params.bGenerateMips = bGenerateMips;
+
+					auto texture = mManager->Load<TextureResource>(params);
 					textures.emplace_back(texture);
 
 					auto variable = binding->GetVariableByName(shader_type, binding_loc.c_str());

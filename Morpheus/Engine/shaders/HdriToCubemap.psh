@@ -1,3 +1,9 @@
+#include "Gamma.hlsl"
+
+#ifndef TRANSFORM_SRGB_TO_LINEAR
+#define TRANSFORM_SRGB_TO_LINEAR true
+#endif
+
 Texture2D  g_HDRI;
 SamplerState g_HDRI_sampler;
 
@@ -16,4 +22,9 @@ void main(in float4 Pos      : SV_Position,
 	float2 lookup_uv = float2(theta / (2 * PI) + 0.5, phi / PI);
 
 	Color = g_HDRI.SampleLevel(g_HDRI_sampler, lookup_uv, 0);
+
+	// Add the option to convert to linear space
+#if TRANSFORM_SRGB_TO_LINEAR
+	Color = SRGBToLinearNosaturate(Color);
+#endif
 }

@@ -28,7 +28,8 @@ namespace Morpheus {
 	}
 
 	void HDRIToCubemapConverter::Initialize(ResourceManager* resourceManager, 
-		DG::TEXTURE_FORMAT cubemapFormat) {
+		DG::TEXTURE_FORMAT cubemapFormat,
+		bool bConvertSRGBToLinear) {
 
 		mCubemapFormat = cubemapFormat;
 		
@@ -37,17 +38,23 @@ namespace Morpheus {
 
 		auto device = resourceManager->GetParent()->GetDevice();
 
+		ShaderPreprocessorConfig config;
+		if (bConvertSRGBToLinear)
+			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "1";
+		else 
+			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
+
 		auto cubemapFaceVS = loader->LoadShader(DG::SHADER_TYPE_VERTEX,
 			"internal/CubemapFace.vsh",
 			"Cubemap Face Vertex Shader",
 			"main",
-			nullptr);
+			&config);
 
 		auto irradiancePS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
 			"internal/HdriToCubemap.psh",
 			"HDRI Convert Pixel Shader",
 			"main",
-			nullptr);
+			&config);
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -169,7 +176,7 @@ namespace Morpheus {
 		desc.BindFlags = DG::BIND_RENDER_TARGET | DG::BIND_SHADER_RESOURCE;
 		desc.Width = size;
 		desc.Height = size;
-		desc.MipLevels = 0;
+		desc.MipLevels = 1;
 		desc.ArraySize = 6;
 		desc.Type = DG::RESOURCE_DIM_TEX_CUBE;
 		desc.Usage = DG::USAGE_DEFAULT;

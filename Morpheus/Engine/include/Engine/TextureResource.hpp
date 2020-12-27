@@ -75,6 +75,8 @@ namespace Morpheus {
 	template <>
 	struct LoadParams<TextureResource> {
 		std::string mSource;
+		bool bIsSRGB = false;
+		bool bGenerateMips = true;
 
 		static LoadParams<TextureResource> FromString(const std::string& str) {
 			LoadParams<TextureResource> res;
@@ -90,10 +92,10 @@ namespace Morpheus {
 	public:
 		TextureLoader(ResourceManager* manager);
 
-		void LoadGli(const std::string& source, TextureResource* texture);
-		void LoadDiligent(const std::string& source, TextureResource* texture);
-		void LoadStb(const std::string& source, TextureResource* texture);
-		void Load(const std::string& source, TextureResource* texture);
+		void LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture);
+		void LoadDiligent(const LoadParams<TextureResource>& params, TextureResource* texture);
+		void LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture);
+		void Load(const LoadParams<TextureResource>& params, TextureResource* texture);
 	};
 
 	template <>
