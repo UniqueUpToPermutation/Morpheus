@@ -67,84 +67,8 @@ namespace Morpheus {
 			const nlohmann::json& config) const;
 	};
 
-	class JsonMaterialPrototype : public MaterialPrototype {
-	private:
-	PipelineResource* mPipeline;
-		std::vector<DG::Uint32> mVariableIndices;
-		std::vector<TextureResource*> mTextures;
-
-	public:
-		JsonMaterialPrototype(
-			const JsonMaterialPrototype& other);
-		JsonMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
-		~JsonMaterialPrototype();
-
-		void InitializeMaterial(
-			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
-			MaterialResource* into) override;
-		MaterialPrototype* DeepCopy() const override;
-	};
-
-	class StaticMeshPBRMaterialPrototype : public MaterialPrototype {
-	private:
-		PipelineResource* mPipeline = nullptr;
-		TextureResource* mAlbedo = nullptr;
-		TextureResource* mNormal = nullptr;
-		TextureResource* mRoughness = nullptr;
-		TextureResource* mMetallic = nullptr;
-
-	public:
-		StaticMeshPBRMaterialPrototype(
-			const StaticMeshPBRMaterialPrototype& other);
-		StaticMeshPBRMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
-		StaticMeshPBRMaterialPrototype(
-			PipelineResource* pipeline,
-			TextureResource* albedo,
-			TextureResource* normal,
-			TextureResource* metallic,
-			TextureResource* roughness);
-		~StaticMeshPBRMaterialPrototype();
-
-		void InitializeMaterial(
-			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
-			MaterialResource* into) override;
-
-		MaterialPrototype* DeepCopy() const override;
-	};
-
-	class BasicTexturedMaterialPrototype : public MaterialPrototype {
-	private:
-		TextureResource* mColor;
-		PipelineResource* mPipeline;
-
-	public:
-		BasicTexturedMaterialPrototype(
-			const BasicTexturedMaterialPrototype& other);
-
-		BasicTexturedMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
-		BasicTexturedMaterialPrototype(
-			PipelineResource* pipeline,
-			TextureResource* color);
-		~BasicTexturedMaterialPrototype();
-
-		void InitializeMaterial(
-			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
-			MaterialResource* into) override;
-		MaterialPrototype* DeepCopy() const override;
-	};
+	DG::float4 ReadFloat4(
+		const nlohmann::json& json, 
+		const std::string& name, 
+		const DG::float4& defaultValue);
 }

@@ -6,6 +6,7 @@
 	],
 	"settings": {
 		"files.associations": {
+			"*.csh": "hlsl",
 			"*.fxh": "hlsl",
 			"any": "cpp",
 			"array": "cpp",
@@ -79,7 +80,8 @@
 			"regex": "cpp",
 			"*.inc": "cpp",
 			"shared_mutex": "cpp",
-			"*.hlsl": "hlsl"
+			"*.hlsl": "hlsl",
+			"complex": "cpp"
 		}
 	}
 }

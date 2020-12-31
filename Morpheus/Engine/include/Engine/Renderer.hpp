@@ -8,14 +8,13 @@ namespace DG = Diligent;
 namespace Morpheus {
 
 	class SceneHeirarchy;
+	class Camera;
 
 	class IRenderCache {
 	public:
 		virtual ~IRenderCache() {
 		}
 	};
-
-	class Camera;
 
 	class IRenderer {
 	public:

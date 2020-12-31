@@ -1,3 +1,4 @@
+#include <Engine/Materials/ImageBasedLightingView.hpp>
 #include <Engine/MaterialView.hpp>
 #include <Engine/LightProbe.hpp>
 

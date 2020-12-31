@@ -132,7 +132,10 @@ list(APPEND SOURCE
 	src/Pipelines/Skybox.cpp
 	src/Pipelines/StaticMeshPBR.cpp
 	src/MaterialPrototypes.cpp
-	src/MaterialView.cpp
+	src/Materials/BasicTexturedMaterial.cpp
+	src/Materials/JsonMaterial.cpp
+	src/Materials/ImageBasedLightingView.cpp
+	src/Materials/StaticMeshPBRMaterial.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

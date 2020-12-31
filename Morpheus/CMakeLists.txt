@@ -73,5 +73,5 @@ if(TARGET Diligent-NativeAppBase AND TARGET Diligent-TextureLoader AND TARGET Di
 endif()
 
 if(TARGET Morpheus-Engine)
-	add_subdirectory(Test)
+	add_subdirectory(PBR)
 endif()

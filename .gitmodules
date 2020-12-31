@@ -16,3 +16,6 @@
 [submodule "gainput"]
 	path = gainput
 	url = https://github.com/jkuhlmann/gainput.git
+[submodule "bullet3"]
+	path = bullet3
+	url = https://github.com/bulletphysics/bullet3.git

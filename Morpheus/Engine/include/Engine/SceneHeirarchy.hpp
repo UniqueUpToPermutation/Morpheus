@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <vector>
 #include <stack>
+
+#include <Engine/EntityPrototype.hpp>
 namespace Morpheus {
 
 	class Engine;
@@ -65,6 +67,21 @@ namespace Morpheus {
 
 		template <typename T>
 		inline T* TryGetComponent();
+
+		inline IEntityPrototype* GetPrototype() { 
+			return GetComponent<EntityPrototypeComponent>()->mPrototype;			
+		}
+
+		inline IEntityPrototype* TryGetPrototype() {
+			return TryGetComponent<EntityPrototypeComponent>()->mPrototype;
+		}
+
+		inline entt::entity Clone() {
+			auto prototype = GetPrototype();
+			return prototype->Clone(GetEntity());
+		}
+
+		inline EntityNode Clone(EntityNode parent);
 
 		friend class SceneHeirarchy;
 	};
@@ -307,5 +324,11 @@ namespace Morpheus {
 	template <typename T, typename... Args>
 	T* EntityNode::AddComponent(Args &&... args) {
 		return &mTree->mRegistry.template emplace<T, Args...>(GetEntity(), std::forward<Args>(args)...);
+	}
+
+	EntityNode EntityNode::Clone(EntityNode parent) {
+		auto prototype = GetPrototype();
+		auto entity = prototype->Clone(GetEntity());
+		return mTree->AddChild(parent, entity);
 	}
 }
