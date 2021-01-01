@@ -13,6 +13,40 @@
 
 using namespace Morpheus;
 
+class InfinitePlane : public IEntityPrototype {
+public:
+	std::unique_ptr<btCollisionShape> mPhysicsShape;
+
+	InfinitePlane(Engine* engine) : mPhysicsShape(new btStaticPlaneShape(btVector3(0.0f, 1.0f, 0.0f), 0.0f)) {
+	}
+
+	entt::entity Spawn(Engine* en, SceneHeirarchy* scene) const override {
+		auto registry = scene->GetRegistry();
+		auto dynamicsWorld = scene->GetDynamicsWorld();
+
+		auto transform = btTransform();
+		transform.setIdentity();
+		transform.setOrigin(btVector3(0.0f, -10.0f, 0.0f));
+		btVector3 localInertia(0, 0, 0);
+
+		auto motionState = new btDefaultMotionState(transform);
+		auto rigidBody = new btRigidBody(0.0f, motionState, mPhysicsShape.get(), localInertia);
+
+		auto entity = registry->create();
+
+		dynamicsWorld->addRigidBody(rigidBody);
+
+		registry->emplace<RigidBodyComponent>(entity, dynamicsWorld, rigidBody, motionState);
+		rigidBody->setUserIndex((int)entity);
+
+		return entity;
+	}
+
+	entt::entity Clone(entt::entity ent) const override {
+		throw std::runtime_error("Not implemented!");
+	}
+};
+
 class PhysicsTestSphere : public IEntityPrototype {
 public:
 	std::unique_ptr<btCollisionShape> mPhysicsShape;
@@ -82,6 +116,10 @@ int main(int argc, char** argv) {
 	// Spawn a physics test sphere at the root
 	IEntityPrototype* spherePrototype = new PhysicsTestSphere(&en);
 	scene->Spawn(spherePrototype);
+
+	// Spawn an infinite plane collider at the root
+	IEntityPrototype* infinitePlanePrototype = new InfinitePlane(&en);
+	scene->Spawn(infinitePlanePrototype);
 
 	en.SetScene(scene);
 
