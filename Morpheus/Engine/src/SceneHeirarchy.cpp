@@ -23,12 +23,12 @@ namespace Morpheus {
 	}
 
 	SceneHeirarchy::~SceneHeirarchy() {
+		Clear();
+
 		if (mDynamicsWorld) {
 			delete mDynamicsWorld;
 			mDynamicsWorld = nullptr;
 		}
-
-		Clear();
 	}
 
 	void SceneHeirarchy::Clear() {
