@@ -2,6 +2,14 @@ cmake_minimum_required (VERSION 3.6)
 
 project(Morpheus-Engine)
 
+# Include the bullet physics engine
+INCLUDE_DIRECTORIES(
+${BULLET_PHYSICS_SOURCE_DIR}/src
+)
+LINK_LIBRARIES(
+ BulletDynamics BulletCollision LinearMath
+)
+
 # Include package for embedding shaders in source code
 add_subdirectory(shaders/cpp)
 # Embed shaders
@@ -127,6 +135,7 @@ list(APPEND SOURCE
 	src/HdriToCubemap.cpp
 	src/EditorCameraController.cpp
 	src/PostProcessor.cpp
+	src/EntityPrototype.cpp
 	src/Pipelines/PipelineFactory.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp

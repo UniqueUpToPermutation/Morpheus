@@ -1,9 +1,12 @@
 #include <Engine/SceneHeirarchy.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Camera.hpp>
+#include <Engine/PhysicsComponents.hpp>
+#include <Engine/Transform.hpp>
 
 namespace Morpheus {
-	SceneHeirarchy::SceneHeirarchy(uint initialReserve) :
+	SceneHeirarchy::SceneHeirarchy(Engine* parent, uint initialReserve) :
+		mParent(parent),
 		mCamera(EntityNode::Invalid()) {
 		
 		mNodes.reserve(initialReserve);
@@ -16,9 +19,15 @@ namespace Morpheus {
 		cameraNode.AddComponent<Camera>();
 
 		mCamera = cameraNode;
+		mDynamicsWorld = parent->CreateDynamicsWorld();
 	}
 
 	SceneHeirarchy::~SceneHeirarchy() {
+		if (mDynamicsWorld) {
+			delete mDynamicsWorld;
+			mDynamicsWorld = nullptr;
+		}
+
 		Clear();
 	}
 
@@ -290,4 +299,49 @@ namespace Morpheus {
 		node_.mNext = mFirstFree;
 		mFirstFree = node;
 	}
+
+	EntityNode SceneHeirarchy::Spawn(const std::string& typeName) {
+		auto entity = mParent->mEntityPrototypes.Spawn(typeName, mParent, this);
+		return AddChild(GetRoot(), entity);
+	}
+
+	EntityNode SceneHeirarchy::Spawn(IEntityPrototype* prototype) {
+		auto entity = prototype->Spawn(mParent, this);
+		return AddChild(GetRoot(), entity);
+	}
+
+	EntityNode SceneHeirarchy::Spawn(const std::string& typeName, EntityNode parent) {
+		auto entity = mParent->mEntityPrototypes.Spawn(typeName, mParent, this);
+		return AddChild(parent, entity);
+	}
+
+	EntityNode SceneHeirarchy::Spawn(IEntityPrototype* prototype, EntityNode parent) {
+		auto entity = prototype->Spawn(mParent, this);
+		return AddChild(parent, entity);
+	}
+
+	void SceneHeirarchy::Update(double currTime, double elapsedTime) {
+		mDynamicsWorld->stepSimulation(1.f / 60.f);
+
+		// Copy over all active physics objects
+		auto rbView = mRegistry.view<RigidBodyComponent, Transform>();
+
+		for (auto en : rbView) {
+			auto& rbComponent = rbView.get<RigidBodyComponent>(en);
+			auto& transform = rbView.get<Transform>(en);
+
+			if (rbComponent.GetRigidBody()->isActive()) {
+				transform.UpdateCacheFromMotionState(rbComponent.GetMotionState());
+			}
+		}
+
+		// Update everything else that needs updating
+		UpdateEvent e;
+		e.mCurrTime = currTime;
+		e.mElapsedTime = elapsedTime;
+		e.mEngine = mParent;
+
+		mDispatcher.trigger<UpdateEvent>(e);
+	}
+
 }

@@ -27,9 +27,23 @@ namespace Morpheus {
 		mCachedTransform.m22 *= mScale.z;
 	}
 
+	void Transform::UpdateCacheFromMotionState(btMotionState* motionState) {
+		btTransform transform;
+		motionState->getWorldTransform(transform);
+		transform.getOpenGLMatrix(&mCachedTransform.m00);
+	}
+
 	Transform::Transform() :
 		mTranslation(0.0f, 0.0f, 0.0f),
 		mScale(1.0f, 1.0f, 1.0f),
 		mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
+	}
+
+	Transform::Transform(const DG::float3& translation,
+		const DG::float3& scale,
+		const DG::Quaternion& rotation) :
+			mTranslation(translation),
+			mScale(scale),
+			mRotation(rotation) {
 	}
 }

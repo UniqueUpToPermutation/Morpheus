@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 
 	en.Startup(argc, argv);
 
-	SceneHeirarchy* scene = new SceneHeirarchy();
+	SceneHeirarchy* scene = new SceneHeirarchy(&en);
 	auto root = scene->GetRoot();
 
 	auto sphereMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
@@ -32,7 +32,6 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	
 	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
 	auto meshNode = scene->CreateChild(root);
 	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);

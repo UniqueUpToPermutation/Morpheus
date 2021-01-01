@@ -14,6 +14,9 @@
 #include "ScreenCapture.hpp"
 #include "Image.h"
 
+#include "btBulletDynamicsCommon.h"
+
+#include <Engine/EntityPrototype.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/InputController.hpp>
 #include <Engine/ResourceManager.hpp>
@@ -54,6 +57,8 @@ namespace Morpheus {
 		void Shutdown();
 		void CollectGarbage();
 
+		btDynamicsWorld* CreateDynamicsWorld();
+
 		void GetDesiredInitialWindowSize(int& width, int& height) override final
 		{
 			width  = mInitialWindowWidth;
@@ -81,6 +86,9 @@ namespace Morpheus {
 #endif
 
 	private:
+		void InitializePhysics();
+		void ShutdownPhysics();
+
 		void OnPreWindowResized();
 		void OnWindowResized(uint width, uint height);
 
@@ -94,6 +102,7 @@ namespace Morpheus {
 			bFullScreenMode = true;
 			mSwapChain->SetFullscreenMode(DisplayMode);
 		}
+
 		virtual void SetWindowedMode()
 		{
 			bFullScreenMode = false;
@@ -119,6 +128,13 @@ namespace Morpheus {
 		ResourceManager* 	mResourceManager 	= nullptr;
 		SceneHeirarchy* 	mSceneHeirarchy 	= nullptr;
 		IRenderer*			mRenderer 			= nullptr;
+
+		btCollisionConfiguration* 	mCollisionConfiguration 	= nullptr;
+		btBroadphaseInterface*		mBroadphaseInterface 		= nullptr;
+		btDispatcher*				mCollisionDispatcher 		= nullptr;
+		btConstraintSolver*			mConstraintSolver			= nullptr;
+
+		EntityPrototypeManager mEntityPrototypes;
 
 		int          mInitialWindowWidth  	= 0;
 		int          mInitialWindowHeight 	= 0;
@@ -155,8 +171,8 @@ namespace Morpheus {
 			bool              		KeepAlpha       = false;
 
 		} mScreenCaptureInfo;
-		std::unique_ptr<DG::ScreenCapture> mScreenCapture;
 
+		std::unique_ptr<DG::ScreenCapture> mScreenCapture;
 		std::unique_ptr<DG::ImGuiImplDiligent> mImGui;
 
 		GoldenImageMode mGoldenImgMode           = GoldenImageMode::None;
@@ -182,15 +198,9 @@ namespace Morpheus {
 
 		void SetScene(SceneHeirarchy* scene, bool bUnloadOld = true);
 
-		inline InputController& GetInputController()
-		{
+		inline InputController& GetInputController() {
 			return mInputController;
 		}
-
-		inline SceneHeirarchy* GetScene() {
-			return mSceneHeirarchy;
-		}
-
 		inline DG::IEngineFactory* GetEngineFactory() {
 			return mEngineFactory;
 		}
@@ -215,7 +225,7 @@ namespace Morpheus {
 		inline ResourceManager* GetResourceManager() {
 			return mResourceManager;
 		}
-		inline SceneHeirarchy* GetHeirarchy() {
+		inline SceneHeirarchy* GetScene() {
 			return mSceneHeirarchy;
 		}
 		inline bool GetShowUI() const {
@@ -227,8 +237,33 @@ namespace Morpheus {
 		inline DG::ImGuiImplDiligent* GetUI() {
 			return mImGui.get();
 		}
+		inline btCollisionConfiguration* GetCollisionConfiguration() {
+			return mCollisionConfiguration;
+		}
+		inline btBroadphaseInterface* GetBroadphaseInterface() {
+			return mBroadphaseInterface;
+		}
+		inline btDispatcher* GetCollisionDispatcher() {
+			return mCollisionDispatcher;
+		}
+		inline btConstraintSolver* GetConstraintSolver() {
+			return mConstraintSolver;
+		}
+
+		inline void RegisterEntityPrototypeFactory(const std::string& typeName, prototype_factory_t factory) {
+			mEntityPrototypes.RegisterPrototypeFactory(typeName, factory);
+		}
+
+		inline void UnregisterEntityPrototypeFactory(const std::string& typeName) {
+			mEntityPrototypes.RemovePrototypeFactory(typeName);
+		}
+
+		inline void UnregisterEntityPrototype(const std::string& typeName) {
+			mEntityPrototypes.RemovePrototype(typeName);
+		}
 
 		friend Engine* GetEngine();
+		friend class SceneHeirarchy;
 	};
 
 	inline Engine* GetEngine() {

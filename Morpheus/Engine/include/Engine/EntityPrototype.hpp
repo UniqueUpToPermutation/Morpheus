@@ -12,6 +12,11 @@ namespace Morpheus {
 
 	typedef std::function<IEntityPrototype*(Engine*)> prototype_factory_t;
 
+	template <typename T>
+	IEntityPrototype* DefaultPrototypeFactory(Engine* engine) {
+		return new T(engine);
+	}
+
 	class EntityPrototypeManager {
 	private:
 		std::unordered_map<std::string, prototype_factory_t> mFactories;
@@ -19,20 +24,22 @@ namespace Morpheus {
 
 	public:
 		inline void RegisterPrototypeFactory(const std::string& typeName, prototype_factory_t factory) {
-			mFactories[typeName] = factory;
-		}
+			auto insertIt = mFactories.insert(std::pair<std::string, prototype_factory_t>(typeName, factory));
 
-		inline void RegisterPrototype(const std::string& typeName, IEntityPrototype* prototypes) {
-			mPrototypes[typeName] = prototypes;
+			if (insertIt.second) {
+				return;
+			} else {
+				throw std::runtime_error(typeName + " has already been registered!");
+			}
 		}
 
 		inline void RemovePrototypeFactory(const std::string& typeName) {
 			mFactories.erase(typeName);
 		}
 
-		inline void RemovePrototype(const std::string& typeName);
-		inline entt::entity Spawn(const std::string& typeName, Engine* en, SceneHeirarchy* scene);
-		inline ~EntityPrototypeManager();
+		void RemovePrototype(const std::string& typeName);
+		entt::entity Spawn(const std::string& typeName, Engine* en, SceneHeirarchy* scene);
+		~EntityPrototypeManager();
 
 		friend class IEntityPrototype;
 	};
@@ -41,7 +48,7 @@ namespace Morpheus {
 	private:
 		EntityPrototypeManager* mFactory;
 		std::unordered_map<std::string, IEntityPrototype*>::iterator mIterator;
-		uint mRefCount;
+		uint mRefCount = 0;
 	
 	public:
 		virtual ~IEntityPrototype() { }
@@ -61,40 +68,9 @@ namespace Morpheus {
 				delete this;
 			}
 		}
+
+		friend class EntityPrototypeManager;
 	};
-
-	entt::entity EntityPrototypeManager::Spawn(const std::string& typeName, 
-		Engine* en, SceneHeirarchy* scene) {
-
-		auto prototypeIt = mPrototypes.find(typeName);
-		if (prototypeIt != mPrototypes.end()) {
-			return prototypeIt->second->Spawn(en, scene);
-		}
-		else {
-			auto prototypeFactoryIt = mFactories.find(typeName);
-			if (prototypeFactoryIt != mFactories.end()) {
-				auto prototype = prototypeFactoryIt->second(en);
-				mPrototypes[typeName] = prototype;
-				return prototype->Spawn(en, scene);
-			} else {
-				throw std::runtime_error("Type name could not be found!");
-			}
-		}
-	}
-
-	void EntityPrototypeManager::RemovePrototype(const std::string& typeName) {
-		auto prototypeIt = mPrototypes.find(typeName);
-		if (prototypeIt != mPrototypes.end()) {
-			mPrototypes.erase(prototypeIt);
-			prototypeIt->second->Release();
-		}
-	}
-
-	EntityPrototypeManager::~EntityPrototypeManager() {
-		for (auto it : mPrototypes) {
-			it.second->Release();
-		}
-	}
 
 	struct EntityPrototypeComponent {
 		IEntityPrototype* mPrototype;
@@ -111,7 +87,7 @@ namespace Morpheus {
 			mPrototype->AddRef();
 		}
 
-		inline EntityPrototypeComponent& operator=(const EntityPrototypeComponent& component) {
+		inline EntityPrototypeComponent& operator=(EntityPrototypeComponent&& component) {
 			mPrototype->Release();
 			mPrototype = component.mPrototype;
 			mPrototype->AddRef();

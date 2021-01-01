@@ -2,6 +2,8 @@
 
 #include "BasicMath.hpp"
 
+#include "btBulletDynamicsCommon.h"
+
 namespace DG = Diligent;
 
 namespace Morpheus {
@@ -17,9 +19,13 @@ namespace Morpheus {
 	public:
 		void UpdateCache(Transform* parent);
 		void UpdateCache();
+		void UpdateCacheFromMotionState(btMotionState* motionState);
 
 		Transform();
-
+		Transform(const DG::float3& translation,
+			const DG::float3& scale,
+			const DG::Quaternion& rotation);
+			
 		inline DG::float4x4 GetCache() {
 			return mCachedTransform;
 		}

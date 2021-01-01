@@ -6,6 +6,9 @@
 #include <stack>
 
 #include <Engine/EntityPrototype.hpp>
+
+#include "btBulletDynamicsCommon.h"
+
 namespace Morpheus {
 
 	class Engine;
@@ -46,7 +49,7 @@ namespace Morpheus {
 
 		inline entt::entity operator()() const;
 		inline entt::entity GetEntity() const;
-		inline SceneHeirarchy* GetHeirarchy();
+		inline SceneHeirarchy* GetScene();
 		inline entt::registry* GetRegistry();
 		inline void AddChild(EntityNode other);
 		inline void AddChild(entt::entity other);
@@ -189,6 +192,8 @@ namespace Morpheus {
 		std::vector<SceneTreeNode> mNodes;
 		entt::registry mRegistry;
 		entt::dispatcher mDispatcher;
+		Engine* mParent = nullptr;
+		btDynamicsWorld* mDynamicsWorld = nullptr;
 
 		EntityNode mCamera;
 
@@ -204,8 +209,16 @@ namespace Morpheus {
 		void Isolate(int node);
 
 	public:
-		SceneHeirarchy(uint initialReserve = 1000);
+		SceneHeirarchy(Engine* engine, uint initialReserve = 1000);
 		~SceneHeirarchy();
+
+		inline btDynamicsWorld* GetDynamicsWorld() {
+			return mDynamicsWorld;
+		}
+
+		inline btCollisionWorld* GetCollisionWorld() {
+			return mDynamicsWorld;
+		}
 
 		EntityNode AddChild(EntityNode entityParent, entt::entity entityChild);
 		EntityNode AddChild(EntityNode node);
@@ -214,6 +227,8 @@ namespace Morpheus {
 		void Clip(EntityNode entity);
 		void Reparent(EntityNode entity, EntityNode newParent);
 		void Destroy(EntityNode entity);
+
+		void Update(double currTime, double elapsedTime);
 
 		EntityNode CreateNode(entt::entity entity);
 		EntityNode CreateNode();
@@ -254,6 +269,16 @@ namespace Morpheus {
 		inline entt::dispatcher* GetDispatcher() {
 			return &mDispatcher;
 		}
+
+		// Spawns the given entity type at the root of the scene
+		EntityNode Spawn(const std::string& typeName);
+		// Spawns the given entity type as a child of the specified parent
+		EntityNode Spawn(const std::string& typeName, EntityNode parent);
+
+		// Spawns the given entity type at the root of the scene
+		EntityNode Spawn(IEntityPrototype* prototype);
+		// Spawns the given entity type as a child of the specified parent
+		EntityNode Spawn(IEntityPrototype* prototype, EntityNode parent);
 
 		friend class EntityNode;
 		friend class Engine;
@@ -303,7 +328,7 @@ namespace Morpheus {
 		return EntityNode(mTree, mTree->mNodes[mNode].mParent);
 	}
 
-	SceneHeirarchy* EntityNode::GetHeirarchy() {
+	SceneHeirarchy* EntityNode::GetScene() {
 		return mTree;
 	}
 
@@ -329,6 +354,9 @@ namespace Morpheus {
 	EntityNode EntityNode::Clone(EntityNode parent) {
 		auto prototype = GetPrototype();
 		auto entity = prototype->Clone(GetEntity());
+
+		// Add prototype component (used for copy / spawn)
+		mTree->mRegistry.emplace<EntityPrototypeComponent>(entity, prototype);
 		return mTree->AddChild(parent, entity);
 	}
 }

@@ -427,7 +427,11 @@ namespace Morpheus {
 
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
-		auto registry = cacheCast->mScene->GetRegistry();
+
+		entt::registry* registry = nullptr;
+
+		if (cacheCast)
+			registry = cacheCast->mScene->GetRegistry();
 
 		if (!context || !swapChain)
 			return;
@@ -444,7 +448,7 @@ namespace Morpheus {
 
 		float rgba[4] = {0.5, 0.5, 0.5, 1.0};
 
-		if (cameraNode.IsValid() && cacheCast) {
+		if (cacheCast && cameraNode.IsValid()) {
 			auto rtView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET);
 			context->SetRenderTargets(1, &rtView, intermediateDepthView,
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -497,8 +501,12 @@ namespace Morpheus {
 			mPostProcessor.Draw(context, framebufferView);
 
 		} else {
+			float rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
 			context->SetRenderTargets(1, &pRTV, pDSV, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearRenderTarget(pRTV, rgba,
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			context->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 

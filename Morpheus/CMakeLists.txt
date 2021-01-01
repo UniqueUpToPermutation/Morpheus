@@ -10,6 +10,14 @@ endfunction()
 
 function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 
+	INCLUDE_DIRECTORIES(
+		${BULLET_PHYSICS_SOURCE_DIR}/src
+	)
+	
+	LINK_LIBRARIES(
+	 	BulletDynamics BulletCollision LinearMath
+	)
+
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
     set(ALL_ASSETS ${ASSETS} ${SHADERS})
     add_target_platform_app(${APP_NAME} "${SOURCE}" "${INCLUDE}" "${ALL_ASSETS}")
@@ -74,4 +82,8 @@ endif()
 
 if(TARGET Morpheus-Engine)
 	add_subdirectory(PBR)
+endif()
+
+if(TARGET Morpheus-Engine)
+	add_subdirectory(Physics)
 endif()

@@ -1,0 +1,4 @@
+{
+	"Material" 	: "testpbr.json",
+	"Geometry"	: "sphere.obj"
+}
