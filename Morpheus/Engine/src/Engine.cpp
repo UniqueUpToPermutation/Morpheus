@@ -1,7 +1,6 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/DefaultRenderer.hpp>
-#include <Engine/PhysicsComponents.hpp>
 
 #include <sstream>
 #include <iomanip>

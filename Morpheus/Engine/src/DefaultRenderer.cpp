@@ -433,8 +433,10 @@ namespace Morpheus {
 		if (cacheCast)
 			registry = cacheCast->mScene->GetRegistry();
 
-		if (!context || !swapChain)
+		if (!context || !swapChain) {
+			std::cout << "Warning: render context or swap chain has not been initialized!" << std::endl;
 			return;
+		}
 
 		ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
 		ITextureView* pDSV = swapChain->GetDepthBufferDSV();
@@ -501,6 +503,13 @@ namespace Morpheus {
 			mPostProcessor.Draw(context, framebufferView);
 
 		} else {
+
+			if (!cameraNode.IsValid()) {
+				std::cout << "Warning: Scene has no camera!" << std::endl;
+			} else {
+				std::cout << "Warning: Render cache is null!" << std::endl;
+			}
+
 			float rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 			context->SetRenderTargets(1, &pRTV, pDSV, 

@@ -8,6 +8,9 @@
 #include <Engine/EntityPrototype.hpp>
 
 #include "btBulletDynamicsCommon.h"
+#include "BasicMath.hpp"
+
+namespace DG = Diligent;
 
 namespace Morpheus {
 
@@ -81,7 +84,27 @@ namespace Morpheus {
 
 		inline entt::entity Clone() {
 			auto prototype = GetPrototype();
-			return prototype->Clone(GetEntity());
+			return prototype->Clone(GetEntity(), mTree);
+		}
+
+		void SetTranslation(const DG::float3& translation, bool bUpdateDescendants = true);
+		void SetRotation(const DG::Quaternion& rotation, bool bUpdateDescendants = true);
+		void SetScale(const DG::float3& scale, bool bUpdateDescendants = true);
+		void SetTransform(const DG::float3& translation,
+			const DG::float3& scale,
+			const DG::Quaternion& rotation, 
+			bool bUpdateDescendants = true);
+
+		inline void SetTranslation(float x, float y, float z, bool bUpdateDescendants = true) {
+			SetTranslation(DG::float3(x, y, z), bUpdateDescendants);
+		}
+
+		inline void SetScale(float x, float y, float z, bool bUpdateDescendants = true) {
+			SetScale(DG::float3(x, y, z), bUpdateDescendants);
+		}
+
+		inline void SetScale(float s, bool bUpdateDescendants = true) {
+			SetScale(DG::float3(s, s, s), bUpdateDescendants);
 		}
 
 		inline EntityNode Clone(EntityNode parent);
@@ -89,12 +112,12 @@ namespace Morpheus {
 		friend class SceneHeirarchy;
 	};
 
-	class NodeIterator {
+	class DepthFirstNodeIterator {
 	private:
 		std::stack<EntityNode> mNodeStack;
 
 	public:
-		NodeIterator(EntityNode start) {
+		DepthFirstNodeIterator(EntityNode start) {
 			mNodeStack.emplace(start);
 		}
 
@@ -110,7 +133,7 @@ namespace Morpheus {
 			return !mNodeStack.empty();
 		}
 
-		inline NodeIterator& operator++() {
+		inline DepthFirstNodeIterator& operator++() {
 			auto& top = mNodeStack.top();
 
 			mNodeStack.emplace(top.GetFirstChild());
@@ -133,13 +156,13 @@ namespace Morpheus {
 		UP
 	};
 
-	class NodeDoubleIterator {
+	class DepthFirstNodeDoubleIterator {
 	private:
 		std::stack<EntityNode> mNodeStack;
 		IteratorDirection mDirection;
 
 	public:
-		NodeDoubleIterator(EntityNode start) {
+		DepthFirstNodeDoubleIterator(EntityNode start) {
 			mNodeStack.emplace(start);
 			mDirection = IteratorDirection::DOWN;
 		}
@@ -160,7 +183,7 @@ namespace Morpheus {
 			return !mNodeStack.empty();
 		}
 
-		inline NodeDoubleIterator& operator++() {
+		inline DepthFirstNodeDoubleIterator& operator++() {
 			auto& top = mNodeStack.top();
 
 			if (mDirection == IteratorDirection::UP) {
@@ -236,12 +259,12 @@ namespace Morpheus {
 
 		EntityNode GetRoot();
 
-		inline NodeIterator GetIterator() {
-			return NodeIterator(GetRoot());
+		inline DepthFirstNodeIterator GetIterator() {
+			return DepthFirstNodeIterator(GetRoot());
 		}
 
-		inline NodeDoubleIterator GetDoubleIterator() {
-			return NodeDoubleIterator(GetRoot());
+		inline DepthFirstNodeDoubleIterator GetDoubleIterator() {
+			return DepthFirstNodeDoubleIterator(GetRoot());
 		}
 
 		inline IRenderCache* GetRenderCache() {
@@ -353,7 +376,7 @@ namespace Morpheus {
 
 	EntityNode EntityNode::Clone(EntityNode parent) {
 		auto prototype = GetPrototype();
-		auto entity = prototype->Clone(GetEntity());
+		auto entity = prototype->Clone(GetEntity(), mTree);
 
 		// Add prototype component (used for copy / spawn)
 		mTree->mRegistry.emplace<EntityPrototypeComponent>(entity, prototype);

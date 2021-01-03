@@ -27,18 +27,18 @@ int main(int argc, char** argv) {
 			auto meshNode = scene->CreateChild(root);
 			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(sphereMesh);
 			Transform* transform = meshNode.AddComponent<Transform>();
-			transform->mTranslation.x = x * 3.0f;
-			transform->mTranslation.z = y * 3.0f;
+			transform->SetTranslation(meshNode, x * 3.0f, 0.0f, y * 3.0f);
 		}
 	}
 
 	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
 	auto meshNode = scene->CreateChild(root);
 	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
-	Transform* transform = meshNode.AddComponent<Transform>();
-	transform->mTranslation.y = 8.0f;
-	transform->mScale = DG::float3(8.0f, 8.0f, 8.0f);
-	transform->mRotation = DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI);
+	Transform* transform = meshNode.AddComponent<Transform>(
+		DG::float3(0.0f, 8.0f, 0.0f),
+		DG::float3(8.0f, 8.0f, 8.0f),
+		DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI)
+	);
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 
@@ -52,10 +52,10 @@ int main(int argc, char** argv) {
 	tex_res->AddRef();
 	en.GetResourceManager()->Add(tex_res, "SKYBOX");
 
-	Transform* t = scene->GetCameraNode().AddComponent<Transform>();
-	t->mTranslation = DG::float3(0.0f, 5.0f, 0.0f);
-
-	scene->GetCameraNode().AddComponent<EditorCameraController>(scene);
+	auto cameraNode = scene->GetCameraNode();
+	Transform* t = cameraNode.AddComponent<Transform>();
+	t->SetTranslation(cameraNode, 0.0f, 5.0f, 0.0f);
+	scene->GetCameraNode().AddComponent<EditorCameraController>(cameraNode);
 
 	auto skybox = scene->CreateChild(root);
 	skybox.AddComponent<SkyboxComponent>(tex_res);
@@ -66,11 +66,6 @@ int main(int argc, char** argv) {
 
 	while (en.IsReady()) {
 		en.Update();
-
-		auto camera = scene->GetCameraNode();
-		auto transform = camera.GetComponent<Transform>();
-		transform->UpdateCache(nullptr);
-
 		en.Render();
 		en.Present();
 	}

@@ -5,9 +5,7 @@
 namespace Morpheus {
 	void EditorCameraController::OnUpdate(const UpdateEvent& e) {
 
-		auto registry = e.mEngine->GetScene()->GetRegistry();
-		auto entity = entt::to_entity(*registry, *this);
-		auto transform = registry->try_get<Transform>(entity);
+		auto transform = mCameraNode.TryGetComponent<Transform>();
 
 		auto& input = e.mEngine->GetInputController();
 		const auto& mouseState = input.GetMouseState();
@@ -22,52 +20,58 @@ namespace Morpheus {
 			auto viewUp = DG::cross(viewVec, sideways);
 			viewUp = DG::normalize(viewUp);
 
+			DG::Quaternion newRotation = transform->GetRotation();
+			DG::float3 newTranslation = transform->GetTranslation();
+
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_LEFT) {
 				mAzimuth -= mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
 				mElevation += mMouseRotationSpeedY * (float)(mouseState.PosY - lastState.PosY);
 
-				transform->mRotation = GetViewQuat();
+				newRotation = GetViewQuat();
 			}
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_RIGHT) {
-				transform->mTranslation -= mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
-				transform->mTranslation -= mMousePanSpeedY * (float)(mouseState.PosY - lastState.PosY) * viewUp;
+				newTranslation -= mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
+				newTranslation -= mMousePanSpeedY * (float)(mouseState.PosY - lastState.PosY) * viewUp;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveForward)) {
-				transform->mTranslation += (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
+				newTranslation += (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveBackward)) {
-				transform->mTranslation -= (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
+				newTranslation -= (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveLeft)) {
-				transform->mTranslation -= (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				newTranslation -= (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveRight)) {
-				transform->mTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				newTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
+
+			transform->SetTransform(mCameraNode, 
+				newTranslation, DG::float3(1.0f, 1.0f, 1.0f), newRotation, true);
 		}
 	}
 
-	EditorCameraController::EditorCameraController(SceneHeirarchy* scene) :
-		mScene(scene) {
-		mScene->GetDispatcher()->sink<UpdateEvent>().
+	EditorCameraController::EditorCameraController(EntityNode cameraNode) :
+		mCameraNode(cameraNode) {
+		cameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
 			connect<&EditorCameraController::OnUpdate>(this);
 	}
 
 	EditorCameraController::EditorCameraController(const EditorCameraController& other) :
-		mScene(other.mScene),
+		mCameraNode(other.mCameraNode),
 		mElevation(other.mElevation),
 		mAzimuth(other.mAzimuth) {
-		mScene->GetDispatcher()->sink<UpdateEvent>().
+		mCameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
 			connect<&EditorCameraController::OnUpdate>(this);
 	}
 
 	EditorCameraController::~EditorCameraController() {
-		mScene->GetDispatcher()->sink<UpdateEvent>().
+		mCameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
 			disconnect<&EditorCameraController::OnUpdate>(this);
 	}
 
@@ -82,5 +86,4 @@ namespace Morpheus {
 	DG::float3 EditorCameraController::GetViewVector() const {
 		return GetViewQuat().RotateVector(DG::float3(0.0f, 0.0f, 1.0f));
 	}
-
 }

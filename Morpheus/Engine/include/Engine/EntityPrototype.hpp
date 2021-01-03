@@ -4,7 +4,6 @@
 
 #include <nlohmann/json.hpp>
 #include <entt/entt.hpp>
-
 namespace Morpheus {
 	class IEntityPrototype;
 	class SceneHeirarchy;
@@ -48,12 +47,16 @@ namespace Morpheus {
 	private:
 		EntityPrototypeManager* mFactory;
 		std::unordered_map<std::string, IEntityPrototype*>::iterator mIterator;
-		uint mRefCount = 0;
+		uint mRefCount = 1;
+
+	protected:
+		virtual entt::entity InternalSpawn(Engine* en, SceneHeirarchy* scene) const = 0;
+		virtual entt::entity InternalClone(entt::entity ent, SceneHeirarchy* scene) const = 0;
 	
 	public:
 		virtual ~IEntityPrototype() { }
-		virtual entt::entity Spawn(Engine* en, SceneHeirarchy* scene) const = 0;
-		virtual entt::entity Clone(entt::entity ent) const = 0;
+		entt::entity Spawn(Engine* en, SceneHeirarchy* scene);
+		entt::entity Clone(entt::entity ent, SceneHeirarchy* scene);
 	
 		inline void AddRef() {
 			++mRefCount;

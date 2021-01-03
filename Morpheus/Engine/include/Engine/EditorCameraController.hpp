@@ -23,7 +23,7 @@ namespace Morpheus {
 		float mKeyPanSpeedZ = 10.0f;
 		float mKeyPanSpeedX = 10.0f;
 
-		SceneHeirarchy* mScene;
+		EntityNode mCameraNode;
 
 		DG::Quaternion GetViewQuat() const;
 		DG::float3 GetViewVector() const;
@@ -31,7 +31,7 @@ namespace Morpheus {
 	public:
 		void OnUpdate(const UpdateEvent& e);
 
-		EditorCameraController(SceneHeirarchy* scene);
+		EditorCameraController(EntityNode cameraNode);
 		EditorCameraController(const EditorCameraController& other);
 		~EditorCameraController();
 	};

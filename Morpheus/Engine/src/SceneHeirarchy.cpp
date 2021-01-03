@@ -1,7 +1,6 @@
 #include <Engine/SceneHeirarchy.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Camera.hpp>
-#include <Engine/PhysicsComponents.hpp>
 #include <Engine/Transform.hpp>
 
 namespace Morpheus {
@@ -323,18 +322,6 @@ namespace Morpheus {
 	void SceneHeirarchy::Update(double currTime, double elapsedTime) {
 		mDynamicsWorld->stepSimulation(1.f / 60.f);
 
-		// Copy over all active physics objects
-		auto rbView = mRegistry.view<RigidBodyComponent, Transform>();
-
-		for (auto en : rbView) {
-			auto& rbComponent = rbView.get<RigidBodyComponent>(en);
-			auto& transform = rbView.get<Transform>(en);
-
-			if (rbComponent.GetRigidBody()->isActive()) {
-				transform.UpdateCacheFromMotionState(rbComponent.GetMotionState());
-			}
-		}
-
 		// Update everything else that needs updating
 		UpdateEvent e;
 		e.mCurrTime = currTime;
@@ -344,4 +331,42 @@ namespace Morpheus {
 		mDispatcher.trigger<UpdateEvent>(e);
 	}
 
+	void EntityNode::SetTranslation(const DG::float3& translation, bool bUpdateDescendants) {
+		auto transform = TryGetComponent<Transform>();
+		if (transform) {
+			transform->SetTranslation(*this, translation, bUpdateDescendants);
+		} else {
+			std::cout << "SetTranslation called on EntityNode without Transform component!" << std::endl;
+		}
+	}
+
+	void EntityNode::SetRotation(const DG::Quaternion& rotation, bool bUpdateDescendants) {
+		auto transform = TryGetComponent<Transform>();
+		if (transform) {
+			transform->SetRotation(*this, rotation, bUpdateDescendants);
+		} else {
+			std::cout << "SetRotation called on EntityNode without Transform component!" << std::endl;
+		}
+	}
+
+	void EntityNode::SetScale(const DG::float3& scale, bool bUpdateDescendants) {
+		auto transform = TryGetComponent<Transform>();
+		if (transform) {
+			transform->SetScale(*this, scale, bUpdateDescendants);
+		} else {
+			std::cout << "SetScale called on EntityNode without Transform component!" << std::endl;
+		}
+	}
+
+	void EntityNode::SetTransform(const DG::float3& translation,
+		const DG::float3& scale,
+		const DG::Quaternion& rotation, 
+		bool bUpdateDescendants) {
+		auto transform = TryGetComponent<Transform>();
+		if (transform) {
+			transform->SetTransform(*this, translation, scale, rotation, bUpdateDescendants);
+		} else {
+			std::cout << "SetTransform called on EntityNode without Transform component!" << std::endl;
+		}
+	}
 }

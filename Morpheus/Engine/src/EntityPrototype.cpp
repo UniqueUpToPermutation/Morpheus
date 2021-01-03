@@ -20,9 +20,7 @@ namespace Morpheus {
 			}
 		}
 
-		auto entity = prototype->Spawn(en, scene);
-		scene->GetRegistry()->emplace<EntityPrototypeComponent>(entity, prototype);
-		return entity;
+		return prototype->Spawn(en, scene);
 	}
 
 	void EntityPrototypeManager::RemovePrototype(const std::string& typeName) {
@@ -38,5 +36,19 @@ namespace Morpheus {
 		for (auto it : mPrototypes) {
 			it.second->Release();
 		}
+	}
+
+	entt::entity IEntityPrototype::Spawn(Engine* en, SceneHeirarchy* scene) {
+		auto entity = InternalSpawn(en, scene);
+		auto registry = scene->GetRegistry();
+		registry->emplace<EntityPrototypeComponent>(entity, this);
+		return entity;
+	}
+
+	entt::entity IEntityPrototype::Clone(entt::entity ent, SceneHeirarchy* scene) {
+		auto entity = InternalClone(ent, scene);
+		auto registry = scene->GetRegistry();
+		registry->emplace<EntityPrototypeComponent>(entity, this);
+		return entity;
 	}
 }
