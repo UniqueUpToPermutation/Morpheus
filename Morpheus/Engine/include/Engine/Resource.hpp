@@ -1,6 +1,5 @@
 #pragma once
-
-#include <entt/entt.hpp>
+#include <Engine/Entity.hpp>
 
 namespace Morpheus {
 	class TextureResource;

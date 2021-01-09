@@ -200,17 +200,19 @@ namespace Morpheus
 		return Proj;
 	}
 
-	void Engine::SetScene(SceneHeirarchy* scene, bool bUnloadOld) {
+	void Engine::SetScene(Scene* scene, bool bUnloadOld) {
 		if (bUnloadOld && mSceneHeirarchy)
 			delete mSceneHeirarchy;
 
 		mSceneHeirarchy = scene;
 
 		if (mSceneHeirarchy) {
-			if (mSceneHeirarchy->GetRenderCache() == nullptr) {
-				std::cout << "Warning: RenderCache has not been built. Building now. This may take some time..." << std::endl;
-				mSceneHeirarchy->mRenderCache = mRenderer->BuildRenderCache(mSceneHeirarchy);
+			if (!mSceneHeirarchy->IsInitializedByEngine()) {
+				std::cout << "Engine::SetScene: Default systems have not yet been initialized for scene." << std::endl;
+				InitializeDefaultSystems(mSceneHeirarchy);
 			}
+
+			mSceneHeirarchy->Begin();
 		}
 
 		CollectGarbage();
@@ -1052,15 +1054,13 @@ namespace Morpheus
 
 	void Engine::Render()
 	{
-		IRenderCache* cache = nullptr;
 		EntityNode camera = EntityNode::Invalid();
 
 		if (mSceneHeirarchy) {
-			cache = mSceneHeirarchy->GetRenderCache();
 			camera = mSceneHeirarchy->GetCameraNode();
 		}
 
-		mRenderer->Render(cache, camera);
+		mRenderer->Render(mSceneHeirarchy, camera);
 	}
 
 	void Engine::CompareGoldenImage(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)
@@ -1221,6 +1221,17 @@ namespace Morpheus
 		}
 
 		mInputController.NewFrame();
+	}
+
+	void Engine::InitializeDefaultSystems(Scene* scene) {
+		std::cout << "Initializing default systems for new scene..." << std::endl;
+
+		if (mRenderer) {
+			std::cout << "Initializing renderer-scene bridge..." << std::endl;
+			mRenderer->InitializeSystems(scene);
+		}
+
+		scene->bInitializedByEngine = true;
 	}
 
 

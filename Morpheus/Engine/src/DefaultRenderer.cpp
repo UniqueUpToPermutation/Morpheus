@@ -7,6 +7,7 @@
 #include <Engine/MaterialResource.hpp>
 #include <Engine/StaticMeshResource.hpp>
 #include <Engine/MaterialView.hpp>
+#include <Engine/Systems/RendererBridge.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -189,15 +190,15 @@ namespace Morpheus {
 
 	void DefaultRenderer::WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe) {
 
-		auto camera = cameraNode.GetComponent<Camera>();
-		auto camera_transform = cameraNode.TryGetComponent<Transform>();
+		auto camera = cameraNode.TryGet<Camera>();
+		auto camera_transform = cameraNode.TryGet<MatrixTransformCache>();
 
 		float4x4 view = camera->GetView();
 		float4x4 projection = camera->GetProjection(mEngine);
 		float3 eye = camera->GetEye();
 
 		if (camera_transform) {
-			auto camera_transform_mat = camera_transform->GetCache();
+			auto camera_transform_mat = camera_transform->mCache;
 			auto camera_transform_inv = camera_transform_mat.Inverse();
 			view = camera_transform_inv * view;
 			eye = eye * camera_transform_mat;
@@ -307,6 +308,11 @@ namespace Morpheus {
 			swapDesc.DepthBufferFormat);
 	}
 
+	void DefaultRenderer::InitializeSystems(Scene* scene) {
+		// Add the render interface to the current scene
+		scene->AddSystem<RendererBridge>(this, mEngine->GetResourceManager());
+	}
+
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
 		return mGlobals.Get();
 	}
@@ -325,24 +331,8 @@ namespace Morpheus {
 	}
 
 	void DefaultRenderer::RenderStaticMeshes(
-		std::vector<StaticMeshCache>& cache,
-		LightProbe* lightProbe) {
-
-		auto pipelineComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
-			return c1.mStaticMesh->GetPipeline() < c2.mStaticMesh->GetPipeline();
-		};
-
-		auto materialComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
-			return c1.mStaticMesh->GetMaterial() < c2.mStaticMesh->GetMaterial();
-		};
-
-		auto meshComp = [](const StaticMeshCache& c1, const StaticMeshCache& c2) {
-			return c1.mStaticMesh < c2.mStaticMesh;
-		};
-
-		std::sort(cache.begin(), cache.end(), pipelineComp);
-		std::stable_sort(cache.begin(), cache.end(), materialComp);
-		std::stable_sort(cache.begin(), cache.end(), meshComp);
+		entt::registry* registry, 
+		LightProbe* globalLightProbe) {
 
 		PipelineResource* currentPipeline = nullptr;
 		MaterialResource* currentMaterial = nullptr;
@@ -352,9 +342,13 @@ namespace Morpheus {
 
 		auto context = mEngine->GetImmediateContext();
 
-		int meshCount = cache.size();
+		int meshCount = registry->size<StaticMeshComponent>();
+		auto meshComponentView = registry->view<StaticMeshComponent>();
 
-		while (currentIdx < meshCount) {
+		auto currentIt = meshComponentView.begin();
+		auto endIt = meshComponentView.end();
+
+		while (currentIt != endIt) {
 			// First upload transforms to GPU buffer
 			void* mappedData;
 			context->MapBuffer(mInstanceBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD, 
@@ -362,18 +356,20 @@ namespace Morpheus {
 
 			DG::float4x4* ptr = reinterpret_cast<DG::float4x4*>(mappedData);
 			int maxInstances = mInstanceBuffer->GetDesc().uiSizeInBytes / sizeof(DG::float4x4);
-			int currentInstanceIdx = 0;
+			int transformWriteIdx = 0;
+			int transformReadIdx = 0;
 
-			for (; currentIdx + currentInstanceIdx < meshCount && currentInstanceIdx < maxInstances;
-				++currentInstanceIdx) {
-				ptr[currentInstanceIdx] = cache[currentIdx + currentInstanceIdx].mTransform->GetCache().Transpose();
+			auto matrixCopyIt = currentIt;
+			for (; matrixCopyIt != endIt && transformWriteIdx < maxInstances;
+				++transformWriteIdx, ++matrixCopyIt) {
+				auto& transformCache = registry->get<MatrixTransformCache>(*matrixCopyIt);
+				ptr[transformWriteIdx] = transformCache.mCache.Transpose();
 			}
 
 			context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
 
-			int instanceBatchTotal = currentInstanceIdx;
-			for (currentInstanceIdx = 0; currentInstanceIdx < instanceBatchTotal;) {
-				auto mesh = cache[currentIdx + currentInstanceIdx].mStaticMesh->GetMesh();
+			while (currentIt != matrixCopyIt) {
+				auto mesh = meshComponentView.get<StaticMeshComponent>(*currentIt).GetMesh();
 				auto material = mesh->GetMaterial();
 				auto pipeline = material->GetPipeline();
 
@@ -386,8 +382,8 @@ namespace Morpheus {
 				// Change material
 				if (material != currentMaterial) {
 					auto iblView = material->GetView<ImageBasedLightingView>();
-					if (iblView && lightProbe) {
-						iblView->SetEnvironment(lightProbe);
+					if (iblView && globalLightProbe) {
+						iblView->SetEnvironment(globalLightProbe);
 					}
 
 					context->CommitShaderResources(material->GetResourceBinding(), 
@@ -397,7 +393,7 @@ namespace Morpheus {
 
 				// Render all of these static meshes in a batch
 				auto geometry = mesh->GetGeometry();
-				Uint32  offsets[]  = { 0, (DG::Uint32)(currentInstanceIdx * sizeof(DG::float4x4)) };
+				Uint32  offsets[]  = { 0, (DG::Uint32)(transformReadIdx * sizeof(DG::float4x4)) };
 				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
 				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
 					RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
@@ -406,32 +402,35 @@ namespace Morpheus {
 
 				// Count the number of instances of this specific mesh to render
 				int instanceCount = 1;
-				for (; currentInstanceIdx + instanceCount < instanceBatchTotal 
-					&& cache[currentIdx + currentInstanceIdx + instanceCount].mStaticMesh->GetMesh() == mesh;
-					++instanceCount);
+				for (++currentIt; currentIt != matrixCopyIt
+					&& meshComponentView.get<StaticMeshComponent>(*currentIt).GetMesh() == mesh;
+					++instanceCount, ++currentIt);
 
 				DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
 				attribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
 				attribs.NumInstances = instanceCount;
 				context->DrawIndexed(attribs);
 
-				currentInstanceIdx += instanceCount;
+				transformReadIdx += instanceCount;
 			}
-
-			currentIdx += instanceBatchTotal;
 		}
 	}
 
-	void DefaultRenderer::Render(IRenderCache* cache, EntityNode cameraNode) {
-		DefaultRenderCache* cacheCast = dynamic_cast<DefaultRenderCache*>(cache);
-
+	void DefaultRenderer::Render(Scene* scene, EntityNode cameraNode) {
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
 
 		entt::registry* registry = nullptr;
 
-		if (cacheCast)
-			registry = cacheCast->mScene->GetRegistry();
+		if (scene) {
+			registry = scene->GetRegistry();
+
+			FrameBeginEvent e;
+			e.mScene = scene;
+			e.mRenderer = this;
+
+			scene->Trigger<FrameBeginEvent>(e);
+		}
 
 		if (!context || !swapChain) {
 			std::cout << "Warning: render context or swap chain has not been initialized!" << std::endl;
@@ -450,7 +449,7 @@ namespace Morpheus {
 
 		float rgba[4] = {0.5, 0.5, 0.5, 1.0};
 
-		if (cacheCast && cameraNode.IsValid()) {
+		if (scene && cameraNode.IsValid()) {
 			auto rtView = mFrameBuffer->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET);
 			context->SetRenderTargets(1, &rtView, intermediateDepthView,
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -462,17 +461,21 @@ namespace Morpheus {
 
 			SkyboxComponent* skyboxComponent = nullptr;
 			LightProbe* globalLightProbe = nullptr;
-			
-			if (cacheCast->mSkybox != entt::null) {
-				skyboxComponent = registry->try_get<SkyboxComponent>(cacheCast->mSkybox);
-				globalLightProbe = registry->try_get<LightProbe>(cacheCast->mSkybox);
+
+			auto skyboxView = registry->view<SkyboxComponent>();
+
+			if (!skyboxView.empty()) {
+				auto skyboxEntity = skyboxView.front();
+				skyboxComponent = registry->try_get<SkyboxComponent>(skyboxEntity);
+				globalLightProbe = registry->try_get<LightProbe>(skyboxEntity);
 			}
 
 			// Write global data to globals buffer
 			WriteGlobalData(cameraNode, globalLightProbe);
 
 			// Render all static meshes in the scene
-			RenderStaticMeshes(cacheCast->mStaticMeshes, globalLightProbe);
+			RenderStaticMeshes(registry, 
+				globalLightProbe);
 
 			// Render skybox
 			if (skyboxComponent) {
@@ -572,96 +575,11 @@ namespace Morpheus {
 		return true;
 	}
 
-	IRenderCache* DefaultRenderer::BuildRenderCache(SceneHeirarchy* scene) {
-		std::stack<Transform*> transformStack;
-		transformStack.emplace(&mIdentityTransform);
+	DG::IRenderDevice* DefaultRenderer::GetDevice() {
+		return mEngine->GetDevice();
+	}
 
-		mIdentityTransform.UpdateCache();
-		
-		auto registry = scene->GetRegistry();
-		auto device = mEngine->GetDevice();
-		auto resourceManager = mEngine->GetResourceManager();
-		auto immediateContext = mEngine->GetImmediateContext();
-		auto textureCache = resourceManager->GetCache<TextureResource>();
-
-		DefaultRenderCache* cache = new DefaultRenderCache(scene);
-
-		for (auto it = scene->GetDoubleIterator(); it; ++it) {
-			if (it.GetDirection() == IteratorDirection::DOWN) {
-				auto transform = it->TryGetComponent<Transform>();
-				auto staticMesh = it->TryGetComponent<StaticMeshComponent>();
-				auto skybox = it->TryGetComponent<SkyboxComponent>();
-
-				// Node has a transform; update cache
-				if (transform) {
-					transform->UpdateCache(transformStack.top());
-					transformStack.emplace(transform);
-				}
-
-				// If a static mesh is on this node
-				if (staticMesh) {
-					StaticMeshCache meshCache;
-					meshCache.mStaticMesh = staticMesh;
-					meshCache.mTransform = transformStack.top();
-					cache->mStaticMeshes.emplace_back(meshCache);
-				}
-			}
-			else if (it.GetDirection() == IteratorDirection::UP) {
-				auto transform = it->TryGetComponent<Transform>();
-
-				// Pop the transform of this node on the way up
-				if (transform) {
-					transformStack.pop();
-				}
-			}
-		}
-
-		auto skybox_view = registry->view<SkyboxComponent>();
-
-		for (auto entity : skybox_view) {
-			if (cache->mSkybox != entt::null) {
-				std::cout << "Warning: multiple skyboxes detected!" << std::endl;
-			}
-			cache->mSkybox = entity;
-
-			auto& skybox = skybox_view.get<SkyboxComponent>(entity);
-
-			// Build light probe if this skybox has none
-			auto lightProbe = registry->try_get<LightProbe>(entity);
-			if (!lightProbe) {
-
-				std::cout << "Warning: skybox detected without light probe! Running light probe processor..." << std::endl;
-
-				LightProbeProcessor processor(device);
-				processor.Initialize(resourceManager, 
-					DG::TEX_FORMAT_RGBA16_FLOAT,
-					DG::TEX_FORMAT_RGBA16_FLOAT);
-
-				LightProbe newProbe;
-				
-				if (GetUseSHIrradiance()) {
-					newProbe = processor.ComputeLightProbeSH(device,
-						immediateContext, textureCache,
-						skybox.GetCubemap()->GetShaderView());
-				} else {
-					newProbe = processor.ComputeLightProbe(device,
-						immediateContext, textureCache, 
-						skybox.GetCubemap()->GetShaderView());
-				}
-				
-				// Add light probe to skybox
-				registry->emplace<LightProbe>(entity, newProbe);
-			}
-		}
-
-		auto camera_view = registry->view<Camera>();
-
-		for (auto entity : camera_view) {
-			if (!registry->has<Transform>(entity)) {
-				std::cout << "Warning! Camera detected without Transform!" << std::endl;
-			}
-		}
-
-		return cache;
+	DG::IDeviceContext* DefaultRenderer::GetImmediateContext() {
+		return mEngine->GetImmediateContext();
 	}
 }

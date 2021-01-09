@@ -121,7 +121,7 @@ list(APPEND SOURCE
 	src/Resource.cpp
 	src/ResourceManager.cpp
 	src/PipelineResource.cpp
-	src/SceneHeirarchy.cpp
+	src/Scene.cpp
 	src/DefaultRenderer.cpp
 	src/GeometryResource.cpp
 	src/Camera.cpp
@@ -135,16 +135,18 @@ list(APPEND SOURCE
 	src/HdriToCubemap.cpp
 	src/EditorCameraController.cpp
 	src/PostProcessor.cpp
-	src/EntityPrototype.cpp
 	src/Pipelines/PipelineFactory.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp
 	src/Pipelines/StaticMeshPBR.cpp
+	src/Pipelines/White.cpp
 	src/MaterialPrototypes.cpp
 	src/Materials/BasicTexturedMaterial.cpp
+	src/Materials/WhiteMaterial.cpp
 	src/Materials/JsonMaterial.cpp
 	src/Materials/ImageBasedLightingView.cpp
 	src/Materials/StaticMeshPBRMaterial.cpp
+	src/Systems/RendererBridge.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )

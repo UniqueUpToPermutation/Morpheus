@@ -36,9 +36,17 @@ namespace Morpheus {
 			return mGeometry;
 		}
 
+		inline const MaterialResource* GetMaterial() const {
+			return mMaterial;
+		}
+
+		inline const GeometryResource* GetGeometry() const {
+			return mGeometry;
+		}
+
 		StaticMeshResource* ToStaticMesh() override;
 
-		std::string GetSource() {
+		std::string GetSource() const {
 			return mSource;
 		}
 

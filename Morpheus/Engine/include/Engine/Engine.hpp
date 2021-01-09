@@ -16,14 +16,12 @@
 
 #include "btBulletDynamicsCommon.h"
 
-#include <Engine/EntityPrototype.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/InputController.hpp>
 #include <Engine/ResourceManager.hpp>
-#include <Engine/SceneHeirarchy.hpp>
+#include <Engine/Scene.hpp>
 #include <Engine/Renderer.hpp>
-
-#include <entt/entt.hpp>
+#include <Engine/Entity.hpp>
 
 namespace Diligent
 {
@@ -35,7 +33,7 @@ namespace DG = Diligent;
 namespace Morpheus {
 
 	class IRenderer;
-	class SceneHeirarchy;
+	class Scene;
 
 	class Engine : public DG::NativeAppBase {
 	public:
@@ -126,15 +124,13 @@ namespace Morpheus {
 		InputController		mInputController;
 		IPlatform*			mPlatform			= nullptr;
 		ResourceManager* 	mResourceManager 	= nullptr;
-		SceneHeirarchy* 	mSceneHeirarchy 	= nullptr;
+		Scene* 	mSceneHeirarchy 	= nullptr;
 		IRenderer*			mRenderer 			= nullptr;
 
 		btCollisionConfiguration* 	mCollisionConfiguration 	= nullptr;
 		btBroadphaseInterface*		mBroadphaseInterface 		= nullptr;
 		btDispatcher*				mCollisionDispatcher 		= nullptr;
 		btConstraintSolver*			mConstraintSolver			= nullptr;
-
-		EntityPrototypeManager mEntityPrototypes;
 
 		int          mInitialWindowWidth  	= 0;
 		int          mInitialWindowHeight 	= 0;
@@ -196,7 +192,7 @@ namespace Morpheus {
 				mImmediateContext;
 		}
 
-		void SetScene(SceneHeirarchy* scene, bool bUnloadOld = true);
+		void SetScene(Scene* scene, bool bUnloadOld = true);
 
 		inline InputController& GetInputController() {
 			return mInputController;
@@ -225,7 +221,7 @@ namespace Morpheus {
 		inline ResourceManager* GetResourceManager() {
 			return mResourceManager;
 		}
-		inline SceneHeirarchy* GetScene() {
+		inline Scene* GetScene() {
 			return mSceneHeirarchy;
 		}
 		inline bool GetShowUI() const {
@@ -250,20 +246,10 @@ namespace Morpheus {
 			return mConstraintSolver;
 		}
 
-		inline void RegisterEntityPrototypeFactory(const std::string& typeName, prototype_factory_t factory) {
-			mEntityPrototypes.RegisterPrototypeFactory(typeName, factory);
-		}
-
-		inline void UnregisterEntityPrototypeFactory(const std::string& typeName) {
-			mEntityPrototypes.RemovePrototypeFactory(typeName);
-		}
-
-		inline void UnregisterEntityPrototype(const std::string& typeName) {
-			mEntityPrototypes.RemovePrototype(typeName);
-		}
+		void InitializeDefaultSystems(Scene* scene);
 
 		friend Engine* GetEngine();
-		friend class SceneHeirarchy;
+		friend class Scene;
 	};
 
 	inline Engine* GetEngine() {

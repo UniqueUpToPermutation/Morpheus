@@ -1,5 +1,5 @@
 #include "Sampling.hlsl"
-#include "GLTFPBRCommon.hlsl"
+#include "PBRCommon.hlsl"
 #include "FullscreenTriangle.hlsl"
 
 #ifndef NUM_SAMPLES

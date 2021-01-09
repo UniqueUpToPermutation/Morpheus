@@ -1,20 +1,14 @@
 #pragma once
 
-#include <Engine/SceneHeirarchy.hpp>
+#include <Engine/Scene.hpp>
 #include <Engine/Engine.hpp>
 
 namespace DG = Diligent;
 
 namespace Morpheus {
 
-	class SceneHeirarchy;
+	class Scene;
 	class Camera;
-
-	class IRenderCache {
-	public:
-		virtual ~IRenderCache() {
-		}
-	};
 
 	class IRenderer {
 	public:
@@ -26,9 +20,11 @@ namespace Morpheus {
 		virtual void RequestConfiguration(DG::EngineVkCreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineMtlCreateInfo* info) = 0;
 		virtual void Initialize() = 0;
-		virtual void Render(IRenderCache* cache, EntityNode cameraNode) = 0;
+		virtual void Render(Scene* scene, EntityNode cameraNode) = 0;
+		virtual void InitializeSystems(Scene* scene) = 0;
 
-		virtual IRenderCache* BuildRenderCache(SceneHeirarchy* scene) = 0;
+		virtual DG::IRenderDevice* GetDevice() = 0;
+		virtual DG::IDeviceContext* GetImmediateContext() = 0;
 
 		// This buffer will be bound as a constant to all pipelines
 		virtual DG::IBuffer* GetGlobalsBuffer() = 0;

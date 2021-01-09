@@ -4,7 +4,7 @@ project(Morpheus VERSION 0.1.0)
 function(add_third_party_libraries APP_NAME)
 	message(${APP_NAME})
 	target_include_directories(${APP_NAME} PRIVATE
-		${CMAKE_SOURCE_DIR}/entt/single_include
+		${CMAKE_SOURCE_DIR}/entt/src/
 		${CMAKE_SOURCE_DIR}/json/single_include)
 endfunction()
 
@@ -41,7 +41,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
     target_include_directories(${APP_NAME}
     PRIVATE	
 		src
-		${CMAKE_SOURCE_DIR}/entt/single_include
+		${CMAKE_SOURCE_DIR}/entt/src
 		${CMAKE_SOURCE_DIR}/json/single_include
     )
 
@@ -82,4 +82,8 @@ endif()
 
 if(TARGET Morpheus-Engine)
 	add_subdirectory(PBR)
+endif()
+
+if(TARGET Morpheus-Engine)
+	add_subdirectory(enttTest)
 endif()

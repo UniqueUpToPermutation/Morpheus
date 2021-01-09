@@ -1,8 +1,7 @@
 #pragma once
 
-#include <Engine/SceneHeirarchy.hpp>
-
-#include <entt/entt.hpp>
+#include <Engine/Scene.hpp>
+#include <Engine/Entity.hpp>
 
 #include "BasicMath.hpp"
 
@@ -24,6 +23,7 @@ namespace Morpheus {
 		float mKeyPanSpeedX = 10.0f;
 
 		EntityNode mCameraNode;
+		Scene* mScene;
 
 		DG::Quaternion GetViewQuat() const;
 		DG::float3 GetViewVector() const;
@@ -31,7 +31,7 @@ namespace Morpheus {
 	public:
 		void OnUpdate(const UpdateEvent& e);
 
-		EditorCameraController(EntityNode cameraNode);
+		EditorCameraController(EntityNode cameraNode, Scene* scene);
 		EditorCameraController(const EditorCameraController& other);
 		~EditorCameraController();
 	};

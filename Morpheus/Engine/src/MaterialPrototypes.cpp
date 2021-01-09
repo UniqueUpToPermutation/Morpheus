@@ -6,6 +6,7 @@
 #include <Engine/MaterialView.hpp>
 #include <Engine/Materials/StaticMeshPBRMaterial.hpp>
 #include <Engine/Materials/BasicTexturedMaterial.hpp>
+#include <Engine/Materials/WhiteMaterial.hpp>
 
 #include "MapHelper.hpp"
 
@@ -16,6 +17,8 @@ namespace Morpheus {
 			&AbstractConstructor<BasicTexturedMaterialPrototype>;
 		mMap["StaticMeshPBRMaterial"] = 
 			&AbstractConstructor<StaticMeshPBRMaterialPrototype>;
+		mMap["WhiteMaterial"] = 
+			&AbstractConstructor<WhiteMaterialPrototype>;
 	}
 
 	MaterialPrototype* MaterialPrototypeFactory::Spawn(

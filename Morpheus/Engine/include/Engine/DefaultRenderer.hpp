@@ -6,6 +6,8 @@
 #include <Engine/Brdf.hpp>
 #include <Engine/PostProcessor.hpp>
 
+#include <Engine/Systems/RendererBridge.hpp>
+
 namespace DG = Diligent;
 
 #define DEFAULT_INSTANCE_BATCH_SIZE 1024
@@ -53,27 +55,6 @@ namespace Morpheus {
 		}
 	};
 
-	struct StaticMeshCache {
-		StaticMeshComponent* mStaticMesh;
-		Transform* mTransform;
-	};
-
-	class DefaultRenderCache : public IRenderCache {
-	public:
-		std::vector<StaticMeshCache> mStaticMeshes;
-
-		SceneHeirarchy* mScene;
-		entt::entity mSkybox;
-
-		inline DefaultRenderCache(SceneHeirarchy* scene) :
-			mScene(scene),
-			mSkybox(entt::null) {
-		}
-		
-		~DefaultRenderCache() {
-		}
-	};
-
 	class DefaultRenderer : public IRenderer {
 	private:
 		DynamicGlobalsBuffer<RendererGlobalData> mGlobals;
@@ -96,7 +77,8 @@ namespace Morpheus {
 
 		bool bUseSHIrradiance;
 
-		void RenderStaticMeshes(std::vector<StaticMeshCache>& cache, LightProbe* globalLightProbe);
+		void RenderStaticMeshes(entt::registry* registry, 
+			LightProbe* globalLightProbe);
 		void RenderSkybox(SkyboxComponent* skybox);
 		void ReallocateIntermediateFramebuffer(uint width, uint height);
 		void WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe);
@@ -113,20 +95,23 @@ namespace Morpheus {
 		void RequestConfiguration(DG::EngineGLCreateInfo* info) override;
 		void RequestConfiguration(DG::EngineVkCreateInfo* info) override;
 		void RequestConfiguration(DG::EngineMtlCreateInfo* info) override;
-
+		
+		void InitializeSystems(Scene* scene) override;
 		void Initialize();
-		void Render(IRenderCache* cache, EntityNode cameraNode) override;
+		void Render(Scene* scene, EntityNode cameraNode) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() const override;
 		uint GetMaxAnisotropy() const override;
 		uint GetMSAASamples() const override;
 
-		IRenderCache* BuildRenderCache(SceneHeirarchy* scene) override;
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
 		DG::ITextureView* GetLUTShaderResourceView() override;
 		bool GetUseSHIrradiance() const override;
 		bool GetUseIBL() const override;
+
+		DG::IRenderDevice* GetDevice() override;
+		DG::IDeviceContext* GetImmediateContext() override;
 	};
 }

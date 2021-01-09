@@ -4,63 +4,78 @@
 
 #include "btBulletDynamicsCommon.h"
 
-#include <entt/entt.hpp>
-
-#include <Engine/SceneHeirarchy.hpp>
+#include <Engine/Entity.hpp>
+#include <Engine/Scene.hpp>
 
 namespace DG = Diligent;
 
 namespace Morpheus {
+	class MatrixTransformCache {
+	public:
+		DG::float4x4 mCache;
+
+		MatrixTransformCache(const DG::float4x4& cache) :
+			mCache(cache) {
+		}
+	};
+
 	class Transform {
 	private:
 		DG::float3 mTranslation;
 		DG::float3 mScale;
 		DG::Quaternion mRotation;
-		entt::delegate<void(Transform*)> mOnUpdateDelegate;
-		DG::float4x4 mCachedTransform;
 
 	public:
-		// Used to update the cache externally, update delegate is called to propagate the update to physics
-		void UpdateCache(Transform* parent);
-		// Used to update the cache externally, update delegate is called to propagate the update to physics
-		void UpdateCache();
-
-		// Used to update the cache internally from physics, update delegate is not called
-		void UpdateCacheFromMotionState(btMotionState* motionState);
-
-		// Finds the parent transform of this entity in the scene tree
-		static Transform* FindParent(EntityNode self);
-
-		// Update the update the transform externally, update delegate is called to propagate the update to physics
-		void SetTransform(EntityNode self, 
-			const DG::float3& translation,
-			const DG::float3& scale,
-			const DG::Quaternion& rotation,
-			bool bUpdateDescendants = true);
-
-		// Update the update the transform externally, update delegate is called to propagate the update to physics
-		void SetTranslation(EntityNode self, const DG::float3& translation, bool bUpdateDescendants = true);
-		inline void SetTranslation(EntityNode self, float x, float y, float z, bool bUpdateDescendants = true) {
-			SetTranslation(self, DG::float3(x, y, z), bUpdateDescendants);
+		inline Transform() : 
+			mTranslation(0.0f, 0.0f, 0.0f),
+			mScale(1.0f, 1.0f, 1.0f),
+			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
 
-		// Update the update the transform externally, update delegate is called to propagate the update to physics
-		void SetScale(EntityNode self, const DG::float3& scale, bool bUpdateDescendants = true);
-		inline void SetScale(EntityNode self, float x, float y, float z, bool bUpdateDescendants = true) {
-			SetScale(self, DG::float3(x, y, z), bUpdateDescendants);
+		Transform(DG::float3 translation) :
+			mTranslation(translation),
+			mScale(1.0f, 1.0f, 1.0f),
+			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
-		inline void SetScale(EntityNode self, float s, bool bUpdateDescendants = true) {
-			SetScale(self, DG::float3(s, s, s), bUpdateDescendants);
-		}
-
-		// Update the update the transform externally, update delegate is called to propagate the update to physics
-		void SetRotation(EntityNode self, const DG::Quaternion& rotation, bool bUpdateDescendants = true);
-		inline void SetRotation(EntityNode self, const DG::float3& rotationAxis, float angle, bool bUpdateDescendants) {
-			SetRotation(self, DG::Quaternion::RotationFromAxisAngle(rotationAxis, angle), bUpdateDescendants);
+			
+		Transform(DG::float3 translation,
+			DG::Quaternion rotation) : 
+			mTranslation(translation),
+			mScale(1.0f, 1.0f, 1.0f),
+			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
 
-		// Updates the transforms of all descendants of this node, including self
-		void UpdateDescendantCaches(EntityNode self, Transform* parent = nullptr);
+		Transform(DG::float3 translation,
+			DG::Quaternion rotation,
+			DG::float3 scale) :
+			mTranslation(translation),
+			mScale(scale),
+			mRotation(rotation) {
+		}
+
+		inline void SetTranslation(const DG::float3& t) {
+			mTranslation = t;
+		}
+
+		inline void SetTranslation(const float x, const float y, const float z) {
+			SetTranslation(DG::float3(x, y, z));
+		}
+
+		inline void SetRotation(const DG::Quaternion& q) {
+			mRotation = q;
+		}
+
+		inline void SetScale(const DG::float3& s) {
+			mScale = s;
+		}
+
+		inline void SetScale(const float x, const float y, const float z) {
+			SetScale(DG::float3(x, y, z));
+		}
+
+		inline void SetScale(const float s) {
+			SetScale(DG::float3(s, s, s));
+		}
 
 		inline DG::float3 GetTranslation() const {
 			return mTranslation;
@@ -74,22 +89,6 @@ namespace Morpheus {
 			return mRotation;
 		}
 
-		Transform();
-		Transform(const DG::float3& translation,
-			const DG::float3& scale,
-			const DG::Quaternion& rotation);
-			
-		inline DG::float4x4 GetCache() {
-			return mCachedTransform;
-		}
-
-		template <auto Func, typename T>
-		inline void AttachToUpdateDelegate(T* t) {
-			mOnUpdateDelegate.connect<Func>(*t);
-		}
-
-		inline void ResetUpdateDelegate() {
-			mOnUpdateDelegate.reset();
-		}
+		DG::float4x4 ToMatrix() const;
 	};
 }

@@ -12,11 +12,8 @@ namespace Morpheus {
 		const std::string& path,
 		const nlohmann::json& config) {
 
-		std::string color_src;
-		std::string pipeline_src;
-
-		config["Color"].get_to(color_src);
-		config["Pipeline"].get_to(pipeline_src);
+		std::string color_src = config.value("Color", "WHITE_TEXTURE");
+		std::string pipeline_src = config.value("Pipeline", "BasicTextured");
 
 		auto usePath = [](const std::string& s) {
 			if (s == "WHITE_TEXTURE")
@@ -43,7 +40,7 @@ namespace Morpheus {
 		params.bIsSRGB = true; // Gamma correct albedo!
 
 		mColor = manager->Load<TextureResource>(params);
-		mPipeline = manager->Load<PipelineResource>(path + "/" + pipeline_src);
+		mPipeline = manager->Load<PipelineResource>(pipeline_src);
 	}
 
 	BasicTexturedMaterialPrototype::BasicTexturedMaterialPrototype(

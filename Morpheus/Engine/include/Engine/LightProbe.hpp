@@ -133,6 +133,27 @@ namespace Morpheus {
 			return *this;
 		}
 
+		inline LightProbe& operator=(const LightProbe& other) {
+	
+			if (mIrradianceMap)
+				mIrradianceMap->Release();
+			if (mPrefilteredEnvMap)
+				mPrefilteredEnvMap->Release();
+
+			mIrradianceMap = other.mIrradianceMap;
+			mIrradianceMapView =other.mIrradianceMapView;
+			mPrefilteredEnvMap = other.mPrefilteredEnvMap;
+			mPrefilteredEnvMapView = other.mPrefilteredEnvMapView;
+			mIrradianceSH = other.mIrradianceSH;
+
+			if (mIrradianceMap)
+				mIrradianceMap->AddRef();
+			if (mPrefilteredEnvMap)
+				mPrefilteredEnvMap->AddRef();
+
+			return *this;
+		}
+
 		inline ~LightProbe() {
 			if (mIrradianceMap)
 				mIrradianceMap->Release();

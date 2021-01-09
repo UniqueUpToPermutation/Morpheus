@@ -1,5 +1,5 @@
 #include "Sampling.hlsl"
-#include "GLTFPBRCommon.hlsl"
+#include "PBRCommon.hlsl"
 
 #ifndef OPTIMIZE_SAMPLES
 #   define OPTIMIZE_SAMPLES 1

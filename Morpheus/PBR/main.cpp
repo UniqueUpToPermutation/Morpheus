@@ -17,27 +17,30 @@ int main(int argc, char** argv) {
 
 	en.Startup(argc, argv);
 
-	SceneHeirarchy* scene = new SceneHeirarchy(&en);
+	Scene* scene = new Scene();
 	auto root = scene->GetRoot();
 
-	auto sphereMesh = en.GetResourceManager()->Load<StaticMeshResource>("static_mesh.json");
+	auto sphereMesh = en.GetResourceManager()
+		->Load<StaticMeshResource>("static_mesh.json");
 
-	for (int x = -5; x <= 5; ++x) {
-		for (int y = -5; y <= 5; ++y) {
-			auto meshNode = scene->CreateChild(root);
-			StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(sphereMesh);
-			Transform* transform = meshNode.AddComponent<Transform>();
-			transform->SetTranslation(meshNode, x * 3.0f, 0.0f, y * 3.0f);
+	int gridRadius = 5;
+
+	for (int x = -gridRadius; x <= gridRadius; ++x) {
+		for (int y = -gridRadius; y <= gridRadius; ++y) {
+			auto meshNode = root.CreateChild();
+			StaticMeshComponent& component = meshNode.Add<StaticMeshComponent>(sphereMesh);
+			Transform& transform = meshNode.Add<Transform>();
+			transform.SetTranslation(x * 3.0f, 0.0f, y * 3.0f);
 		}
 	}
 
 	auto gunMesh = en.GetResourceManager()->Load<StaticMeshResource>("cerberus.json");
-	auto meshNode = scene->CreateChild(root);
-	StaticMeshComponent* component = meshNode.AddComponent<StaticMeshComponent>(gunMesh);
-	Transform* transform = meshNode.AddComponent<Transform>(
+	auto meshNode = root.CreateChild();
+	StaticMeshComponent& component = meshNode.Add<StaticMeshComponent>(gunMesh);
+	Transform& transform = meshNode.Add<Transform>(
 		DG::float3(0.0f, 8.0f, 0.0f),
-		DG::float3(8.0f, 8.0f, 8.0f),
-		DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI)
+		DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI),
+		DG::float3(8.0f, 8.0f, 8.0f)
 	);
 
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
@@ -53,12 +56,12 @@ int main(int argc, char** argv) {
 	en.GetResourceManager()->Add(tex_res, "SKYBOX");
 
 	auto cameraNode = scene->GetCameraNode();
-	Transform* t = cameraNode.AddComponent<Transform>();
-	t->SetTranslation(cameraNode, 0.0f, 5.0f, 0.0f);
-	scene->GetCameraNode().AddComponent<EditorCameraController>(cameraNode);
+	Transform& t = cameraNode.Add<Transform>();
+	t.SetTranslation(0.0f, 0.0f, -5.0f);
+	scene->GetCameraNode().Add<EditorCameraController>(cameraNode, scene);
 
-	auto skybox = scene->CreateChild(root);
-	skybox.AddComponent<SkyboxComponent>(tex_res);
+	auto skybox = root.CreateChild();
+	skybox.Add<SkyboxComponent>(tex_res);
 
 	sphereMesh->Release();
 

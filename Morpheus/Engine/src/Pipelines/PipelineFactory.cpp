@@ -33,5 +33,6 @@ namespace Morpheus {
 		mPipelineFactories["BasicTextured"] = &CreateBasicTexturedPipeline;
 		mPipelineFactories["Skybox"] = &CreateSkyboxPipeline;
 		mPipelineFactories["PBRStaticMesh"] = &CreateStaticMeshPBRPipeline;
+		mPipelineFactories["White"] = &CreateWhitePipeline;
 	}
 }

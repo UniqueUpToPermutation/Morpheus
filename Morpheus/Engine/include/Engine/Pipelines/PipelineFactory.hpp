@@ -42,4 +42,11 @@ namespace Morpheus {
 		ShaderLoader* shaderLoader,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides);
+
+	void CreateWhitePipeline(DG::IRenderDevice* device,
+		ResourceManager* manager,
+		IRenderer* renderer,
+		ShaderLoader* shaderLoader,
+		PipelineResource* into,
+		const ShaderPreprocessorConfig* overrides);
 }

@@ -40,11 +40,23 @@ namespace Morpheus {
 			return mResource;
 		}
 
+		inline const StaticMeshResource* GetMesh() const {
+			return mResource;
+		}
+
 		inline PipelineResource* GetPipeline() {
 			return mResource->GetMaterial()->GetPipeline();
 		}
 
+		inline const PipelineResource* GetPipeline() const {
+			return mResource->GetMaterial()->GetPipeline();
+		}
+
 		inline MaterialResource* GetMaterial() {
+			return mResource->GetMaterial();
+		}
+
+		inline const MaterialResource* GetMaterial() const {
 			return mResource->GetMaterial();
 		}
 	};

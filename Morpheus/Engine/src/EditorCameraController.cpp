@@ -5,13 +5,13 @@
 namespace Morpheus {
 	void EditorCameraController::OnUpdate(const UpdateEvent& e) {
 
-		auto transform = mCameraNode.TryGetComponent<Transform>();
-
-		auto& input = e.mEngine->GetInputController();
+		auto& input = GetEngine()->GetInputController();
 		const auto& mouseState = input.GetMouseState();
 		const auto& lastState = input.GetLastMouseState();
 
-		if (transform) {
+		auto oldTransform = mCameraNode.TryGet<Transform>(); 
+
+		if (oldTransform) {
 			auto viewVec = GetViewVector();
 
 			auto up = DG::float3(0.0f, 1.0f, 0.0f);
@@ -20,8 +20,8 @@ namespace Morpheus {
 			auto viewUp = DG::cross(viewVec, sideways);
 			viewUp = DG::normalize(viewUp);
 
-			DG::Quaternion newRotation = transform->GetRotation();
-			DG::float3 newTranslation = transform->GetTranslation();
+			DG::Quaternion newRotation = oldTransform->GetRotation();
+			DG::float3 newTranslation = oldTransform->GetTranslation();
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_LEFT) {
 				mAzimuth -= mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
@@ -51,27 +51,32 @@ namespace Morpheus {
 				newTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 
-			transform->SetTransform(mCameraNode, 
-				newTranslation, DG::float3(1.0f, 1.0f, 1.0f), newRotation, true);
+			// Update the transform
+			mCameraNode.Patch<Transform>([&](Transform& transform) {
+				transform.SetTranslation(newTranslation);
+				transform.SetRotation(newRotation);
+			});
 		}
 	}
 
-	EditorCameraController::EditorCameraController(EntityNode cameraNode) :
-		mCameraNode(cameraNode) {
-		cameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
+	EditorCameraController::EditorCameraController(EntityNode cameraNode, Scene* scene) :
+		mCameraNode(cameraNode),
+		mScene(scene) {
+		scene->GetDispatcher()->sink<UpdateEvent>().
 			connect<&EditorCameraController::OnUpdate>(this);
 	}
 
 	EditorCameraController::EditorCameraController(const EditorCameraController& other) :
 		mCameraNode(other.mCameraNode),
 		mElevation(other.mElevation),
-		mAzimuth(other.mAzimuth) {
-		mCameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
+		mAzimuth(other.mAzimuth),
+		mScene(other.mScene) {
+		mScene->GetDispatcher()->sink<UpdateEvent>().
 			connect<&EditorCameraController::OnUpdate>(this);
 	}
 
 	EditorCameraController::~EditorCameraController() {
-		mCameraNode.GetScene()->GetDispatcher()->sink<UpdateEvent>().
+		mScene->GetDispatcher()->sink<UpdateEvent>().
 			disconnect<&EditorCameraController::OnUpdate>(this);
 	}
 
