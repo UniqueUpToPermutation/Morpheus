@@ -1,0 +1,9 @@
+void main(in float4 ClipPos : SV_Position,
+	in float3 WorldPos 		: WORLD_POS,
+    in float3 Normal    	: NORMAL,
+	in float3 Tangent 	 	: TANGENT,
+	in float2 UV	      	: UV0,
+    out float4 OutColor 	: SV_Target)
+{
+    OutColor = float4(1.0, 1.0, 1.0, 1.0);
+}
