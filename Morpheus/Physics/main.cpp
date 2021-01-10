@@ -20,8 +20,7 @@ void CreateSphere(btSphereShape* sphere,
 	GeometryResource* geo,
 	MaterialResource* mat) {
 
-	btMotionState* motionState = new btDefaultMotionState(btTransform(btMatrix3x3::getIdentity(), 
-		btVector3(position.x, position.y, position.z)));
+	btMotionState* motionState = new btDefaultMotionState();
 
 	btVector3 inertia;
 	sphere->calculateLocalInertia(1.0f, inertia);
@@ -61,7 +60,6 @@ int main(int argc, char** argv) {
 	groundNode.Add<GeometryComponent>(groundMesh);
 	groundNode.Add<MaterialComponent>(groundMaterial);
 	groundNode.Add<Transform>().SetTranslation(0.0f, -10.0f, 0.0f);
-	ground_rb->setWorldTransform(btTransform(btMatrix3x3::getIdentity(), btVector3(0.0f, -10.0f, 0.0f)));
 	groundNode.Add<RigidBodyComponent>(ground_rb);
 
 	groundMesh->Release();
@@ -72,7 +70,8 @@ int main(int argc, char** argv) {
 	MaterialResource* sphereMaterial;
 	content->LoadMesh("sphere.obj", "testpbr.json", &sphereMesh, &sphereMaterial);
 
-	for (int i = 0; i < 10; ++i) {
+	int stackCount = 40;
+	for (int i = 0; i < stackCount; ++i) {
 		CreateSphere(sphere, scene, 
 			DG::float3(0.0f, 2.5f * i, 0.0f),
 			sphereMesh, sphereMaterial);
@@ -106,7 +105,20 @@ int main(int argc, char** argv) {
 
 	en.SetScene(scene);
 
+	uint frames = 0;
+
 	while (en.IsReady()) {
+
+		if (frames == 400) {
+			auto registry = scene->GetRegistry();
+			auto view = registry->view<RigidBodyComponent, Transform>();
+			for (auto e : view) {
+				registry->patch<Transform>(e, [](auto& transform) { });			
+			}
+			frames = 0;
+		}
+		++frames;
+
 		en.Update();
 		en.Render();
 		en.Present();

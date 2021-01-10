@@ -90,5 +90,6 @@ namespace Morpheus {
 		}
 
 		DG::float4x4 ToMatrix() const;
+		btTransform ToBullet() const;
 	};
 }

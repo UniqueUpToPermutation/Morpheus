@@ -23,15 +23,26 @@ namespace Morpheus {
 				mConstaintSolver, 
 				mCollisionConfiguration);
 
-			auto rbView = scene->GetRegistry()->view<RigidBodyComponent>();
+			auto registry = scene->GetRegistry();
+			auto rbView = registry->view<RigidBodyComponent>();
 
 			for (auto e : rbView) {
 				auto& rb = rbView.get<RigidBodyComponent>(e);
 				mWorld->addRigidBody(rb);
+
+				auto transform = registry->try_get<Transform>(e);
+				if (transform) {
+					btTransform bulletTransform = transform->ToBullet();
+					auto ms = rb->getMotionState();
+					if (ms) {
+						ms->setWorldTransform(bulletTransform);
+					}
+					rb->setWorldTransform(bulletTransform);
+				}
 			}
 		}
 
-		mWorld->setGravity(btVector3(0, -10, 0));
+		mWorld->setGravity(btVector3(0, -15, 0));
 	}
 
 	void PhysicsSystem::KillPhysics(Scene * scene) {
@@ -72,37 +83,73 @@ namespace Morpheus {
 	}
 
 	void PhysicsSystem::Startup(Scene* scene) {
-		scene->GetRegistry()->on_construct<RigidBodyComponent>().connect<&PhysicsSystem::OnConstructRigidBody>(this);
-		scene->GetRegistry()->on_update<RigidBodyComponent>().connect<&PhysicsSystem::OnUpdateRigidBody>(this);
-		scene->GetRegistry()->on_destroy<RigidBodyComponent>().connect<&PhysicsSystem::OnDestroyRigidBody>(this);
+		auto registry = scene->GetRegistry();
+
+		registry->on_destroy<RigidBodyComponent>().connect<&PhysicsSystem::OnDestroyRigidBody>(this);
+		registry->on_construct<RigidBodyComponent>().connect<&PhysicsSystem::OnConstructRigidBody>(this);
 
 		InitPhysics(scene);
 
 		scene->GetDispatcher()->sink<UpdateEvent>().connect<&PhysicsSystem::OnSceneUpdate>(this);
+
+		mPhysicsComponentTransformUpdateObs.connect(*registry, entt::collector.update<Transform>().where<RigidBodyComponent>());
+		mPhysicsComponentTransformGroupObs.connect(*registry, entt::collector.group<Transform, RigidBodyComponent>());
+	}
+
+	void PhysicsSystem::CopyBulletTransformFromTransform(entt::registry& reg, entt::entity e) {
+		auto& transform = reg.get<Transform>(e);
+		auto& rb = reg.get<RigidBodyComponent>(e);
+
+		btTransform btTrans = transform.ToBullet();
+
+		auto motionState = rb->getMotionState();
+		if (motionState) {
+			motionState->setWorldTransform(btTrans);
+		}
+		rb->setWorldTransform(btTrans);
+		rb->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+		rb->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+		rb->activate();
+	}
+
+	void PhysicsSystem::CopyBulletTransformToCache(RigidBodyComponent& rb, 
+		entt::registry& registry, entt::entity e) {
+		auto cache = registry.try_get<MatrixTransformCache>(e);
+		if (cache) {
+			auto ms = rb->getMotionState();
+			if (ms) {
+				btTransform transform;
+				ms->getWorldTransform(transform);
+				transform.getOpenGLMatrix(&cache->mCache[0][0]);
+			}
+		}
 	}
 
 	void PhysicsSystem::OnSceneUpdate(const UpdateEvent& e) {
+		auto registry = e.mSender->GetRegistry();
+
+		for (auto entity : mPhysicsComponentTransformGroupObs) {
+			CopyBulletTransformFromTransform(*registry, entity);
+		}
+
+		for (auto entity : mPhysicsComponentTransformUpdateObs) {
+			CopyBulletTransformFromTransform(*registry, entity);
+		}
+
+		mPhysicsComponentTransformGroupObs.clear();
+		mPhysicsComponentTransformUpdateObs.clear();
+
 		mWorld->stepSimulation(1.0 / 60.0f);
 
-		auto registry = e.mSender->GetRegistry();
 		auto view = registry->view<RigidBodyComponent>();
 
 		for (auto e : view) {
 			auto& rb = view.get<RigidBodyComponent>(e);
 
 			if (rb->isActive()) {
-				auto cache = registry->try_get<MatrixTransformCache>(e);
-				if (cache) {
-					btTransform transform;
-					rb->getMotionState()->getWorldTransform(transform);
-					transform.getOpenGLMatrix(&cache->mCache[0][0]);
-				}
+				CopyBulletTransformToCache(rb, *registry, e);
 			}
 		}
-	}
-
-	void PhysicsSystem::OnConstructRigidBody(entt::registry& reg, entt::entity e) {
-		mWorld->addRigidBody(reg.get<RigidBodyComponent>(e));
 	}
 
 	void PhysicsSystem::OnDestroyRigidBody(entt::registry& reg, entt::entity e) {
@@ -111,22 +158,29 @@ namespace Morpheus {
 
 		auto ms = component->getMotionState();
 
-		if (ms)
+		if (ms) {
 			delete ms;
+		}
 
 		delete component.RawPtr();
 	}
 
-	void PhysicsSystem::OnUpdateRigidBody(entt::registry& reg, entt::entity e) {
+	void PhysicsSystem::OnConstructRigidBody(entt::registry& reg, entt::entity e) {
+		auto& rb = reg.get<RigidBodyComponent>(e);
+		mWorld->addRigidBody(rb);
 	}
-	
+
 	void PhysicsSystem::Shutdown(Scene* scene) {
+		auto registry = scene->GetRegistry();
+
+		mPhysicsComponentTransformGroupObs.disconnect();
+		mPhysicsComponentTransformUpdateObs.disconnect();
+
 		scene->GetDispatcher()->sink<UpdateEvent>().disconnect<&PhysicsSystem::OnSceneUpdate>(this);
 
 		KillPhysics(scene);
 
-		scene->GetRegistry()->on_construct<RigidBodyComponent>().disconnect<&PhysicsSystem::OnConstructRigidBody>(this);
-		scene->GetRegistry()->on_update<RigidBodyComponent>().disconnect<&PhysicsSystem::OnUpdateRigidBody>(this);
-		scene->GetRegistry()->on_destroy<RigidBodyComponent>().disconnect<&PhysicsSystem::OnDestroyRigidBody>(this);
+		registry->on_destroy<RigidBodyComponent>().disconnect<&PhysicsSystem::OnDestroyRigidBody>(this);
+		registry->on_construct<RigidBodyComponent>().disconnect<&PhysicsSystem::OnConstructRigidBody>(this);
 	}
 }
