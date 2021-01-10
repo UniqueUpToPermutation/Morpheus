@@ -127,7 +127,6 @@ list(APPEND SOURCE
 	src/Camera.cpp
 	src/TextureResource.cpp
 	src/MaterialResource.cpp
-	src/StaticMeshResource.cpp
 	src/ShaderLoader.cpp
 	src/Transform.cpp
 	src/Skybox.cpp

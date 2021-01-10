@@ -5,7 +5,6 @@
 #include <Engine/GeometryResource.hpp>
 #include <Engine/TextureResource.hpp>
 #include <Engine/MaterialResource.hpp>
-#include <Engine/StaticMeshResource.hpp>
 #include <Engine/MaterialView.hpp>
 #include <Engine/Systems/RendererBridge.hpp>
 
@@ -331,22 +330,20 @@ namespace Morpheus {
 	}
 
 	void DefaultRenderer::RenderStaticMeshes(
-		entt::registry* registry, 
+		entt::registry* registry,
+		RendererBridge* renderBridge,
 		LightProbe* globalLightProbe) {
 
 		PipelineResource* currentPipeline = nullptr;
 		MaterialResource* currentMaterial = nullptr;
-		StaticMeshResource* currentMesh = nullptr;
 
 		int currentIdx = 0;
 
 		auto context = mEngine->GetImmediateContext();
+		auto& meshGroup = renderBridge->GetRenderableGroup();
 
-		int meshCount = registry->size<StaticMeshComponent>();
-		auto meshComponentView = registry->view<StaticMeshComponent>();
-
-		auto currentIt = meshComponentView.begin();
-		auto endIt = meshComponentView.end();
+		auto currentIt = meshGroup->begin();
+		auto endIt = meshGroup->end();
 
 		while (currentIt != endIt) {
 			// First upload transforms to GPU buffer
@@ -369,8 +366,8 @@ namespace Morpheus {
 			context->UnmapBuffer(mInstanceBuffer, DG::MAP_WRITE);
 
 			while (currentIt != matrixCopyIt) {
-				auto mesh = meshComponentView.get<StaticMeshComponent>(*currentIt).GetMesh();
-				auto material = mesh->GetMaterial();
+				auto geometry = meshGroup->get<GeometryComponent>(*currentIt).RawPtr();
+				auto material = meshGroup->get<MaterialComponent>(*currentIt).RawPtr();
 				auto pipeline = material->GetPipeline();
 
 				// Change pipeline
@@ -392,7 +389,6 @@ namespace Morpheus {
 				}
 
 				// Render all of these static meshes in a batch
-				auto geometry = mesh->GetGeometry();
 				Uint32  offsets[]  = { 0, (DG::Uint32)(transformReadIdx * sizeof(DG::float4x4)) };
 				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
 				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
@@ -403,7 +399,8 @@ namespace Morpheus {
 				// Count the number of instances of this specific mesh to render
 				int instanceCount = 1;
 				for (++currentIt; currentIt != matrixCopyIt
-					&& meshComponentView.get<StaticMeshComponent>(*currentIt).GetMesh() == mesh;
+					&& meshGroup->get<GeometryComponent>(*currentIt).RawPtr() == geometry 
+					&& meshGroup->get<MaterialComponent>(*currentIt).RawPtr() == material;
 					++instanceCount, ++currentIt);
 
 				DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
@@ -419,6 +416,8 @@ namespace Morpheus {
 	void DefaultRenderer::Render(Scene* scene, EntityNode cameraNode) {
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
+
+		auto renderBridge = scene->GetSystem<RendererBridge>();
 
 		entt::registry* registry = nullptr;
 
@@ -474,7 +473,8 @@ namespace Morpheus {
 			WriteGlobalData(cameraNode, globalLightProbe);
 
 			// Render all static meshes in the scene
-			RenderStaticMeshes(registry, 
+			RenderStaticMeshes(registry,
+				renderBridge, 
 				globalLightProbe);
 
 			// Render skybox

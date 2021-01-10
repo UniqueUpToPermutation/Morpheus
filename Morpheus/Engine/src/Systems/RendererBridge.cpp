@@ -3,12 +3,20 @@
 #include <Engine/Skybox.hpp>
 #include <Engine/LightProbe.hpp>
 #include <Engine/Brdf.hpp>
-#include <Engine/StaticMeshComponent.hpp>
+
+#include <Engine/MaterialResource.hpp>
+#include <Engine/GeometryResource.hpp>
 
 namespace Morpheus {
 	void RendererBridge::Startup(Scene* scene) {
 		scene->GetDispatcher()->sink<SceneBeginEvent>().connect<&RendererBridge::OnSceneBegin>(this);
 		scene->GetDispatcher()->sink<FrameBeginEvent>().connect<&RendererBridge::OnFrameBegin>(this);
+
+		mRenderableGroup.reset(new StaticMeshGroupType(
+			scene->GetRegistry()->group<
+			MatrixTransformCache,
+			MaterialComponent,
+			GeometryComponent>()));
 	}
 
 	void RendererBridge::OnSceneBegin(const SceneBeginEvent& args) {
@@ -122,30 +130,23 @@ namespace Morpheus {
 		mTransformUpdateObs.clear();
 		mCacheNoTransformObs.clear();
 
-		// Sort static mesh components first by mesh, then by material, then by pipeline
-		registry->sort<StaticMeshComponent>([](
-			const StaticMeshComponent& lhsComponent, 
-			const StaticMeshComponent& rhsComponent) {
-			auto lhsPipeline = lhsComponent.GetPipeline();
-			auto lhsMaterial = lhsComponent.GetMaterial();
-			auto lhsMesh = lhsComponent.GetMesh();
+		auto group = mRenderableGroup.get();
+		mRenderableGroup->sort([&group](
+			const entt::entity lhs, 
+			const entt::entity rhs) {
+			
+			auto lhsMaterial = group->get<MaterialComponent>(lhs).RawPtr();
+			auto rhsMaterial = group->get<MaterialComponent>(rhs).RawPtr();
 
-			auto rhsPipeline = rhsComponent.GetPipeline();
-			auto rhsMaterial = rhsComponent.GetMaterial();
-			auto rhsMesh = rhsComponent.GetMesh();
+			auto lhsGeometry = group->get<GeometryComponent>(lhs).RawPtr();
+			auto rhsGeometry = group->get<GeometryComponent>(rhs).RawPtr();
 
-			if (lhsPipeline == rhsPipeline) {
-				if (lhsMaterial == rhsMaterial) {
-					return lhsMesh < rhsMesh;
-				} else {
-					return lhsMaterial < rhsMaterial;
-				}
+			if (lhsMaterial == rhsMaterial) {
+				return lhsGeometry < rhsGeometry;
 			} else {
-				return lhsPipeline < rhsPipeline;
+				return lhsMaterial < rhsMaterial;
 			}
 		});
-		registry->sort<MatrixTransformCache, 
-			StaticMeshComponent>();
 	}
 
 	MatrixTransformCache& RendererBridge::UpdateCache(EntityNode node, 
@@ -184,5 +185,7 @@ namespace Morpheus {
 			.disconnect<&RendererBridge::OnSceneBegin>(this);
 		scene->GetDispatcher()->sink<FrameBeginEvent>()
 			.disconnect<&RendererBridge::OnFrameBegin>(this);
+
+		mRenderableGroup.release();
 	}
 }

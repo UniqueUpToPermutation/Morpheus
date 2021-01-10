@@ -25,7 +25,8 @@ namespace Morpheus {
 		PipelineResource* mPipeline;
 		std::vector<TextureResource*> mTextures;
 		std::vector<DG::IBuffer*> mUniformBuffers;
-		std::string mSource;
+		bool bSourced;
+		std::unordered_map<std::string, MaterialResource*>::iterator mSourceIterator;
 		ResourceCache<MaterialResource>* mCache;
 		entt::entity mEntity;
 		std::unique_ptr<MaterialPrototype> mPrototype;
@@ -33,8 +34,9 @@ namespace Morpheus {
 		void Init(DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
-			const std::vector<DG::IBuffer*>& uniformBuffers,
-			const std::string& source);
+			const std::vector<DG::IBuffer*>& uniformBuffers);
+		
+		void SetSource(const std::unordered_map<std::string, MaterialResource*>::iterator& it);
 
 	public:
 
@@ -45,7 +47,6 @@ namespace Morpheus {
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
 			const std::vector<DG::IBuffer*>& uniformBuffers,
-			const std::string& source,
 			ResourceCache<MaterialResource>* cache);
 		~MaterialResource();
 
@@ -68,7 +69,11 @@ namespace Morpheus {
 		}
 
 		inline std::string GetSource() const {
-			return mSource;
+			if (bSourced) {
+				mSourceIterator->first;
+			} else {
+				return "No Source";
+			}
 		}
 
 		entt::id_type GetType() const override {

@@ -1,6 +1,5 @@
 #include <Engine/Renderer.hpp>
 #include <Engine/Camera.hpp>
-#include <Engine/StaticMeshComponent.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/Skybox.hpp>
 #include <Engine/Brdf.hpp>
@@ -77,7 +76,8 @@ namespace Morpheus {
 
 		bool bUseSHIrradiance;
 
-		void RenderStaticMeshes(entt::registry* registry, 
+		void RenderStaticMeshes(entt::registry* registry,
+			RendererBridge* renderBridge,
 			LightProbe* globalLightProbe);
 		void RenderSkybox(SkyboxComponent* skybox);
 		void ReallocateIntermediateFramebuffer(uint width, uint height);

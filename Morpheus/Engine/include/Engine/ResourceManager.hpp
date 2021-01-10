@@ -112,5 +112,10 @@ namespace Morpheus {
 		inline Engine* GetParent() {
 			return mParent;
 		}
+
+		void LoadMesh(const std::string& geometrySource,
+			std::string& materialSource,
+			GeometryResource** geometryResourceOut,
+			MaterialResource** materialResourceOut);
 	};
 }

@@ -74,68 +74,7 @@ namespace Morpheus
 		mResourceManager = new ResourceManager(this);
 		mRenderer = new DefaultRenderer(this);
 
-		InitializePhysics();
-
 		mRenderer->Initialize();
-	}
-
-	btDynamicsWorld* Engine::CreateDynamicsWorld() {
-		std::cout << "Creating New Dynamics World..." << std::endl;
-
-		if (mCollisionConfiguration && 
-			mCollisionDispatcher && 
-			mBroadphaseInterface && 
-			mConstraintSolver) {
-
-			auto dynamicsWorld = new btDiscreteDynamicsWorld(
-				mCollisionDispatcher,
-				mBroadphaseInterface,
-				mConstraintSolver,
-				mCollisionConfiguration);
-
-			// Create dynamics world
-			dynamicsWorld->setGravity(btVector3(0.0f, -10.0f, 0.0f));
-			
-			return dynamicsWorld;
-		} else {
-			std::cout << "Cannot create dynamics world when physics hasn't been initialized!" << std::endl;
-			throw std::runtime_error("Cannot create dynamics world when physics hasn't been initialized!");
-		}
-	}
-
-	void Engine::InitializePhysics() {
-		std::cout << "Initializing Bullet Physics..." << std::endl;
-
-		if (!mCollisionConfiguration)
-			mCollisionConfiguration = new btDefaultCollisionConfiguration();
-		if (!mCollisionDispatcher)
-			mCollisionDispatcher = new btCollisionDispatcher(mCollisionConfiguration);
-		if (!mBroadphaseInterface)
-			mBroadphaseInterface = new btDbvtBroadphase();
-		if (!mConstraintSolver)
-			mConstraintSolver = new btSequentialImpulseConstraintSolver();
-	}
-
-	void Engine::ShutdownPhysics() {
-		if (mConstraintSolver) {
-			delete mConstraintSolver;
-			mConstraintSolver = nullptr;
-		}
-
-		if (mBroadphaseInterface) {
-			delete mBroadphaseInterface;
-			mBroadphaseInterface = nullptr;
-		}
-
-		if (mCollisionDispatcher) {
-			delete mCollisionDispatcher;
-			mCollisionDispatcher = nullptr;
-		}
-
-		if (mCollisionConfiguration) {
-			delete mCollisionConfiguration;
-			mCollisionConfiguration = nullptr;
-		}
 	}
 
 	DG::float4x4 Engine::GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const
@@ -201,18 +140,18 @@ namespace Morpheus
 	}
 
 	void Engine::SetScene(Scene* scene, bool bUnloadOld) {
-		if (bUnloadOld && mSceneHeirarchy)
-			delete mSceneHeirarchy;
+		if (bUnloadOld && mScene)
+			delete mScene;
 
-		mSceneHeirarchy = scene;
+		mScene = scene;
 
-		if (mSceneHeirarchy) {
-			if (!mSceneHeirarchy->IsInitializedByEngine()) {
+		if (mScene) {
+			if (!mScene->IsInitializedByEngine()) {
 				std::cout << "Engine::SetScene: Default systems have not yet been initialized for scene." << std::endl;
-				InitializeDefaultSystems(mSceneHeirarchy);
+				InitializeDefaultSystems(mScene);
 			}
 
-			mSceneHeirarchy->Begin();
+			mScene->Begin();
 		}
 
 		CollectGarbage();
@@ -225,9 +164,9 @@ namespace Morpheus
 	}
 
 	void Engine::Shutdown() {
-		if (mSceneHeirarchy) {
-			delete mSceneHeirarchy;
-			mSceneHeirarchy = nullptr; 
+		if (mScene) {
+			delete mScene;
+			mScene = nullptr; 
 		}
 
 		if (mRenderer) {
@@ -241,8 +180,6 @@ namespace Morpheus
 			delete mResourceManager;
 			mResourceManager = nullptr;
 		}
-
-		ShutdownPhysics();
 
 		for (auto context : mDeferredContexts)
 			context->Release();
@@ -1047,8 +984,8 @@ namespace Morpheus
 			mInputController.ClearState();
 		}
 
-		if (mSceneHeirarchy) {
-			mSceneHeirarchy->Update(CurrTime, ElapsedTime);
+		if (mScene) {
+			mScene->Update(CurrTime, ElapsedTime);
 		}
 	}
 
@@ -1056,11 +993,11 @@ namespace Morpheus
 	{
 		EntityNode camera = EntityNode::Invalid();
 
-		if (mSceneHeirarchy) {
-			camera = mSceneHeirarchy->GetCameraNode();
+		if (mScene) {
+			camera = mScene->GetCameraNode();
 		}
 
-		mRenderer->Render(mSceneHeirarchy, camera);
+		mRenderer->Render(mScene, camera);
 	}
 
 	void Engine::CompareGoldenImage(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)

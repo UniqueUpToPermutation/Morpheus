@@ -8,9 +8,11 @@
 #include "DeviceContext.h"
 #include "SwapChain.h"
 
+#include <Engine/Entity.hpp>
 #include <Engine/Scene.hpp>
 #include <Engine/Transform.hpp>
 #include <Engine/ResourceManager.hpp>
+#include <Engine/Resource.hpp>
 
 namespace DG = Diligent;
 
@@ -21,6 +23,15 @@ namespace Morpheus {
 	};
 
 	class RendererBridge : public ISystem {
+	public:
+	typedef entt::basic_group<
+		entt::entity,
+		entt::exclude_t<>,
+		entt::get_t<>,
+		MatrixTransformCache,
+		MaterialComponent,
+		GeometryComponent> StaticMeshGroupType;
+
 	private:
 		IRenderer* mRenderer;
 		ResourceManager* mResourceManager;
@@ -28,6 +39,8 @@ namespace Morpheus {
 		entt::observer mTransformNoCacheObs;
 		entt::observer mTransformUpdateObs;
 		entt::observer mCacheNoTransformObs;
+
+		std::unique_ptr<StaticMeshGroupType> mRenderableGroup;
 
 	public:
 		inline RendererBridge(
@@ -48,5 +61,9 @@ namespace Morpheus {
 			const Transform& transform,
 			bool bUpdateDescendants);
 		EntityNode FindTransformParent(EntityNode node);
+
+		inline decltype(RendererBridge::mRenderableGroup)& GetRenderableGroup() {
+			return mRenderableGroup;
+		}
 	};
 }

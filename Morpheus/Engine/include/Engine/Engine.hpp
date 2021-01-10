@@ -14,8 +14,6 @@
 #include "ScreenCapture.hpp"
 #include "Image.h"
 
-#include "btBulletDynamicsCommon.h"
-
 #include <Engine/Platform.hpp>
 #include <Engine/InputController.hpp>
 #include <Engine/ResourceManager.hpp>
@@ -84,9 +82,6 @@ namespace Morpheus {
 #endif
 
 	private:
-		void InitializePhysics();
-		void ShutdownPhysics();
-
 		void OnPreWindowResized();
 		void OnWindowResized(uint width, uint height);
 
@@ -124,13 +119,8 @@ namespace Morpheus {
 		InputController		mInputController;
 		IPlatform*			mPlatform			= nullptr;
 		ResourceManager* 	mResourceManager 	= nullptr;
-		Scene* 	mSceneHeirarchy 	= nullptr;
+		Scene* 				mScene 				= nullptr;
 		IRenderer*			mRenderer 			= nullptr;
-
-		btCollisionConfiguration* 	mCollisionConfiguration 	= nullptr;
-		btBroadphaseInterface*		mBroadphaseInterface 		= nullptr;
-		btDispatcher*				mCollisionDispatcher 		= nullptr;
-		btConstraintSolver*			mConstraintSolver			= nullptr;
 
 		int          mInitialWindowWidth  	= 0;
 		int          mInitialWindowHeight 	= 0;
@@ -222,7 +212,7 @@ namespace Morpheus {
 			return mResourceManager;
 		}
 		inline Scene* GetScene() {
-			return mSceneHeirarchy;
+			return mScene;
 		}
 		inline bool GetShowUI() const {
 			return bShowUI;
@@ -232,18 +222,6 @@ namespace Morpheus {
 		}
 		inline DG::ImGuiImplDiligent* GetUI() {
 			return mImGui.get();
-		}
-		inline btCollisionConfiguration* GetCollisionConfiguration() {
-			return mCollisionConfiguration;
-		}
-		inline btBroadphaseInterface* GetBroadphaseInterface() {
-			return mBroadphaseInterface;
-		}
-		inline btDispatcher* GetCollisionDispatcher() {
-			return mCollisionDispatcher;
-		}
-		inline btConstraintSolver* GetConstraintSolver() {
-			return mConstraintSolver;
 		}
 
 		void InitializeDefaultSystems(Scene* scene);

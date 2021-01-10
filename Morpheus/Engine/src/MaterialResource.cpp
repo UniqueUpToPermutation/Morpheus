@@ -21,19 +21,19 @@ namespace Morpheus {
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
 		const std::vector<DG::IBuffer*>& buffers,
-		const std::string& source,
-		ResourceCache<MaterialResource>* cache) : 
+		ResourceCache<MaterialResource>* cache) :
 		IResource(manager),
 		mCache(cache) {
 		mEntity = cache->mViewRegistry.create();
-		Init(binding, pipeline, textures, buffers, source);
+		Init(binding, pipeline, textures, buffers);
 	}
 
 	void MaterialResource::Init(DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
-		const std::vector<DG::IBuffer*>& buffers,
-		const std::string& source) {
+		const std::vector<DG::IBuffer*>& buffers) {
+
+		bSourced = false;
 
 		pipeline->AddRef();
 		for (auto tex : textures) {
@@ -57,7 +57,11 @@ namespace Morpheus {
 		mResourceBinding = binding;
 		mPipeline = pipeline;
 		mTextures = textures;
-		mSource = source;
+	}
+
+	void MaterialResource::SetSource(const std::unordered_map<std::string, MaterialResource*>::iterator& it) {
+		mSourceIterator = it;
+		bSourced = true;
 	}
 
 	MaterialResource::~MaterialResource() {
@@ -170,7 +174,7 @@ namespace Morpheus {
 			}
 
 			std::vector<DG::IBuffer*> buffers;
-			loadinto->Init(binding, pipeline, textures, buffers, source);
+			loadinto->Init(binding, pipeline, textures, buffers);
 
 			for (auto tex : textures) {
 				tex->Release();
@@ -200,7 +204,8 @@ namespace Morpheus {
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
 		mLoader.Load(src, mPrototypeFactory, resource);
-		mResourceMap[src] = resource;
+		resource->bSourced = true;
+		resource->mSourceIterator = mResourceMap.emplace(src, resource).first;
 		return resource;
 	}
 
@@ -214,7 +219,8 @@ namespace Morpheus {
 		}
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
-		mResourceMap[src] = resource;
+		resource->mSourceIterator = mResourceMap.emplace(src, resource).first;
+		resource->bSourced = true;
 		mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
 		return resource;
 	}
@@ -231,27 +237,25 @@ namespace Morpheus {
 		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 
-		auto pipeline = resource->ToMaterial();
+		auto material = resource->ToMaterial();
 
 		auto it = mResourceMap.find(src);
 		if (it != mResourceMap.end()) {
-			if (it->second != pipeline)
+			if (it->second != material)
 				Unload(it->second);
 			else
 				return;
 		}
-		mResourceMap[src] = pipeline;
+		
+		material->mSourceIterator = mResourceMap.emplace(src, material).first;
+		material->bSourced = true;
 	}
 
 	void ResourceCache<MaterialResource>::Unload(IResource* resource) {
 		auto mat = resource->ToMaterial();
 
-		auto it = mResourceMap.find(mat->GetSource());
-		if (it != mResourceMap.end()) {
-			if (it->second == mat) {
-				mResourceMap.erase(it);
-			}
-		}
+		if (mat->bSourced)
+			mResourceMap.erase(mat->mSourceIterator);
 
 		delete resource;
 	}

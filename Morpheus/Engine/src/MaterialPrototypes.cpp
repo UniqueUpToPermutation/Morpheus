@@ -42,7 +42,7 @@ namespace Morpheus {
 		const std::vector<TextureResource*>& textures,
 		const std::vector<DG::IBuffer*>& buffers) {
 
-		material->Init(binding, pipeline, textures, buffers, "");
+		material->Init(binding, pipeline, textures, buffers);
 		material->mPrototype.reset(DeepCopy());
 	}
 	
