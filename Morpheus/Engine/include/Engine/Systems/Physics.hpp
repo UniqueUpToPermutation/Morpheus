@@ -1,9 +1,7 @@
 #pragma once
 
 #include <Engine/Scene.hpp>
-
-#include <btBulletDynamicsCommon.h>
-
+#include <Engine/Components/PhysicsComponents.hpp>
 namespace Morpheus {
 	class PhysicsSystem : public ISystem {
 	private:
@@ -13,12 +11,18 @@ namespace Morpheus {
 		btCollisionDispatcher* mCollisionDispatcher = nullptr;
 		btConstraintSolver* mConstaintSolver = nullptr;
 
-		void InitPhysics();
-		void KillPhysics();
+		void InitPhysics(Scene* scene);
+		void KillPhysics(Scene* scene);
 
 	public:
 		void Startup(Scene* scene) override;
 		void Shutdown(Scene* scene) override;
+
+		void OnUpdateRigidBody(entt::registry& reg, entt::entity e);
+		void OnConstructRigidBody(entt::registry& reg, entt::entity e);
+		void OnDestroyRigidBody(entt::registry& reg, entt::entity e);
+
+		void OnSceneUpdate(const UpdateEvent& e);
 
 		inline btDynamicsWorld* GetWorld() {
 			return mWorld;

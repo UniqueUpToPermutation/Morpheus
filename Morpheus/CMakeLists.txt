@@ -87,3 +87,7 @@ endif()
 if(TARGET Morpheus-Engine)
 	add_subdirectory(enttTest)
 endif()
+
+if(TARGET Morpheus-Engine)
+	add_subdirectory(Physics)
+endif()

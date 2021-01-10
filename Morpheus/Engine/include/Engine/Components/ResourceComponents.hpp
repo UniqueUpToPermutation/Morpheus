@@ -8,5 +8,4 @@ namespace Morpheus {
 	typedef RefCountComponent<PipelineResource> PipelineComponent;
 	typedef RefCountComponent<MaterialResource> MaterialComponent;
 	typedef RefCountComponent<GeometryResource> GeometryComponent;
-	typedef RefCountComponent<CollisionShapeResource> CollisionShapeComponent;
 }

@@ -11,9 +11,9 @@
 #include <Engine/EditorCameraController.hpp>
 #include <Engine/Camera.hpp>
 #include <Engine/Systems/Physics.hpp>
-#include <random>
 
 using namespace Morpheus;
+
 
 int main(int argc, char** argv) {
 	
@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
 	en.Startup(argc, argv);
 
 	Scene* scene = new Scene();
-	scene->AddSystem<PhysicsSystem>();
 
 
 	auto root = scene->GetRoot();

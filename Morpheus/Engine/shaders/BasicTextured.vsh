@@ -1,14 +1,10 @@
 #include "BasicStructures.hlsl"
+#include "Math.hlsl"
 
-cbuffer Globals
+struct VSInput
 {
-    RendererGlobalData mGlobals;
-};
-
-struct VSInput 
-{
-	float3 Position : ATTRIB0;
-	float2 UV 		: ATTRIB1; 
+    float3 Pos      : ATTRIB0;
+    float2 UV0      : ATTRIB1;
 
 	float4 World0	: ATTRIB2;
 	float4 World1	: ATTRIB3;
@@ -16,27 +12,27 @@ struct VSInput
 	float4 World3 	: ATTRIB5;
 };
 
-struct PSInput 
-{ 
-    float4 Position	: SV_POSITION;
-	float2 UV	 	: TEXCOORD;
-};
-
-void main(in uint VertId : SV_VertexID,
-	in VSInput VSIn,
-	out PSInput PSIn) 
+cbuffer Globals
 {
-    float4x4 InstanceMatr = 
-		MatrixFromRows(
-			VSIn.World0, 
-			VSIn.World1, 
-			VSIn.World2, 
-			VSIn.World3);
+    RendererGlobalData mGlobals;
+}
 
-	float4 worldPos = mul(float4(VSIn.Position, 1.0), 
-		InstanceMatr);
+void main(in  VSInput VSIn,
+    out float4 ClipPos  	: SV_Position,
+	out float3 WorldPos 	: WORLD_POS,
+    out float3 Normal    	: NORMAL,
+	out float3 Tangent 	 	: TANGENT,
+	out float2 UV	      	: UV0) 
+{
+    float4x4 Transform = MatrixFromRows(
+		VSIn.World0, 
+		VSIn.World1, 
+		VSIn.World2, 
+		VSIn.World3);
 
-	PSIn.Position  	= mul(worldPos, mGlobals.mCamera.mViewProj);
-
-    PSIn.UV 		= VSIn.UV;
+	float4 transformWorldPos = mul(Transform, float4(VSIn.Pos, 1.0));
+    
+	WorldPos = transformWorldPos.xyz / transformWorldPos.w;
+	ClipPos  = mul(float4(WorldPos, 1.0), mGlobals.mCamera.mViewProj);
+    UV 	  = VSIn.UV0;
 }

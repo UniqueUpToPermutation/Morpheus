@@ -1,0 +1,5 @@
+{
+	"Prototype" : "StaticMeshPBRMaterial",
+	"Albedo" : "brick.jpg",
+	"Roughness" : "WHITE_TEXTURE"
+}

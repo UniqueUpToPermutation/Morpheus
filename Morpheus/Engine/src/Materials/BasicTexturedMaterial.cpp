@@ -67,7 +67,7 @@ namespace Morpheus {
 		DG::IShaderResourceBinding* srb = nullptr;
 		mPipeline->GetState()->CreateShaderResourceBinding(&srb, true);
 		
-		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mColor->GetTexture());
+		srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mColor->GetShaderView());
 
 		std::vector<TextureResource*> textures;
 		textures.emplace_back(mColor);

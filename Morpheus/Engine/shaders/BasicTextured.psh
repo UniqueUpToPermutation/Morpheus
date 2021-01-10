@@ -1,19 +1,12 @@
 Texture2D    mTexture;
 SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix
 
-struct PSInput 
-{ 
-    float4 Pos   : SV_POSITION;
-	float2 UV	 : TEXCOORD;
-};
-
-struct PSOutput
-{ 
-    float4 Color : SV_TARGET; 
-};
-
-void main(in  PSInput  PSIn,
-          out PSOutput PSOut)
+void main(in float4 ClipPos : SV_Position,
+	in float3 WorldPos 		: WORLD_POS,
+    in float3 Normal    	: NORMAL,
+	in float3 Tangent 	 	: TANGENT,
+	in float2 UV	      	: UV0,
+    out float4 OutColor 	: SV_Target)
 {
-    PSOut.Color = mTexture.Sample(mTexture_sampler, PSIn.UV); 
+    OutColor = mTexture.Sample(mTexture_sampler, UV); 
 }

@@ -6,6 +6,8 @@
 
 #include <entt/entt.hpp>
 
+#include <Engine/Components/UniquePointerComponent.hpp>
+
 template<typename... Type>
 entt::type_list<Type...> as_type_list(const entt::type_list<Type...> &);
 
@@ -318,7 +320,11 @@ namespace Morpheus {
 
 		template<typename Component, typename... Args>
 		inline decltype(auto) Replace(Args &&... args) {
-			return mRegistry->template replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
+			if constexpr (IsUniquePointerComponent<Component>()) {
+				static_assert("Cannot used replace with unique pointer components!");
+			} else {
+				return mRegistry->template replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
+			}
 		}
 
 		template <typename Component>
@@ -328,7 +334,11 @@ namespace Morpheus {
 
 		template <typename Component, typename... Args>
 		inline decltype(auto) AddOrReplace(Args &&... args) {
-			return mRegistry->template emplace_or_replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
+			if constexpr (IsUniquePointerComponent<Component>()) {
+				static_assert("Cannot used replace with unique pointer components!");
+			} else {
+				return mRegistry->template emplace_or_replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
+			}
 		}
 	};
 }
