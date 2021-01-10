@@ -1,5 +1,5 @@
 #include <Engine/PostProcessor.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Engine.hpp>
 
 #include "MapHelper.hpp"

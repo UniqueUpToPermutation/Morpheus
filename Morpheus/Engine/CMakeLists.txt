@@ -118,45 +118,47 @@ endif()
 
 list(APPEND SOURCE
 	src/Engine.cpp
-	src/Resource.cpp
-	src/ResourceManager.cpp
-	src/PipelineResource.cpp
-	src/Scene.cpp
-	src/DefaultRenderer.cpp
-	src/GeometryResource.cpp
-	src/Camera.cpp
-	src/TextureResource.cpp
-	src/MaterialResource.cpp
-	src/ShaderLoader.cpp
-	src/Transform.cpp
-	src/Skybox.cpp
 	src/Brdf.cpp
 	src/HdriToCubemap.cpp
 	src/EditorCameraController.cpp
 	src/PostProcessor.cpp
+	src/Scene.cpp
+	src/DefaultRenderer.cpp
+	src/Camera.cpp
+
+	src/Resources/Resource.cpp
+	src/Resources/ResourceManager.cpp
+	src/Resources/PipelineResource.cpp
+	src/Resources/TextureResource.cpp
+	src/Resources/MaterialResource.cpp
+	src/Resources/GeometryResource.cpp
+	src/Resources/ShaderLoader.cpp
+
+	src/Components/Transform.cpp
+	src/Components/SkyboxComponent.cpp
+	
+
 	src/Pipelines/PipelineFactory.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp
 	src/Pipelines/StaticMeshPBR.cpp
 	src/Pipelines/White.cpp
-	src/MaterialPrototypes.cpp
+
+	src/Materials/MaterialPrototypes.cpp
 	src/Materials/BasicTexturedMaterial.cpp
 	src/Materials/WhiteMaterial.cpp
 	src/Materials/JsonMaterial.cpp
 	src/Materials/ImageBasedLightingView.cpp
 	src/Materials/StaticMeshPBRMaterial.cpp
+
 	src/Systems/RendererBridge.cpp
 	src/Systems/Physics.cpp
+
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )
 
 list(APPEND INCLUDE
-    include/Engine/InputController.hpp
-	include/Engine/Platform.hpp
-	include/Engine/Resource.hpp
-	include/Engine/ResourceManager.hpp
-	include/Engine/PipelineResource.hpp
 )
 
 message("SOURCES:")

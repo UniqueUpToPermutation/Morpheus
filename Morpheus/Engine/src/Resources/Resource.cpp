@@ -1,5 +1,5 @@
-#include <Engine/Resource.hpp>
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 
 namespace Morpheus {
 	void IResource::Release() {
@@ -22,6 +22,10 @@ namespace Morpheus {
 	}
 
 	TextureResource* IResource::ToTexture() {
+		return nullptr;
+	}
+
+	CollisionShapeResource* IResource::ToCollisionShape() {
 		return nullptr;
 	}
 }

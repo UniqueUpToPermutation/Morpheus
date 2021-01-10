@@ -1,6 +1,5 @@
 #pragma once
 #include <Engine/Entity.hpp>
-#include <Engine/RefCountComponent.hpp>
 
 namespace Morpheus {
 	class TextureResource;
@@ -8,18 +7,15 @@ namespace Morpheus {
 	class MaterialResource;
 	class GeometryResource;
 	class ResourceManager;
-
-	typedef RefCountComponent<TextureResource> TextureComponent;
-	typedef RefCountComponent<PipelineResource> PipelineComponent;
-	typedef RefCountComponent<MaterialResource> MaterialComponent;
-	typedef RefCountComponent<GeometryResource> GeometryComponent;
+	class CollisionShapeResource;
 
 	using resource_type = 
 		entt::identifier<
 			TextureResource,
 			PipelineResource,
 			MaterialResource,
-			GeometryResource>;
+			GeometryResource,
+			CollisionShapeResource>;
 
 	class IResource;
 
@@ -78,6 +74,7 @@ namespace Morpheus {
 		virtual GeometryResource* ToGeometry();
 		virtual MaterialResource* ToMaterial();
 		virtual TextureResource* ToTexture();
+		virtual CollisionShapeResource* ToCollisionShape();
 
 		inline ResourceManager* GetManager() {
 			return mManager;
@@ -114,6 +111,13 @@ namespace Morpheus {
 	struct ResourceConvert<TextureResource> {
 		static inline TextureResource* Convert(IResource* resource) {
 			return resource->ToTexture();
+		}
+	};
+
+	template <>
+	struct ResourceConvert<CollisionShapeResource> {
+		static inline CollisionShapeResource* Convert(IResource* resource) {
+			return resource->ToCollisionShape();
 		}
 	};
 }

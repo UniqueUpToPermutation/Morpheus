@@ -1,11 +1,12 @@
 #include <Engine/Systems/RendererBridge.hpp>
-#include <Engine/Transform.hpp>
-#include <Engine/Skybox.hpp>
+#include <Engine/Components/Transform.hpp>
+#include <Engine/Components/SkyboxComponent.hpp>
+#include <Engine/Components/ResourceComponents.hpp>
 #include <Engine/LightProbe.hpp>
 #include <Engine/Brdf.hpp>
 
-#include <Engine/MaterialResource.hpp>
-#include <Engine/GeometryResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Resources/GeometryResource.hpp>
 
 namespace Morpheus {
 	void RendererBridge::Startup(Scene* scene) {

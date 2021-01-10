@@ -1,7 +1,7 @@
 #include <Engine/Brdf.hpp>
 
-#include <Engine/PipelineResource.hpp>
-#include <Engine/TextureResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Engine.hpp>
 
 #include "GraphicsUtilities.h"

@@ -3,8 +3,8 @@
 #include <vector>
 #include <unordered_map>
 
-#include <Engine/Resource.hpp>
-#include <Engine/ShaderLoader.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/ShaderLoader.hpp>
 
 namespace Morpheus {
 
@@ -114,7 +114,7 @@ namespace Morpheus {
 		}
 
 		void LoadMesh(const std::string& geometrySource,
-			std::string& materialSource,
+			const std::string& materialSource,
 			GeometryResource** geometryResourceOut,
 			MaterialResource** materialResourceOut);
 	};

@@ -16,7 +16,7 @@
 
 #include <Engine/Platform.hpp>
 #include <Engine/InputController.hpp>
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Scene.hpp>
 #include <Engine/Renderer.hpp>
 #include <Engine/Entity.hpp>

@@ -6,7 +6,7 @@
 #include <set>
 
 #include <nlohmann/json.hpp>
-#include <Engine/Resource.hpp>
+#include <Engine/Resources/Resource.hpp>
 
 #include "RenderDevice.h"
 #include "DeviceContext.h"

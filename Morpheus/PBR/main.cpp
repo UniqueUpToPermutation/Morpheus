@@ -1,11 +1,12 @@
 #include <Engine/Engine.hpp>
-#include <Engine/TextureResource.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/MaterialResource.hpp>
-#include <Engine/GeometryResource.hpp>
-#include <Engine/Transform.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Resources/GeometryResource.hpp>
+#include <Engine/Components/ResourceComponents.hpp>
+#include <Engine/Components/Transform.hpp>
 #include <Engine/HdriToCubemap.hpp>
-#include <Engine/Skybox.hpp>
+#include <Engine/Components/SkyboxComponent.hpp>
 #include <Engine/Brdf.hpp>
 #include <Engine/EditorCameraController.hpp>
 #include <Engine/Camera.hpp>
@@ -15,22 +16,22 @@
 using namespace Morpheus;
 
 int main(int argc, char** argv) {
+	
 	Engine en;
-
 	en.Startup(argc, argv);
 
 	Scene* scene = new Scene();
 	scene->AddSystem<PhysicsSystem>();
-	
+
+
 	auto root = scene->GetRoot();
 	auto content = en.GetResourceManager();
 
-	
-	auto sphereMaterial = content->Load<MaterialResource>("testpbr.json");
-	LoadParams<GeometryResource> sphereParams;
-	sphereParams.mSource = "sphere.obj";
-	sphereParams.mPipelineResource = sphereMaterial->GetPipeline();
-	auto sphereMesh = content->Load<GeometryResource>(sphereParams);
+
+	// Create Grid of Spheres
+	GeometryResource* sphereMesh;
+	MaterialResource* sphereMaterial;
+	content->LoadMesh("sphere.obj", "testpbr.json", &sphereMesh, &sphereMaterial);
 	
 	int gridRadius = 5;
 	for (int x = -gridRadius; x <= gridRadius; ++x) {
@@ -46,12 +47,11 @@ int main(int argc, char** argv) {
 	sphereMesh->Release();
 	sphereMaterial->Release();
 
-	auto gunMaterial = content->Load<MaterialResource>("cerberusmat.json");
 
-	LoadParams<GeometryResource> gunParams;
-	gunParams.mSource = "cerberus.obj";
-	gunParams.mPipelineResource = gunMaterial->GetPipeline();
-	auto gunMesh = content->Load<GeometryResource>(gunParams);
+	// Create Gun
+	GeometryResource* gunMesh;
+	MaterialResource* gunMaterial;
+	content->LoadMesh("cerberus.obj", "cerberusmat.json", &gunMesh, &gunMaterial);
 	
 	auto gunNode = root.CreateChild();
 	gunNode.Add<GeometryComponent>(gunMesh);
@@ -66,23 +66,27 @@ int main(int argc, char** argv) {
 	gunMaterial->Release();
 	gunMesh->Release();
 
+
+	// Load HDRI and convert it to a cubemap
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 	HDRIToCubemapConverter conv(en.GetDevice());
-	conv.Initialize(en.GetResourceManager(), DG::TEX_FORMAT_RGBA16_FLOAT);
+	conv.Initialize(content, DG::TEX_FORMAT_RGBA16_FLOAT);
 	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048);
 	skybox_hdri->Release();
 
-	auto tex_res = new TextureResource(en.GetResourceManager(), skybox_texture);
+
+	// Create skybox from HDRI cubemap
+	auto tex_res = new TextureResource(content, skybox_texture);
 	tex_res->AddRef();
-	content->Add(tex_res, "SKYBOX");
-
-	auto cameraNode = scene->GetCameraNode();
-	Transform& t = cameraNode.Add<Transform>();
-	t.SetTranslation(0.0f, 0.0f, -5.0f);
-	cameraNode.Add<EditorCameraController>(cameraNode, scene);
-
 	auto skybox = root.CreateChild();
 	skybox.Add<SkyboxComponent>(tex_res);
+	tex_res->Release();
+
+
+	// Create a controller 
+	auto cameraNode = scene->GetCameraNode();
+	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
+	cameraNode.Add<EditorCameraController>(cameraNode, scene);
 
 	en.SetScene(scene);
 

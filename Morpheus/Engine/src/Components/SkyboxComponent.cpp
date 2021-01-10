@@ -1,4 +1,4 @@
-#include <Engine/Skybox.hpp>
+#include <Engine/Components/SkyboxComponent.hpp>
 
 namespace Morpheus {
 	void SkyboxComponent::LoadPipeline(ResourceManager* manager) {

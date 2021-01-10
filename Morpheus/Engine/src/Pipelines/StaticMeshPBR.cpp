@@ -1,5 +1,5 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 
 namespace Morpheus {
 	void CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,

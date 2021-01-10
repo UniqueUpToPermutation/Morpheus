@@ -1,5 +1,5 @@
-#include <Engine/ShaderLoader.hpp>
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/ShaderLoader.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 
 #include <sstream>
 #include <iostream>

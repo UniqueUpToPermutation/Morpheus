@@ -1,7 +1,6 @@
 #include <Engine/Scene.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Camera.hpp>
-#include <Engine/Transform.hpp>
 
 namespace Morpheus {
 	Scene::Scene() :

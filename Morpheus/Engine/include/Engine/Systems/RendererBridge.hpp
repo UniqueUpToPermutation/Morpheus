@@ -10,9 +10,10 @@
 
 #include <Engine/Entity.hpp>
 #include <Engine/Scene.hpp>
-#include <Engine/Transform.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/Resource.hpp>
+#include <Engine/Components/Transform.hpp>
+#include <Engine/Components/ResourceComponents.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/Resource.hpp>
 
 namespace DG = Diligent;
 

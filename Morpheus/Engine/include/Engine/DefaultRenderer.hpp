@@ -1,7 +1,7 @@
 #include <Engine/Renderer.hpp>
 #include <Engine/Camera.hpp>
-#include <Engine/Transform.hpp>
-#include <Engine/Skybox.hpp>
+#include <Engine/Components/Transform.hpp>
+#include <Engine/Components/SkyboxComponent.hpp>
 #include <Engine/Brdf.hpp>
 #include <Engine/PostProcessor.hpp>
 

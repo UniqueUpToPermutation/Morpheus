@@ -1,11 +1,11 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/DefaultRenderer.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/GeometryResource.hpp>
-#include <Engine/TextureResource.hpp>
-#include <Engine/MaterialResource.hpp>
-#include <Engine/MaterialView.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/GeometryResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Materials/MaterialView.hpp>
 #include <Engine/Systems/RendererBridge.hpp>
 
 #include <sstream>

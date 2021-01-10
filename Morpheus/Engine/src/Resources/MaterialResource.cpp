@@ -1,7 +1,7 @@
-#include <Engine/MaterialResource.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/TextureResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
 
 #include <fstream>
 

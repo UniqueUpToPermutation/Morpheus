@@ -1,6 +1,6 @@
 #include <Engine/EditorCameraController.hpp>
 #include <Engine/Camera.hpp>
-#include <Engine/Transform.hpp>
+#include <Engine/Components/Transform.hpp>
 
 namespace Morpheus {
 	void EditorCameraController::OnUpdate(const UpdateEvent& e) {

@@ -1,5 +1,5 @@
-#include <Engine/GeometryResource.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/GeometryResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>

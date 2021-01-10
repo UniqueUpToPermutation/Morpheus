@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Engine/TextureResource.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 
 namespace DG = Diligent;
 

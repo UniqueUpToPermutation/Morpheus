@@ -1,7 +1,7 @@
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Engine.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/ShaderLoader.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/ShaderLoader.hpp>
 
 #include <fstream>
 

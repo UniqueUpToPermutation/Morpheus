@@ -9,7 +9,7 @@ using float4 = Diligent::float4;
 using float4x4 = Diligent::float4x4;
 
 #include <nlohmann/json.hpp>
-#include <Engine/Resource.hpp>
+#include <Engine/Resources/Resource.hpp>
 
 namespace DG = Diligent;
 

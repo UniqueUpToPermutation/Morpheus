@@ -1,8 +1,8 @@
-#include <Engine/ResourceManager.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/GeometryResource.hpp>
-#include <Engine/TextureResource.hpp>
-#include <Engine/MaterialResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/GeometryResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
 
 namespace Morpheus {
 	void ResourceManager::CollectGarbage() {
@@ -53,7 +53,7 @@ namespace Morpheus {
 	}
 
 	void ResourceManager::LoadMesh(const std::string& geometrySource,
-		std::string& materialSource,
+		const std::string& materialSource,
 		GeometryResource** geometryResourceOut,
 		MaterialResource** materialResourceOut) {
 
@@ -63,6 +63,6 @@ namespace Morpheus {
 		geoParams.mSource = geometrySource;
 		geoParams.mPipelineResource = (*materialResourceOut)->GetPipeline();
 
-		*geometryResourceOut = Load<GeometryResource>(geometrySource);
+		*geometryResourceOut = Load<GeometryResource>(geoParams);
 	}
 }

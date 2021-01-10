@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/MaterialPrototypes.hpp>
+#include <Engine/Materials/MaterialPrototypes.hpp>
 
 namespace Morpheus {
 	class WhiteMaterialPrototype : public MaterialPrototype {

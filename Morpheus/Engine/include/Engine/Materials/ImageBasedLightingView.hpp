@@ -7,7 +7,7 @@
 #include "SwapChain.h"
 #include "BasicMath.hpp"
 
-#include <Engine/MaterialView.hpp>
+#include <Engine/Materials/MaterialView.hpp>
 
 namespace DG = Diligent;
 

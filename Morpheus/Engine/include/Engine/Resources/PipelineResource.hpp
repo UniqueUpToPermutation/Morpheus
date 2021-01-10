@@ -1,8 +1,10 @@
 #pragma once
 
-#include <Engine/Resource.hpp>
-#include <Engine/ShaderLoader.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/ShaderLoader.hpp>
 #include <Engine/Pipelines/PipelineFactory.hpp>
+#include <Engine/InputController.hpp>
+
 #include <nlohmann/json.hpp>
 
 #include "EngineFactory.h"
@@ -10,7 +12,6 @@
 #include "RenderDevice.h"
 #include "DeviceContext.h"
 #include "SwapChain.h"
-#include "InputController.hpp"
 #include "BasicMath.hpp"
 
 namespace DG = Diligent;

@@ -4,7 +4,7 @@
 #include "RenderDevice.h"
 #include "DeviceContext.h"
 
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 
 using float2 = Diligent::float2;
 using float3 = Diligent::float3;

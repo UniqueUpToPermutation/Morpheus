@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Resource.hpp>
+#include <Engine/Resources/Resource.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Geometry.hpp>
 #include <unordered_map>

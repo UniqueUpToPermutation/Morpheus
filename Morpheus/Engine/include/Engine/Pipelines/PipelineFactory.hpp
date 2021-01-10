@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Renderer.hpp>
 
 #include <functional>

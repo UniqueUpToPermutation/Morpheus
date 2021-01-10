@@ -1,5 +1,5 @@
 #include <Engine/Materials/ImageBasedLightingView.hpp>
-#include <Engine/MaterialView.hpp>
+#include <Engine/Materials/MaterialView.hpp>
 #include <Engine/LightProbe.hpp>
 
 namespace Morpheus {

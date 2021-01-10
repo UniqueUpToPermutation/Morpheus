@@ -1,6 +1,6 @@
 #include <Engine/HdriToCubemap.hpp>
-#include <Engine/Resource.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Brdf.hpp>
 #include <Engine/Engine.hpp>
 

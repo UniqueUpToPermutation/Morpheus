@@ -4,7 +4,7 @@
 #include "DeviceContext.h"
 #include "BasicMath.hpp"
 
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/LightProbe.hpp>
 
 namespace DG = Diligent;

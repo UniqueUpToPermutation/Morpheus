@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Engine/Resource.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/InputController.hpp>
 
 #include "EngineFactory.h"
 #include "RefCntAutoPtr.hpp"
 #include "RenderDevice.h"
 #include "DeviceContext.h"
 #include "SwapChain.h"
-#include "InputController.hpp"
 #include "BasicMath.hpp"
 
 namespace DG = Diligent;

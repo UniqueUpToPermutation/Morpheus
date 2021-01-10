@@ -1,5 +1,5 @@
-#include <Engine/TextureResource.hpp>
-#include <Engine/ResourceManager.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Engine.hpp>
 
 #include "TextureUtilities.h"

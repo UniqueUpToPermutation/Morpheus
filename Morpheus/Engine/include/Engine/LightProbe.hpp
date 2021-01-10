@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/TextureResource.hpp>
+#include <Engine/Resources/TextureResource.hpp>
 
 namespace Morpheus {
 

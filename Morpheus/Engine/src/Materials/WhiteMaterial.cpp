@@ -1,6 +1,6 @@
 #include <Engine/Materials/WhiteMaterial.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/PipelineResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
 
 namespace Morpheus {
 	WhiteMaterialPrototype::WhiteMaterialPrototype(

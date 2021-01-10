@@ -1,7 +1,7 @@
 #include <Engine/Materials/JsonMaterial.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/TextureResource.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/TextureResource.hpp>
 
 namespace Morpheus {
 

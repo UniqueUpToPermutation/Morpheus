@@ -1,9 +1,9 @@
-#include <Engine/MaterialPrototypes.hpp>
-#include <Engine/TextureResource.hpp>
-#include <Engine/ResourceManager.hpp>
-#include <Engine/PipelineResource.hpp>
-#include <Engine/MaterialResource.hpp>
-#include <Engine/MaterialView.hpp>
+#include <Engine/Materials/MaterialPrototypes.hpp>
+#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Materials/MaterialView.hpp>
 #include <Engine/Materials/StaticMeshPBRMaterial.hpp>
 #include <Engine/Materials/BasicTexturedMaterial.hpp>
 #include <Engine/Materials/WhiteMaterial.hpp>
