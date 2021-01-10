@@ -9,6 +9,7 @@
 #include <Engine/Brdf.hpp>
 #include <Engine/EditorCameraController.hpp>
 #include <Engine/Camera.hpp>
+#include <Engine/Systems/Physics.hpp>
 #include <random>
 
 using namespace Morpheus;
@@ -19,6 +20,8 @@ int main(int argc, char** argv) {
 	en.Startup(argc, argv);
 
 	Scene* scene = new Scene();
+	scene->AddSystem<PhysicsSystem>();
+	
 	auto root = scene->GetRoot();
 	auto content = en.GetResourceManager();
 
@@ -88,8 +91,6 @@ int main(int argc, char** argv) {
 		en.Render();
 		en.Present();
 	}
-
-	en.SetScene(nullptr, true);
 
 	en.Shutdown();
 }

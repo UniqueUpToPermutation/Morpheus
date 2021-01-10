@@ -9,6 +9,8 @@
 
 namespace Morpheus {
 	void RendererBridge::Startup(Scene* scene) {
+		std::cout << "Initializing renderer-scene bridge..." << std::endl;
+
 		scene->GetDispatcher()->sink<SceneBeginEvent>().connect<&RendererBridge::OnSceneBegin>(this);
 		scene->GetDispatcher()->sink<FrameBeginEvent>().connect<&RendererBridge::OnFrameBegin>(this);
 
@@ -171,6 +173,8 @@ namespace Morpheus {
 	}
 
 	void RendererBridge::Shutdown(Scene* scene) {
+
+		std::cout << "Shutting down renderer-scene bridge..." << std::endl;
 		auto registry = scene->GetRegistry();
 
 		// Remove all cache stuff if there's anything there

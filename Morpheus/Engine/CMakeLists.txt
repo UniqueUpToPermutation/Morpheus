@@ -146,6 +146,7 @@ list(APPEND SOURCE
 	src/Materials/ImageBasedLightingView.cpp
 	src/Materials/StaticMeshPBRMaterial.cpp
 	src/Systems/RendererBridge.cpp
+	src/Systems/Physics.cpp
 	../../lodepng/lodepng.cpp
 	shader_rc.cpp
 )
