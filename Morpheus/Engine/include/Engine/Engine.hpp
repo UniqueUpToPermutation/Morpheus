@@ -52,9 +52,7 @@ namespace Morpheus {
 		void Startup(int argc, char** argv);
 		void Shutdown();
 		void CollectGarbage();
-
-		btDynamicsWorld* CreateDynamicsWorld();
-
+		
 		void GetDesiredInitialWindowSize(int& width, int& height) override final
 		{
 			width  = mInitialWindowWidth;

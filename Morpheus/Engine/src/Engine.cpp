@@ -979,6 +979,7 @@ namespace Morpheus
 				UpdateAdaptersDialog();
 			}
 		}
+		
 		if (mDevice)
 		{
 			mInputController.ClearState();

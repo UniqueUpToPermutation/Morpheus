@@ -102,7 +102,6 @@ int main(int argc, char** argv) {
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
 	cameraNode.Add<EditorCameraController>(cameraNode, scene);
 
-
 	en.SetScene(scene);
 
 	uint frames = 0;

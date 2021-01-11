@@ -2,5 +2,6 @@
 	"Prototype" : "StaticMeshPBRMaterial",
 	"Albedo" : "brick_albedo.png",
 	"Roughness" : "brick_roughness.png",
-	"Normal" : "brick_normal.png"
+	"Normal" : "brick_normal.png",
+	"Metallic" : "BLACK_TEXTURE"
 }
