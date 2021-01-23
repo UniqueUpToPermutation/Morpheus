@@ -1,3 +1,5 @@
 {
-	"Prototype" : "StaticMeshPBRMaterial"
+	"Prototype" : "StaticMeshPBRMaterial",
+
+	"Roughness" : "WHITE_TEXTURE"
 }

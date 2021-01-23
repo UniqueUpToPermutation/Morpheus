@@ -74,6 +74,8 @@ namespace Morpheus {
 			LoadGli(params, resource);
 		} else if (ext == ".hdr") {
 			LoadStb(params, resource);
+		} else if (ext == ".png") {
+			LoadPng(params, resource);
 		} else {
 			LoadDiligent(params, resource);
 		}
@@ -523,7 +525,7 @@ namespace Morpheus {
 		}
 
 		DG::TextureDesc desc;
-		desc.BindFlags = DG::BIND_SHADER_RESOURCE | DG::BIND_RENDER_TARGET;
+		desc.BindFlags = DG::BIND_SHADER_RESOURCE;
 		desc.Width = x;
 		desc.Height = y;
 		desc.MipLevels = 0;
@@ -550,6 +552,97 @@ namespace Morpheus {
 			} else {
 				delete[] (uint8_t*)rawDatas[i];
 			}
+		}
+	}
+
+	void TextureLoader::LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture) {
+		std::vector<uint8_t> image;
+		uint32_t width, height;
+		uint32_t error = lodepng::decode(image, width, height, params.mSource);
+
+		//if there's an error, display it
+		if (error) std::cout << "Decoder error " << error << ": " << lodepng_error_text(error) << std::endl;
+
+		//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
+		//State state contains extra information about the PNG such as text chunks, ...
+		if (!error) {
+			GLuint TextureName = 0;
+
+			DG::TEXTURE_FORMAT format;
+			if (params.bIsSRGB) {
+				format = DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
+			} else {
+				format = DG::TEX_FORMAT_RGBA8_UNORM;
+			}
+
+			DG::TextureDesc desc;
+			desc.BindFlags = DG::BIND_SHADER_RESOURCE;
+			desc.Width = width;
+			desc.Height = height;
+			desc.MipLevels = 0;
+			desc.Name = params.mSource.c_str();
+			desc.Format = format;
+			desc.Type = DG::RESOURCE_DIM_TEX_2D;
+			desc.Usage = DG::USAGE_IMMUTABLE;
+			desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
+			desc.ArraySize = 1;
+
+			size_t mipCount = MipCount(width, height);
+
+			DG::TextureSubResData mip0;
+			mip0.DepthStride = width * height * 4 * sizeof(uint8_t);
+			mip0.Stride = width * 4 * sizeof(uint8_t);
+			mip0.pData = &image[0];
+
+			std::vector<DG::TextureSubResData> subDatas;
+			subDatas.emplace_back(mip0);
+
+			std::vector<uint8_t*> mipDatas;
+			mipDatas.emplace_back(&image[0]);
+
+			for (size_t i = 1; i < mipCount; ++i) {
+				auto new_mip_data = new uint8_t[width * height * 4];
+				mipDatas.emplace_back(new_mip_data);
+
+				uint fineWidth = std::max(1u, width >> (i - 1));
+				uint fineHeight = std::max(1u, height >> (i - 1));
+				uint coarseWidth = std::max(1u, width >> i);
+				uint coarseHeight = std::max(1u, height >> i);
+
+				uint fineStride = fineWidth * 4 * sizeof(uint8_t);
+				uint coarseStride = coarseWidth * 4 * sizeof(uint8_t);
+
+				ComputeCoarseMip<uint8_t>(4, params.bIsSRGB,
+					mipDatas[i - 1],
+					fineStride,
+					fineWidth, fineHeight,
+					mipDatas[i],
+					coarseStride,
+					coarseWidth, coarseHeight);
+
+				DG::TextureSubResData mipDesc;
+				mipDesc.DepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
+				mipDesc.Stride = coarseWidth * 4 * sizeof(uint8_t);
+				mipDesc.pData = new_mip_data;
+				subDatas.emplace_back(mipDesc);
+			}
+
+			DG::TextureData data;
+			data.NumSubresources = subDatas.size();
+			data.pSubResources = &subDatas[0];
+
+			DG::ITexture* tex = nullptr;
+			mManager->GetParent()->GetDevice()->CreateTexture(desc, &data, &tex);
+
+			texture->mTexture = tex;
+			texture->mSource = params.mSource;
+
+			for (size_t i = 1; i < mipCount; ++i) {
+				delete[] mipDatas[i];
+			}
+		}
+		else {
+			throw std::runtime_error("Error loading PNG!");
 		}
 	}
 

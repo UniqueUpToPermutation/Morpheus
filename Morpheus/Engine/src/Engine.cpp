@@ -970,18 +970,15 @@ namespace Morpheus
 	{
 		mCurrentTime = CurrTime;
 
-		if (mImGui)
-		{
+		if (mImGui) {
 			const auto& SCDesc = mSwapChain->GetDesc();
 			mImGui->NewFrame(SCDesc.Width, SCDesc.Height, SCDesc.PreTransform);
-			if (bShowAdaptersDialog)
-			{
+			if (bShowAdaptersDialog) {
 				UpdateAdaptersDialog();
 			}
 		}
 		
-		if (mDevice)
-		{
+		if (mDevice) {
 			mInputController.ClearState();
 		}
 
@@ -1165,7 +1162,6 @@ namespace Morpheus
 		std::cout << "Initializing default systems for new scene..." << std::endl;
 
 		if (mRenderer) {
-			std::cout << "Initializing renderer-scene bridge..." << std::endl;
 			mRenderer->InitializeSystems(scene);
 		}
 

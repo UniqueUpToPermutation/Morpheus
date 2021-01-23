@@ -80,14 +80,12 @@ int main(int argc, char** argv) {
 	sphereMesh->Release();
 	sphereMaterial->Release();
 
-
 	// Load HDRI and convert it to a cubemap
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 	HDRIToCubemapConverter conv(en.GetDevice());
 	conv.Initialize(content, DG::TEX_FORMAT_RGBA16_FLOAT);
-	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048);
+	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048, true);
 	skybox_hdri->Release();
-
 
 	// Create skybox from HDRI cubemap
 	auto tex_res = new TextureResource(content, skybox_texture);

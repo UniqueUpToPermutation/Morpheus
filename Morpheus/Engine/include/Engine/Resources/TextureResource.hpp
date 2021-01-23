@@ -95,6 +95,7 @@ namespace Morpheus {
 		void LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture);
 		void LoadDiligent(const LoadParams<TextureResource>& params, TextureResource* texture);
 		void LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture);
+		void LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture);
 		void Load(const LoadParams<TextureResource>& params, TextureResource* texture);
 	};
 

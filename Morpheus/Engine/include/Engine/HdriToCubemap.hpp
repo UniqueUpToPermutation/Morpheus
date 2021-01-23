@@ -30,6 +30,7 @@ namespace Morpheus {
 		DG::ITexture* Convert(DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
 			DG::ITextureView* hdri,
-			uint size);
+			uint size,
+			bool bGenerateMips = false);
 	};
 }

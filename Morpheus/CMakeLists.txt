@@ -43,6 +43,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 		src
 		${CMAKE_SOURCE_DIR}/entt/src
 		${CMAKE_SOURCE_DIR}/json/single_include
+		${CMAKE_SOURCE_DIR}/ImGuizmo
     )
 
     target_link_libraries(${APP_NAME}
@@ -90,4 +91,8 @@ endif()
 
 if(TARGET Morpheus-Engine)
 	add_subdirectory(Physics)
+endif()
+
+if(TARGET Morpheus-Engine)
+	add_subdirectory(GuiTest)
 endif()

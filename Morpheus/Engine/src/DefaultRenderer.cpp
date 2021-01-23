@@ -222,8 +222,12 @@ namespace Morpheus {
 		data.mCamera.mProjInvT = data.mCamera.mProjT.Inverse();
 		data.mCamera.mViewInvT = data.mCamera.mViewT.Inverse();
 		data.mCamera.mViewProjInvT = data.mCamera.mViewProjT.Inverse();
-		data.mGlobalLighting.fGlobalEnvMapLevels = 
-			(float)globalLightProbe->GetPrefilteredEnvMap()->GetTexture()->GetDesc().MipLevels;
+
+		if (globalLightProbe)
+			data.mGlobalLighting.fGlobalEnvMapLevels = 
+				(float)globalLightProbe->GetPrefilteredEnvMap()->GetTexture()->GetDesc().MipLevels;
+		else 
+			data.mGlobalLighting.fGlobalEnvMapLevels = 0;
 
 		mGlobals.Write(context, data);
 	}
@@ -389,7 +393,7 @@ namespace Morpheus {
 				}
 
 				// Render all of these static meshes in a batch
-				Uint32  offsets[]  = { 0, (DG::Uint32)(transformReadIdx * sizeof(DG::float4x4)) };
+				Uint32  offsets[] = { 0, (DG::Uint32)(transformReadIdx * sizeof(DG::float4x4)) };
 				IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), mInstanceBuffer };
 				context->SetVertexBuffers(0, 2, pBuffs, offsets, 
 					RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
@@ -473,9 +477,7 @@ namespace Morpheus {
 			WriteGlobalData(cameraNode, globalLightProbe);
 
 			// Render all static meshes in the scene
-			RenderStaticMeshes(registry,
-				renderBridge, 
-				globalLightProbe);
+			RenderStaticMeshes(registry, renderBridge, globalLightProbe);
 
 			// Render skybox
 			if (skyboxComponent) {

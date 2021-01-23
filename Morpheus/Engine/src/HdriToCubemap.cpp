@@ -170,23 +170,31 @@ namespace Morpheus {
 	DG::ITexture* HDRIToCubemapConverter::Convert(DG::IRenderDevice* device,
 		DG::IDeviceContext* context,
 		DG::ITextureView* hdri,
-		uint size) {
+		uint size,
+		bool bGenerateMips) {
 
 		DG::TextureDesc desc;
 		desc.BindFlags = DG::BIND_RENDER_TARGET | DG::BIND_SHADER_RESOURCE;
 		desc.Width = size;
 		desc.Height = size;
-		desc.MipLevels = 1;
+		desc.MipLevels = bGenerateMips ? 0 : 1;
 		desc.ArraySize = 6;
 		desc.Type = DG::RESOURCE_DIM_TEX_CUBE;
 		desc.Usage = DG::USAGE_DEFAULT;
 		desc.Name = "HDRI Generated Cubemap";
 		desc.Format = mCubemapFormat;
+		
+		if (bGenerateMips)
+			desc.MiscFlags = DG::MISC_TEXTURE_FLAG_GENERATE_MIPS;
 
 		DG::ITexture* result = nullptr;
 		device->CreateTexture(desc, nullptr, &result);
 
 		Convert(context, hdri, result);
+
+		if (bGenerateMips)
+			context->GenerateMips(result->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE));
+
 		return result;
 	}
 }

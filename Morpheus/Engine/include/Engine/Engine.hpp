@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <queue>
 
 #include "BasicMath.hpp"
 #include "NativeAppBase.hpp"

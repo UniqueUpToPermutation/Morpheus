@@ -54,5 +54,13 @@ namespace Morpheus {
 		inline float GetNearZ() const {
 			return mNearPlane;
 		}
+
+		inline void SetFarPlane(const float z) {
+			mFarPlane = z;
+		}
+
+		inline void SetNearPlane(const float z) {
+			mNearPlane = z;
+		}
 	};
 }

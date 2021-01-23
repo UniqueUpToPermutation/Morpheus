@@ -29,7 +29,7 @@ float3 PerturbNormal(float3 Normal, float3 Tangent, float3 NormalPerturb)
 	float3 b = cross(n, t);
 
 	float3 n_map = NormalPerturb * 2.0 - 1.0;
-	return normalize(n_map.x * t + n_map.y * b + n_map.z * n);
+	return normalize(n_map.x * t - n_map.y * b + n_map.z * n);
 }
 
 #endif

@@ -10,7 +10,8 @@
 				"${workspaceFolder}/lodepng/",
 				"${workspaceFolder}/bullet3/src/**",
 				"${workspaceFolder}/DiligentEngine/**",
-				"${workspaceFolder}/Morpheus/Engine/"
+				"${workspaceFolder}/Morpheus/Engine/",
+				"${workspaceFolder}/ImGuizmo/"
             ],
             "defines": [
                 "PLATFORM_LINUX",

@@ -5,6 +5,7 @@
 #include <stack>
 
 #include <Engine/Entity.hpp>
+#include <Engine/ImGuiObject.hpp>
 
 #include "btBulletDynamicsCommon.h"
 #include "BasicMath.hpp"
@@ -33,7 +34,6 @@ namespace Morpheus {
 
 	class Scene;
 	class Camera;
-	class CameraComponent;
 	class IRenderer;
 
 	class DepthFirstNodeIterator {
@@ -145,10 +145,26 @@ namespace Morpheus {
 
 		EntityNode mCamera;
 		EntityNode mRoot;
+
+		std::set<IImGuiObject*> mImGuiObjects;
 		
 	public:
 		Scene();
 		~Scene();
+
+		template <typename GuiT, typename ... T>
+		GuiT* AddImGuiObject(T ... args) {
+			auto guiObj = new GuiT(args...);
+			guiObj->OnCreate(this);
+			mImGuiObjects.emplace(guiObj);
+			return guiObj;
+		}
+
+		void DestroyImGuiObject(IImGuiObject* guiObject) {
+			mImGuiObjects.erase(guiObject);
+			guiObject->OnDestroy(this);
+			delete guiObject;
+		}
 
 		template <typename SystemT, typename ... T>
 		SystemT* AddSystem(T ... args) {
@@ -205,7 +221,6 @@ namespace Morpheus {
 			mCamera = camera;
 		}
 
-		void SetCurrentCamera(CameraComponent* component);
 		void BuildRenderCache(IRenderer* renderer);
 		void Clear();
 

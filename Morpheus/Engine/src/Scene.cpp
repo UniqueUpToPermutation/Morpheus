@@ -33,6 +33,11 @@ namespace Morpheus {
 		Clear();
 		Shutdown();
 
+		for (auto gui : mImGuiObjects) {
+			gui->OnDestroy(this);
+			delete gui;
+		}
+
 		for (auto sys : mSystems) {
 			delete sys.second;
 		}
@@ -69,5 +74,9 @@ namespace Morpheus {
 		e.mElapsedTime = elapsedTime;
 
 		mDispatcher.trigger<UpdateEvent>(e);
+
+		for (auto gui : mImGuiObjects) {
+			gui->OnUpdate(this, currTime, elapsedTime);
+		}
 	}
 }

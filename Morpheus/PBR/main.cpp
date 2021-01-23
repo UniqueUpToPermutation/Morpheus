@@ -30,9 +30,9 @@ int main(int argc, char** argv) {
 	// Create Grid of Spheres
 	GeometryResource* sphereMesh;
 	MaterialResource* sphereMaterial;
-	content->LoadMesh("sphere.obj", "testpbr.json", &sphereMesh, &sphereMaterial);
+	content->LoadMesh("sphere.obj", "brick.json", &sphereMesh, &sphereMaterial);
 	
-	int gridRadius = 5;
+	int gridRadius = 0;
 	for (int x = -gridRadius; x <= gridRadius; ++x) {
 		for (int y = -gridRadius; y <= gridRadius; ++y) {
 			auto meshNode = root.CreateChild();
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 
 
 	// Create Gun
-	GeometryResource* gunMesh;
+	/*GeometryResource* gunMesh;
 	MaterialResource* gunMaterial;
 	content->LoadMesh("cerberus.obj", "cerberusmat.json", &gunMesh, &gunMaterial);
 	
@@ -63,14 +63,14 @@ int main(int argc, char** argv) {
 	);
 
 	gunMaterial->Release();
-	gunMesh->Release();
+	gunMesh->Release();*/
 
 
 	// Load HDRI and convert it to a cubemap
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
 	HDRIToCubemapConverter conv(en.GetDevice());
 	conv.Initialize(content, DG::TEX_FORMAT_RGBA16_FLOAT);
-	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048);
+	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048, true);
 	skybox_hdri->Release();
 
 
