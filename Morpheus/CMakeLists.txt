@@ -5,7 +5,8 @@ function(add_third_party_libraries APP_NAME)
 	message(${APP_NAME})
 	target_include_directories(${APP_NAME} PRIVATE
 		${CMAKE_SOURCE_DIR}/entt/src/
-		${CMAKE_SOURCE_DIR}/json/single_include)
+		${CMAKE_SOURCE_DIR}/json/single_include
+		${CMAKE_SOURCE_DIR}/mio/single_include})
 endfunction()
 
 function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
@@ -25,7 +26,11 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
     set_source_files_properties(${ALL_ASSETS} PROPERTIES 
         VS_DEPLOYMENT_LOCATION "."
         MACOSX_PACKAGE_LOCATION "Resources" 
-    )
+	)
+	
+	set(THREADS_PREFER_PTHREAD_FLAG ON)
+	find_package(Threads REQUIRED)
+	target_link_libraries(${APP_NAME} PRIVATE Threads::Threads)
 
     if(PLATFORM_WIN32)
         set_target_properties(${APP_NAME} PROPERTIES 
@@ -35,7 +40,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
         append_sample_base_win32_source(${APP_NAME})
     elseif(PLATFORM_UNIVERSAL_WINDOWS)
         append_sample_base_uwp_source(${APP_NAME})
-        package_required_dlls(${APP_NAME})
+		package_required_dlls(${APP_NAME})
     endif()
 
     target_include_directories(${APP_NAME}
@@ -43,6 +48,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 		src
 		${CMAKE_SOURCE_DIR}/entt/src
 		${CMAKE_SOURCE_DIR}/json/single_include
+		${CMAKE_SOURCE_DIR}/mio/single_include
 		${CMAKE_SOURCE_DIR}/ImGuizmo
     )
 
@@ -95,4 +101,8 @@ endif()
 
 if(TARGET Morpheus-Engine)
 	add_subdirectory(GuiTest)
+endif()
+
+if(TARGET Morpheus-Engine)
+	add_subdirectory(Scheduler)
 endif()

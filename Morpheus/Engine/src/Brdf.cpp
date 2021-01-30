@@ -241,7 +241,9 @@ namespace Morpheus {
 
 			device->CreateGraphicsPipelineState(PSOCreateInfo, &mPrefilterEnvPipeline);
 			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "mTransform")->Set(mTransformConstantBuffer);
-			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "FilterAttribs")->Set(mTransformConstantBuffer);
+			auto filterAttribs = mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "FilterAttribs");
+			if (filterAttribs)
+				filterAttribs->Set(mTransformConstantBuffer);
 			mPrefilterEnvPipeline->CreateShaderResourceBinding(&mPrefilterEnvSRB, true);
 		}
 

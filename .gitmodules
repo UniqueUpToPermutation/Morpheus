@@ -22,3 +22,6 @@
 [submodule "ImGuizmo"]
 	path = ImGuizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "mio"]
+	path = mio
+	url = https://github.com/mandreyel/mio.git

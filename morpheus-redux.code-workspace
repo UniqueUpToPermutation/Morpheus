@@ -81,7 +81,8 @@
 			"*.inc": "cpp",
 			"shared_mutex": "cpp",
 			"*.hlsl": "hlsl",
-			"complex": "cpp"
+			"complex": "cpp",
+			"strstream": "cpp"
 		}
 	}
 }
