@@ -1,13 +1,15 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
 
 namespace Morpheus {
-	void CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
+	TaskId CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
-		ShaderLoader* shaderLoader,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides) {
+		const ShaderPreprocessorConfig* overrides,
+		const AsyncResourceParams* asyncParams) {
 			
 		ShaderPreprocessorConfig newOverrides;
 		if (overrides) {
@@ -43,197 +45,251 @@ namespace Morpheus {
 			newOverrides.mDefines["USE_SH"] = bUseSH ? "1" : "0";
 		}
 
-		auto pbrStaticMeshVS = LoadShader(device, 
-			DG::SHADER_TYPE_VERTEX,
+		LoadParams<ShaderResource> vsParams(
 			"internal/StaticMesh.vsh",
+			DG::SHADER_TYPE_VERTEX,
 			"StaticMesh VS",
-			"main",
 			&newOverrides,
-			shaderLoader);
+			"main"
+		);
 
-		auto pbrStaticMeshPS = LoadShader(device,
-			DG::SHADER_TYPE_PIXEL,
+		LoadParams<ShaderResource> psParams(
 			"internal/PBR.psh",
+			DG::SHADER_TYPE_PIXEL,
 			"PBR PS",
-			"main",
 			&newOverrides,
-			shaderLoader);
+			"main"
+		);
 
-		auto anisotropyFactor = renderer->GetMaxAnisotropy();
-		auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
+		ShaderResource* pbrStaticMeshVSResource = nullptr;
+		ShaderResource* pbrStaticMeshPSResource = nullptr;
 
-		DG::SamplerDesc SamLinearClampDesc
-		{
-			filterType, filterType, filterType, 
-			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
-		};
+		TaskBarrier* preLoadBarrier = into->GetPreLoadBarrier();
+		TaskBarrier* postLoadBarrier = into->GetLoadBarrier();
+		TaskId loadVSTask;
+		TaskId loadPSTask;
 
-		DG::SamplerDesc SamLinearWrapDesc 
-		{
-			filterType, filterType, filterType, 
-			DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP
-		};
-
-		SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
-		SamLinearWrapDesc.MaxAnisotropy = anisotropyFactor;
-
-		DG::IPipelineState* result = nullptr;
-
-		// Create Irradiance Pipeline
-		DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
-		DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
-		DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
-
-		PSODesc.Name         = "Static Mesh PBR Pipeline";
-		PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
-
-		GraphicsPipeline.NumRenderTargets             = 1;
-		GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
-		GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
-		GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
-		GraphicsPipeline.DepthStencilDesc.DepthFunc   = DG::COMPARISON_FUNC_LESS;
-		GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
-
-		// Number of MSAA samples
-		GraphicsPipeline.SmplDesc.Count = renderer->GetMSAASamples();
-
-		uint stride = 12 * sizeof(float);
-
-		std::vector<DG::LayoutElement> layoutElements = {
-			DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-			DG::LayoutElement(1, 0, 3, DG::VT_FLOAT32, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-			DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-			DG::LayoutElement(3, 0, 3, DG::VT_FLOAT32, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-
-			DG::LayoutElement(4, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-			DG::LayoutElement(5, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-			DG::LayoutElement(6, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-			DG::LayoutElement(7, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE)
-		};
-
-		GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
-		GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
-
-		PSOCreateInfo.pVS = pbrStaticMeshVS;
-		PSOCreateInfo.pPS = pbrStaticMeshPS;
-
-		PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
-		
-		std::vector<DG::ShaderResourceVariableDesc> Vars;
-		
-		// clang-format off
-		Vars.emplace_back(DG::ShaderResourceVariableDesc{
-			DG::SHADER_TYPE_PIXEL, 
-			"mAlbedo", 
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
-		Vars.emplace_back(DG::ShaderResourceVariableDesc{
-			DG::SHADER_TYPE_PIXEL, 
-			"mMetallic", 
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
-		Vars.emplace_back(DG::ShaderResourceVariableDesc{
-			DG::SHADER_TYPE_PIXEL, 
-			"mRoughness", 
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
-		Vars.emplace_back(DG::ShaderResourceVariableDesc{
-			DG::SHADER_TYPE_PIXEL, 
-			"mNormalMap", 
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
-
-		if (bUseIBL) {
-			if (bUseSH) {
-				Vars.emplace_back(DG::ShaderResourceVariableDesc{
-					DG::SHADER_TYPE_PIXEL, 
-					"IrradianceSH", 
-					DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
-			}
-			else {
-				Vars.emplace_back(DG::ShaderResourceVariableDesc{
-					DG::SHADER_TYPE_PIXEL, 
-					"mIrradianceMap", 
-					DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
-			}
-			Vars.emplace_back(DG::ShaderResourceVariableDesc{
-				DG::SHADER_TYPE_PIXEL, 
-				"mPrefilteredEnvMap", 
-				DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
-				// clang-format off
-			Vars.emplace_back(DG::ShaderResourceVariableDesc{
-				DG::SHADER_TYPE_PIXEL, 
-				"mBRDF_LUT", 
-				DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC});
+		if (!asyncParams->bUseAsync) {
+			pbrStaticMeshVSResource = manager->Load<ShaderResource>(vsParams);
+			pbrStaticMeshPSResource = manager->Load<ShaderResource>(psParams);
+		} else {
+			preLoadBarrier->Increment(2);
+			loadVSTask = manager->AsyncLoadDeferred<ShaderResource>(vsParams, 
+				&pbrStaticMeshVSResource, [preLoadBarrier](ThreadPool* pool) {
+				preLoadBarrier->Decrement(pool);
+			});
+			loadPSTask = manager->AsyncLoadDeferred<ShaderResource>(psParams, 
+				&pbrStaticMeshPSResource, [preLoadBarrier](ThreadPool* pool) {
+				preLoadBarrier->Decrement(pool);
+			});
 		}
 
-		// clang-format on
-		PSODesc.ResourceLayout.NumVariables = Vars.size();
-		PSODesc.ResourceLayout.Variables    = &Vars[0];
+		std::function<void()> buildPipeline = [=]() {
+			auto pbrStaticMeshVS = pbrStaticMeshVSResource->GetShader();
+			auto pbrStaticMeshPS = pbrStaticMeshPSResource->GetShader();
 
-		std::vector<DG::ImmutableSamplerDesc> ImtblSamplers;
+			auto anisotropyFactor = renderer->GetMaxAnisotropy();
+			auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
 
-		ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-			DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearWrapDesc
-		});
-		ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-			DG::SHADER_TYPE_PIXEL, "mRoughness_sampler", SamLinearWrapDesc
-		});
-		ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-			DG::SHADER_TYPE_PIXEL, "mMetallic_sampler", SamLinearWrapDesc
-		});
-		ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-			DG::SHADER_TYPE_PIXEL, "mNormalMap_sampler", SamLinearWrapDesc
-		});
+			DG::SamplerDesc SamLinearClampDesc
+			{
+				filterType, filterType, filterType, 
+				DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
+			};
 
-		if (bUseIBL) {
-			if (!bUseSH) {
+			DG::SamplerDesc SamLinearWrapDesc 
+			{
+				filterType, filterType, filterType, 
+				DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP
+			};
+
+			SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
+			SamLinearWrapDesc.MaxAnisotropy = anisotropyFactor;
+
+			DG::IPipelineState* result = nullptr;
+
+			// Create Irradiance Pipeline
+			DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+			DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+			DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+
+			PSODesc.Name         = "Static Mesh PBR Pipeline";
+			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+
+			GraphicsPipeline.NumRenderTargets             = 1;
+			GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
+			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
+			GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
+			GraphicsPipeline.DepthStencilDesc.DepthFunc   = DG::COMPARISON_FUNC_LESS;
+			GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
+
+			// Number of MSAA samples
+			GraphicsPipeline.SmplDesc.Count = renderer->GetMSAASamples();
+
+			uint stride = 12 * sizeof(float);
+
+			std::vector<DG::LayoutElement> layoutElements = {
+				DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, 
+					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+				DG::LayoutElement(1, 0, 3, DG::VT_FLOAT32, false, 
+					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+				DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
+					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+				DG::LayoutElement(3, 0, 3, DG::VT_FLOAT32, false, 
+					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+
+				DG::LayoutElement(4, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+				DG::LayoutElement(5, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+				DG::LayoutElement(6, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+				DG::LayoutElement(7, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE)
+			};
+
+			GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
+			GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
+
+			PSOCreateInfo.pVS = pbrStaticMeshVS;
+			PSOCreateInfo.pPS = pbrStaticMeshPS;
+
+			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+			
+			std::vector<DG::ShaderResourceVariableDesc> Vars;
+			
+			// clang-format off
+			Vars.emplace_back(DG::ShaderResourceVariableDesc{
+				DG::SHADER_TYPE_PIXEL, 
+				"mAlbedo", 
+				DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
+			Vars.emplace_back(DG::ShaderResourceVariableDesc{
+				DG::SHADER_TYPE_PIXEL, 
+				"mMetallic", 
+				DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
+			Vars.emplace_back(DG::ShaderResourceVariableDesc{
+				DG::SHADER_TYPE_PIXEL, 
+				"mRoughness", 
+				DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
+			Vars.emplace_back(DG::ShaderResourceVariableDesc{
+				DG::SHADER_TYPE_PIXEL, 
+				"mNormalMap", 
+				DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
+
+			if (bUseIBL) {
+				if (bUseSH) {
+					Vars.emplace_back(DG::ShaderResourceVariableDesc{
+						DG::SHADER_TYPE_PIXEL, 
+						"IrradianceSH", 
+						DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+				}
+				else {
+					Vars.emplace_back(DG::ShaderResourceVariableDesc{
+						DG::SHADER_TYPE_PIXEL, 
+						"mIrradianceMap", 
+						DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+				}
+				Vars.emplace_back(DG::ShaderResourceVariableDesc{
+					DG::SHADER_TYPE_PIXEL, 
+					"mPrefilteredEnvMap", 
+					DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE});
+					// clang-format off
+				Vars.emplace_back(DG::ShaderResourceVariableDesc{
+					DG::SHADER_TYPE_PIXEL, 
+					"mBRDF_LUT", 
+					DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC});
+			}
+
+			// clang-format on
+			PSODesc.ResourceLayout.NumVariables = Vars.size();
+			PSODesc.ResourceLayout.Variables    = &Vars[0];
+
+			std::vector<DG::ImmutableSamplerDesc> ImtblSamplers;
+
+			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+				DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearWrapDesc
+			});
+			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+				DG::SHADER_TYPE_PIXEL, "mRoughness_sampler", SamLinearWrapDesc
+			});
+			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+				DG::SHADER_TYPE_PIXEL, "mMetallic_sampler", SamLinearWrapDesc
+			});
+			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+				DG::SHADER_TYPE_PIXEL, "mNormalMap_sampler", SamLinearWrapDesc
+			});
+
+			if (bUseIBL) {
+				if (!bUseSH) {
+					ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+						DG::SHADER_TYPE_PIXEL, "mIrradianceMap_sampler", SamLinearClampDesc
+					});
+				}
 				ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-					DG::SHADER_TYPE_PIXEL, "mIrradianceMap_sampler", SamLinearClampDesc
+					DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap_sampler", SamLinearClampDesc
+				});
+				ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
+					DG::SHADER_TYPE_PIXEL, "mBRDF_LUT_sampler", SamLinearClampDesc
 				});
 			}
-			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-				DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap_sampler", SamLinearClampDesc
+
+			// clang-format on
+			PSODesc.ResourceLayout.NumImmutableSamplers = ImtblSamplers.size();
+			PSODesc.ResourceLayout.ImmutableSamplers    = &ImtblSamplers[0];
+			
+			device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
+
+			auto globalsVar =result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals");
+			if (globalsVar)
+				globalsVar->Set(renderer->GetGlobalsBuffer());
+			globalsVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "Globals");
+			if (globalsVar)
+				globalsVar->Set(renderer->GetGlobalsBuffer());
+
+			if (bUseIBL) {
+				auto lutVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT");
+				if (lutVar)
+					lutVar->Set(renderer->GetLUTShaderResourceView());
+			}
+
+			pbrStaticMeshVSResource->Release();
+			pbrStaticMeshPSResource->Release();
+
+			VertexAttributeLayout layout;
+			layout.mPosition = 0;
+			layout.mNormal = 1;
+			layout.mUV = 2;
+			layout.mTangent = 3;
+			layout.mStride = 12 * sizeof(float);
+
+			into->SetAll(
+				result,
+				layoutElements,
+				layout,
+				InstancingType::INSTANCED_STATIC_TRANSFORMS);
+		};
+
+		if (!asyncParams->bUseAsync) {
+			buildPipeline(); // Build pipeline on the current thread
+			return 0;
+		} else {
+			auto queue = asyncParams->mThreadPool->GetQueue();
+
+			// When all prerequisites have been loaded, create the pipeline on main thread
+			preLoadBarrier->SetCallback([postLoadBarrier, buildPipeline](ThreadPool* pool) {
+				pool->GetQueue().Immediate([buildPipeline](const TaskParams& params) {
+					buildPipeline();
+				}, postLoadBarrier, 0);
 			});
-			ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
-				DG::SHADER_TYPE_PIXEL, "mBRDF_LUT_sampler", SamLinearClampDesc
+			
+			// When the pipeline has been created, call the callback
+			postLoadBarrier->SetCallback(asyncParams->mCallback);
+
+			// Create a deferred task to trigger the loading of the vertex and pixel shaders
+			return queue.Defer([loadVSTask, loadPSTask](const TaskParams& params) {
+				auto queue = params.mPool->GetQueue();
+
+				// Load vertex and pixel shaders
+				queue.MakeImmediate(loadVSTask);
+				queue.MakeImmediate(loadPSTask);
 			});
 		}
-
-		// clang-format on
-		PSODesc.ResourceLayout.NumImmutableSamplers = ImtblSamplers.size();
-		PSODesc.ResourceLayout.ImmutableSamplers    = &ImtblSamplers[0];
-		
-		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
-
-		auto globalsVar =result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals");
-		if (globalsVar)
-			globalsVar->Set(renderer->GetGlobalsBuffer());
-		globalsVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "Globals");
-		if (globalsVar)
-			globalsVar->Set(renderer->GetGlobalsBuffer());
-
-		if (bUseIBL) {
-			auto lutVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT");
-			if (lutVar)
-				lutVar->Set(renderer->GetLUTShaderResourceView());
-		}
-
-		pbrStaticMeshVS->Release();
-		pbrStaticMeshPS->Release();
-
-		VertexAttributeLayout layout;
-		layout.mPosition = 0;
-		layout.mNormal = 1;
-		layout.mUV = 2;
-		layout.mTangent = 3;
-		layout.mStride = 12 * sizeof(float);
-
-		into->SetAll(
-			result,
-			layoutElements,
-			layout,
-			InstancingType::INSTANCED_STATIC_TRANSFORMS);
 	}
 }

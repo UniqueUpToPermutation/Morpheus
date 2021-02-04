@@ -209,28 +209,11 @@ namespace Morpheus {
 		return resource;
 	}
 
-	IResource* ResourceCache<MaterialResource>::DeferredLoad(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
-		auto src = params_cast->mSource;
-
-		auto it = mResourceMap.find(src);
-		if (it != mResourceMap.end()) {
-			return it->second;
-		}
-
-		MaterialResource* resource = new MaterialResource(mManager, this);
-		resource->mSourceIterator = mResourceMap.emplace(src, resource).first;
-		resource->bSourced = true;
-		mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
-		return resource;
-	}
-
-	void ResourceCache<MaterialResource>::ProcessDeferred() {
-		for (auto resource : mDeferredResources) {
-			mLoader.Load(resource.second.mSource, mPrototypeFactory, resource.first);
-		}
-
-		mDeferredResources.clear();
+	TaskId ResourceCache<MaterialResource>::AsyncLoadDeferred(const void* params,
+		ThreadPool* threadPool,
+		IResource** output,
+		const TaskBarrierCallback& callback) {
+		throw std::runtime_error("Not implemented!");
 	}
 
 	void ResourceCache<MaterialResource>::Add(IResource* resource, const void* params) {

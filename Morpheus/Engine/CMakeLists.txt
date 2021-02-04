@@ -125,7 +125,10 @@ list(APPEND SOURCE
 	src/Scene.cpp
 	src/DefaultRenderer.cpp
 	src/Camera.cpp
+	src/ThreadPool.cpp
+	src/ThreadTasks.cpp
 
+	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
 	src/Resources/ResourceManager.cpp
 	src/Resources/PipelineResource.cpp

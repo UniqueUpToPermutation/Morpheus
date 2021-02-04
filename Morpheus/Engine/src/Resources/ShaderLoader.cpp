@@ -25,6 +25,7 @@ namespace Morpheus {
 	}
 
 	void ShaderPreprocessor::Load(const std::string& source,
+		EmbeddedFileLoader* fileLoader,
 		const std::string& path,
 		const ShaderPreprocessorConfig* defaults,
 		const ShaderPreprocessorConfig* overrides,
@@ -39,7 +40,7 @@ namespace Morpheus {
 		alreadyVisited->emplace(source);
 
 		std::string contents;
-		if (!mSourceInterface->TryFind(source, &contents)) {
+		if (!fileLoader->TryFind(source, &contents)) {
 			std::cout << "Unable to find: " << source << std::endl;
 			throw new std::runtime_error(std::string("Unable to find: ") + source);
 		}
@@ -98,7 +99,7 @@ namespace Morpheus {
 						nextPath = includeSource.substr(0, separator_i);
 					}
 
-					Load(includeSource, nextPath, defaults, overrides, streamOut,
+					Load(includeSource, fileLoader, nextPath, defaults, overrides, streamOut,
 						output, alreadyVisited);
 
 				} else {
@@ -109,7 +110,7 @@ namespace Morpheus {
 					includeSource = path + '/' + includeSource;
 				}
 
-				Load(includeSource, nextPath, defaults, overrides, streamOut,
+				Load(includeSource, fileLoader, nextPath, defaults, overrides, streamOut,
 					output, alreadyVisited);
 				
 				ss << std::endl << "\n#line " << current_line << " \"" << source << "\"" << std::endl; // Reset line numbers
@@ -121,7 +122,8 @@ namespace Morpheus {
 		ss << contents.substr(last_include_pos);
 	}
 
-	void ShaderPreprocessor::Load(const std::string& source, 
+	void ShaderPreprocessor::Load(const std::string& source,
+		EmbeddedFileLoader* fileLoader,
 		ShaderPreprocessorOutput* output,
 		const ShaderPreprocessorConfig* defaults, 
 		const ShaderPreprocessorConfig* overrides) {
@@ -138,65 +140,24 @@ namespace Morpheus {
 
 		std::stringstream streamOut;
 
-		Load(source, path, defaults, overrides,
+		Load(source, fileLoader, path, 
+			defaults, overrides,
 			&streamOut, output, &alreadyVisited);
 
 		output->mContent = streamOut.str();
 	}
 
 	void ShaderLoader::Load(const std::string& source,
+		EmbeddedFileLoader* fileLoader,
 		ShaderPreprocessorOutput* output,
 		const ShaderPreprocessorConfig* overrides) {
 
-		mPreprocessor.Load(source, output, mManager->GetShaderPreprocessorConfig(),
+		mPreprocessor.Load(source, fileLoader, 
+			output, mManager->GetShaderPreprocessorConfig(),
 			overrides);
 	}
 
-	bool ShaderLoader::TryFind(const std::string& source, std::string* contents) {
-		// Search internal shaders first
-		auto it = mInternalShaders.find(source);
-		if (it != mInternalShaders.end()) {
-			*contents = it->second;
-			return true;
-		} else {
-			std::ifstream f(source);
-
-			if (f.is_open()) {
-				f.seekg(0, std::ios::end);
-				contents->reserve((size_t)f.tellg());
-				f.seekg(0, std::ios::beg);
-
-				contents->assign((std::istreambuf_iterator<char>(f)),
-					std::istreambuf_iterator<char>());
-				f.close();
-
-				return true;
-			}
-			return false;
-		}
-	}
-
-	bool ShaderLoader::TryLoadJson(const std::string& source, nlohmann::json& result) {
-		auto it = mInternalShaders.find(source);
-		if (it != mInternalShaders.end()) {
-			result = nlohmann::json::parse(it->second);
-			return true;
-		} else {
-			std::ifstream f(source);
-
-			if (f.is_open()) {
-				
-				f >> result;
-				f.close();
-
-				return true;
-			}
-			return false;
-		}
-	}
-
 	ShaderLoader::ShaderLoader(ResourceManager* manager) :
-		mManager(manager), mPreprocessor(this) {
-		makeSourceMap(&mInternalShaders);
+		mManager(manager) {
 	}
 }

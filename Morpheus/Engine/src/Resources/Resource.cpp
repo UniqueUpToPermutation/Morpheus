@@ -28,4 +28,8 @@ namespace Morpheus {
 	CollisionShapeResource* IResource::ToCollisionShape() {
 		return nullptr;
 	}
+
+	ShaderResource* IResource::ToShader() {
+		return nullptr;
+	}
 }

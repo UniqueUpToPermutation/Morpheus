@@ -67,11 +67,14 @@ namespace Morpheus
 		std::string cmdLine = ss.str();
 		ProcessCommandLine(cmdLine.c_str());
 
+		// Start up thread pool
+		mThreadPool.Startup();
+
 		// Create platform
 		mPlatform = CreatePlatform();
 		mPlatform->Initialize(this, argc, argv);
 
-		mResourceManager = new ResourceManager(this);
+		mResourceManager = new ResourceManager(this, &mThreadPool);
 		mRenderer = new DefaultRenderer(this);
 
 		mRenderer->Initialize();
@@ -164,6 +167,9 @@ namespace Morpheus
 	}
 
 	void Engine::Shutdown() {
+
+		mThreadPool.Shutdown();
+
 		if (mScene) {
 			delete mScene;
 			mScene = nullptr; 

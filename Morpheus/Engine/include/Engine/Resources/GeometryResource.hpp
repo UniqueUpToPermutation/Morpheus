@@ -118,15 +118,18 @@ namespace Morpheus {
 		std::unordered_map<std::string, GeometryResource*> mResourceMap;
 		ResourceManager* mManager;
 		GeometryLoader mLoader;
-		std::vector<std::pair<GeometryResource*, LoadParams<GeometryResource>>> mDeferredResources;
+
+		std::mutex mMutex;
 
 	public:
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
 		IResource* Load(const void* params) override;
-		IResource* DeferredLoad(const void* params) override;
-		void ProcessDeferred() override;
+		TaskId AsyncLoadDeferred(const void* params,
+			ThreadPool* threadPool,
+			IResource** output,
+			const TaskBarrierCallback& callback = nullptr) override;
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

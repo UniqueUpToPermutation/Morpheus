@@ -3,6 +3,7 @@
 #include <Engine/Resources/GeometryResource.hpp>
 #include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Resources/MaterialResource.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
 
 namespace Morpheus {
 	void ResourceManager::CollectGarbage() {
@@ -20,7 +21,7 @@ namespace Morpheus {
 		mDisposalList.clear();
 	}
 
-	ResourceManager::ResourceManager(Engine* parent) : mParent(parent) {
+	ResourceManager::ResourceManager(Engine* parent, ThreadPool* pool) : mParent(parent), mThreadPool(pool) {
 		auto pipelineCache = new ResourceCache<PipelineResource>(this);
 
 		mResourceCaches[resource_type::type<PipelineResource>] = 
@@ -40,6 +41,11 @@ namespace Morpheus {
 
 		mResourceCaches[resource_type::type<MaterialResource>] = 
 			materialCache;
+
+		auto shaderCache = new ResourceCache<ShaderResource>(this);
+
+		mResourceCaches[resource_type::type<ShaderResource>] = 
+			shaderCache;
 	}
 
 	ResourceManager::~ResourceManager() {

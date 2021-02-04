@@ -10,6 +10,8 @@
 #include "SwapChain.h"
 #include "BasicMath.hpp"
 
+#include <shared_mutex>
+
 namespace DG = Diligent;
 
 namespace Morpheus {
@@ -21,6 +23,38 @@ namespace Morpheus {
 	inline uint MipCount(const uint width, const uint height, const uint depth) {
 		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
 	}
+
+	struct TextureSubResDataDesc {
+		DG::Uint32 mDepthStride;
+		DG::Uint32 mSrcOffset;
+		DG::Uint32 mStride;
+	};
+
+	class RawTexture {
+	private:
+		DG::TextureDesc mDesc;
+		std::vector<uint8_t> mData;
+		std::vector<TextureSubResDataDesc> mSubDescs;
+
+	public:
+		RawTexture(const DG::TextureDesc& desc, 
+			std::vector<uint8_t>&& data, 
+			const std::vector<TextureSubResDataDesc>& subDescs) :
+			mDesc(desc),
+			mData(data),
+			mSubDescs(subDescs) {
+		}
+
+		RawTexture(const DG::TextureDesc& desc, 
+			const std::vector<uint8_t>& data, 
+			const std::vector<TextureSubResDataDesc>& subDescs) :
+			mDesc(desc),
+			mData(data),
+			mSubDescs(subDescs) {
+		}
+
+		DG::ITexture* Spawn(DG::IRenderDevice* device);
+	};
 
 	class TextureResource : public IResource {
 	private:
@@ -92,11 +126,14 @@ namespace Morpheus {
 	public:
 		TextureLoader(ResourceManager* manager);
 
-		void LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture);
-		void LoadDiligent(const LoadParams<TextureResource>& params, TextureResource* texture);
-		void LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture);
-		void LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture);
-		void Load(const LoadParams<TextureResource>& params, TextureResource* texture);
+		TaskId LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture,
+			const AsyncResourceParams& asyncParams);
+		TaskId LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture,
+			const AsyncResourceParams& asyncParams);
+		TaskId LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture,
+			const AsyncResourceParams& asyncParams);
+		TaskId Load(const LoadParams<TextureResource>& params, TextureResource* texture,
+			const AsyncResourceParams& asyncParams);
 	};
 
 	template <>
@@ -106,7 +143,12 @@ namespace Morpheus {
 		std::set<TextureResource*> mResourceSet;
 		ResourceManager* mManager;
 		TextureLoader mLoader;
-		std::vector<std::pair<TextureResource*, LoadParams<TextureResource>>> mDeferredResources;
+
+		std::shared_mutex mMutex;
+
+		TaskId ActuallyLoad(const void* params,
+			const AsyncResourceParams& asyncParams,
+			IResource** output);
 
 	public:
 		ResourceCache(ResourceManager* manager);
@@ -116,8 +158,10 @@ namespace Morpheus {
 		TextureResource* MakeResource(DG::ITexture* texture);
 
 		IResource* Load(const void* params) override;
-		IResource* DeferredLoad(const void* params) override;
-		void ProcessDeferred() override;
+		TaskId AsyncLoadDeferred(const void* params,
+			ThreadPool* threadPool,
+			IResource** output,
+			const TaskBarrierCallback& callback = nullptr) override;
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

@@ -104,5 +104,5 @@ if(TARGET Morpheus-Engine)
 endif()
 
 if(TARGET Morpheus-Engine)
-	add_subdirectory(Scheduler)
+	add_subdirectory(AsyncTest)
 endif()

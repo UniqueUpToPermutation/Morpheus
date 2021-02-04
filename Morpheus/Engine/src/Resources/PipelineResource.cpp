@@ -2,28 +2,32 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/ShaderLoader.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/ThreadTasks.hpp>
 
 #include <fstream>
 
+#include <shared_mutex>
 namespace Morpheus {
 	PipelineResource* PipelineResource::ToPipeline() {
 		return this;
 	}
 
-	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(const std::string& str) {
+	DG::TEXTURE_FORMAT PipelineLoader::ReadTextureFormat(ResourceManager* resourceManager,
+		const std::string& str) {
 		if (str == "SWAP_CHAIN_COLOR_BUFFER_FORMAT") {
-			return mManager->GetParent()->GetSwapChain()
+			return resourceManager->GetParent()->GetSwapChain()
 				->GetDesc().ColorBufferFormat;
 		} else if (str == "SWAP_CHAIN_DEPTH_BUFFER_FORMAT") {
-			return mManager->GetParent()->GetSwapChain()
+			return resourceManager->GetParent()->GetSwapChain()
 				->GetDesc().DepthBufferFormat;
 		}
 		else if (str == "INTERMEDIATE_FRAMEBUFFER_FORMAT") {
-			return mManager->GetParent()->GetRenderer()
+			return resourceManager->GetParent()->GetRenderer()
 				->GetIntermediateFramebufferFormat();
 		}
 		else if (str == "INTERMEDIATE_DEPTHBUFFER_FORMAT") {
-			return mManager->GetParent()->GetRenderer()
+			return resourceManager->GetParent()->GetRenderer()
 				->GetIntermediateDepthbufferFormat();
 		}
 		else if (str == "TEX_FORMAT_RGBA8_UNORM") {
@@ -143,7 +147,7 @@ namespace Morpheus {
 		}
 	}
 
-	void PipelineLoader::ReadSampleDesc(const nlohmann::json& json, DG::SampleDesc* desc) {
+	void PipelineLoader::ReadSampleDesc(ResourceManager* resourceManager, const nlohmann::json& json, DG::SampleDesc* desc) {
 
 		if (json.contains("Count")) {
 			auto& count_json = json["Count"];
@@ -151,7 +155,7 @@ namespace Morpheus {
 				std::string val;
 				count_json.get_to(val);
 				if (val == "RENDERER_DEFAULT") {
-					desc->Count = mManager->GetParent()->GetRenderer()->GetMSAASamples();
+					desc->Count = resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
 				}
 			}
 			else 
@@ -307,12 +311,12 @@ namespace Morpheus {
 			throw std::runtime_error("Unrecognized texture address mode!");
 	}
 
-	DG::FILTER_TYPE PipelineLoader::ReadFilterType(const nlohmann::json& json) {
+	DG::FILTER_TYPE PipelineLoader::ReadFilterType(ResourceManager* resourceManager, const nlohmann::json& json) {
 		std::string s;
 		json.get_to(s);
 
 		if (s == "RendererDefault") {
-			return mManager->GetParent()->GetRenderer()->GetDefaultFilter();
+			return resourceManager->GetParent()->GetRenderer()->GetDefaultFilter();
 		} else if (s == "FILTER_TYPE_LINEAR") {
 			return DG::FILTER_TYPE_LINEAR;
 		} else if (s == "FILTER_TYPE_ANISOTROPIC") {
@@ -334,7 +338,7 @@ namespace Morpheus {
 		}
 	}
 
-	DG::SamplerDesc PipelineLoader::ReadSamplerDesc(const nlohmann::json& json) {
+	DG::SamplerDesc PipelineLoader::ReadSamplerDesc(ResourceManager* resourceManager, const nlohmann::json& json) {
 		DG::SamplerDesc desc;
 
 		if (json.contains("AddressU")) {
@@ -348,19 +352,20 @@ namespace Morpheus {
 		}
 
 		if (json.contains("MinFilter")) {
-			desc.MinFilter = ReadFilterType(json["MinFilter"]);
+			desc.MinFilter = ReadFilterType(resourceManager, json["MinFilter"]);
 		}
 		if (json.contains("MagFilter")) {
-			desc.MagFilter = ReadFilterType(json["MagFilter"]);
+			desc.MagFilter = ReadFilterType(resourceManager, json["MagFilter"]);
 		}
 		if (json.contains("MipFilter")) {
-			desc.MipFilter = ReadFilterType(json["MipFilter"]);
+			desc.MipFilter = ReadFilterType(resourceManager, json["MipFilter"]);
 		}
 
 		return desc;
 	}
 
-	DG::PipelineResourceLayoutDesc PipelineLoader::ReadResourceLayout(const nlohmann::json& json,
+	DG::PipelineResourceLayoutDesc PipelineLoader::ReadResourceLayout(ResourceManager* resourceManager,
+		const nlohmann::json& json,
 		std::vector<DG::ShaderResourceVariableDesc>* variables,
 		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
 		std::vector<char*>* strings) {
@@ -415,8 +420,8 @@ namespace Morpheus {
 				strings->emplace_back(str);
 
 				sampDesc.SamplerOrTextureName = str;
-				sampDesc.Desc = ReadSamplerDesc(item);
-				sampDesc.Desc.MaxAnisotropy = mManager->GetParent()->GetRenderer()->GetMaxAnisotropy();
+				sampDesc.Desc = ReadSamplerDesc(resourceManager, item);
+				sampDesc.Desc.MaxAnisotropy = resourceManager->GetParent()->GetRenderer()->GetMaxAnisotropy();
 				
 				if (item["ShaderStages"].is_array())
 					sampDesc.ShaderStages = ReadShaderStages(item["ShaderStages"]);
@@ -449,7 +454,8 @@ namespace Morpheus {
 		desc->SlopeScaledDepthBias = json.value("SlopeScaledDepthBias", desc->SlopeScaledDepthBias);
 	}
 
-	void PipelineLoader::ReadDepthStencilDesc(const nlohmann::json& json, 
+	void PipelineLoader::ReadDepthStencilDesc(ResourceManager* resourceManager, 
+		const nlohmann::json& json, 
 		DG::DepthStencilStateDesc* desc) {
 		desc->DepthEnable = json.value("DepthEnable", desc->DepthEnable);
 		desc->StencilEnable = json.value("StencilEnable", desc->StencilEnable);
@@ -468,14 +474,16 @@ namespace Morpheus {
 		desc->DepthWriteEnable = json.value("DepthWriteEnable", desc->DepthWriteEnable);
 	}
 
-	void PipelineLoader::Load(const std::string& source, 
+	void PipelineLoader::Load(ResourceManager* resourceManager,
+		EmbeddedFileLoader* fileLoader,
+		const std::string& source, 
 		PipelineResource* resource,
 		const ShaderPreprocessorConfig* overrides) {
 
 		std::cout << "Loading " << source << "..." << std::endl;
 
 		nlohmann::json json;
-		if (!mShaderLoader.TryLoadJson(source, json)) {
+		if (!fileLoader->TryLoadJson(source, json)) {
 			throw std::runtime_error("Failed to load pipeline json file!");
 		}
 
@@ -485,15 +493,17 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		Load(json, path, resource, overrides);
+		Load(resourceManager, fileLoader, json, path, resource, overrides);
 	}
 
-	void PipelineLoader::Load(const nlohmann::json& json,
+	void PipelineLoader::Load(ResourceManager* resourceManager,
+		EmbeddedFileLoader* fileLoader,
+		const nlohmann::json& json,
 		const std::string& path, PipelineResource* resource,
 		const ShaderPreprocessorConfig* overrides) {
 		auto type = json.value("PipelineType", "PIPELINE_TYPE_GRAPHICS");
 
-		std::vector<DG::IShader*> shaders;
+		std::vector<ShaderResource*> shaders;
 
 		if (type == "PIPELINE_TYPE_GRAPHICS") {
 			std::vector<DG::LayoutElement> layoutElements;
@@ -503,15 +513,16 @@ namespace Morpheus {
 
 			// Read the pipeline description
 			DG::GraphicsPipelineStateCreateInfo info = 
-				ReadGraphicsInfo(json, &layoutElements, 
+				ReadGraphicsInfo(resourceManager, json, &layoutElements, 
 				&variables, &immutableSamplers, &strings);
 
-			auto shaderLoad = [&json, &path, &shaders, &overrides, this](
-				DG::IShader** result,
+			auto shaderLoad = [&json, &path, &shaders, &overrides, resourceManager](
+				ShaderResource** result,
 				const std::string& shaderMacro) {
 				if (json.contains(shaderMacro)) {
 					auto json_macro = json[shaderMacro];
-					auto shad = LoadShader(json_macro, path, overrides);
+					auto shad = LoadShader(resourceManager,
+						json_macro, path, overrides);
 					shaders.emplace_back(shad);
 					*result = shad;
 				}
@@ -523,23 +534,46 @@ namespace Morpheus {
 			}
 
 			// Load shaders
-			shaderLoad(&info.pVS, "VS");
-			shaderLoad(&info.pPS, "PS");
-			shaderLoad(&info.pMS, "MS");
-			shaderLoad(&info.pHS, "HS");
-			shaderLoad(&info.pGS, "GS");
-			shaderLoad(&info.pDS, "DS");
-			shaderLoad(&info.pAS, "AS");
+			ShaderResource* vs = nullptr;
+			ShaderResource* ps = nullptr;
+			ShaderResource* ms = nullptr;
+			ShaderResource* hs = nullptr;
+			ShaderResource* gs = nullptr;
+			ShaderResource* ds = nullptr;
+			ShaderResource* as = nullptr;
+		
+			shaderLoad(&vs, "VS");
+			shaderLoad(&ps, "PS");
+			shaderLoad(&ms, "MS");
+			shaderLoad(&hs, "HS");
+			shaderLoad(&gs, "GS");
+			shaderLoad(&ds, "DS");
+			shaderLoad(&as, "AS");
+
+			if (vs)
+				info.pVS = vs->GetShader();
+			if (ps)
+				info.pPS = ps->GetShader();
+			if (ms)
+				info.pMS = ms->GetShader();
+			if (hs)
+				info.pHS = hs->GetShader();
+			if (gs)
+				info.pGS = gs->GetShader();
+			if (ds)
+				info.pDS = ds->GetShader();
+			if (as)
+				info.pAS = as->GetShader();
 
 			DG::IPipelineState* state = nullptr;
-			mManager->GetParent()->GetDevice()
+			resourceManager->GetParent()->GetDevice()
 				->CreateGraphicsPipelineState(info, &state);
 
 			// Get globals buffer, if it exists
 			std::string globalsBuffer = json.value("GlobalsBuffer", "Globals");
 			auto variable = state->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, globalsBuffer.c_str());
 			if (variable) {	
-				auto globalBuffer = mManager->GetParent()->GetRenderer()->GetGlobalsBuffer();
+				auto globalBuffer = resourceManager->GetParent()->GetRenderer()->GetGlobalsBuffer();
 				variable->Set(globalBuffer);
 			}
 
@@ -568,7 +602,8 @@ namespace Morpheus {
 		throw std::runtime_error("Not implemented yet!");
 	}
 
-	DG::GraphicsPipelineStateCreateInfo PipelineLoader::ReadGraphicsInfo(const nlohmann::json& json,
+	DG::GraphicsPipelineStateCreateInfo PipelineLoader::ReadGraphicsInfo(ResourceManager* resourceManager,
+		const nlohmann::json& json,
 		std::vector<DG::LayoutElement>* layoutElements,
 		std::vector<DG::ShaderResourceVariableDesc>* variables,
 		std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
@@ -603,7 +638,7 @@ namespace Morpheus {
 
 			for (uint i = 0; i < formats.size(); ++i) {
 				auto& format = formats[i];
-				info.GraphicsPipeline.RTVFormats[i] = ReadTextureFormat(format);
+				info.GraphicsPipeline.RTVFormats[i] = ReadTextureFormat(resourceManager, format);
 			}
 		}
 
@@ -611,7 +646,7 @@ namespace Morpheus {
 			std::string format;
 			json["DSVFormat"].get_to(format);
 
-			info.GraphicsPipeline.DSVFormat = ReadTextureFormat(format);
+			info.GraphicsPipeline.DSVFormat = ReadTextureFormat(resourceManager, format);
 		}
 
 		std::string primitiveTopology = json.value("PrimitiveTopology", 
@@ -620,7 +655,7 @@ namespace Morpheus {
 			ReadPrimitiveTopology(primitiveTopology);
 
 		if (json.contains("DepthStencilDesc")) {
-			ReadDepthStencilDesc(json["DepthStencilDesc"], 
+			ReadDepthStencilDesc(resourceManager, json["DepthStencilDesc"], 
 				&info.GraphicsPipeline.DepthStencilDesc);
 		}
 
@@ -630,10 +665,10 @@ namespace Morpheus {
 		}
 
 		if (json.contains("SampleDesc")) {
-			ReadSampleDesc(json["SampleDesc"], &info.GraphicsPipeline.SmplDesc);
+			ReadSampleDesc(resourceManager, json["SampleDesc"], &info.GraphicsPipeline.SmplDesc);
 		} else {
 			// By default use the number of MSAA samples used by the renderer
-			info.GraphicsPipeline.SmplDesc.Count = mManager->GetParent()->GetRenderer()->GetMSAASamples();
+			info.GraphicsPipeline.SmplDesc.Count = resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
 		}
 
 		if (json.contains("InputLayout")) {
@@ -645,7 +680,8 @@ namespace Morpheus {
 		}
 
 		if (json.contains("ResourceLayout")) {
-			info.PSODesc.ResourceLayout = ReadResourceLayout(json["ResourceLayout"],
+			info.PSODesc.ResourceLayout = ReadResourceLayout(resourceManager,
+				json["ResourceLayout"],
 				variables,
 				immutableSamplers,
 				strings);
@@ -654,55 +690,27 @@ namespace Morpheus {
 		return info;
 	}
 
-	DG::IShader* PipelineLoader::LoadShader(
+	ShaderResource* PipelineLoader::LoadShader(ResourceManager* resourceManager,
 		const nlohmann::json& shaderConfig,
 		const std::string& path,
 		const ShaderPreprocessorConfig* config) {
-		DG::ShaderCreateInfo info;
-		info.Desc.ShaderType = ReadShaderType(shaderConfig.value("ShaderType", ""));
+		auto shaderType = ReadShaderType(shaderConfig.value("ShaderType", ""));
 		std::string name = shaderConfig.value("Name", "Unnammed Shader");
-		info.Desc.Name = name.c_str();
-		
 		std::string entryPoint = shaderConfig.value("EntryPoint", "main");
-		info.EntryPoint = entryPoint.c_str();
-
 		std::string source = shaderConfig.value("Source", "");
 
-		std::cout << "Loading " << source << "..." << std::endl;
-
-		ShaderPreprocessorOutput output;
-		mShaderLoader.Load(path + "/" + source, &output, config);
-
-		info.Source = output.mContent.c_str();
-		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
-
-		DG::IShader* shader = nullptr;
-		mManager->GetParent()->GetDevice()->CreateShader(info, &shader);
-		return shader;
+		LoadParams<ShaderResource> shaderParams(path + "/" + source, shaderType, name, config, entryPoint);
+		return resourceManager->Load<ShaderResource>(shaderParams);
 	}
 
-	DG::IShader* PipelineLoader::LoadShader(DG::SHADER_TYPE shaderType,
+	ShaderResource* PipelineLoader::LoadShader(ResourceManager* resourceManager,
+		DG::SHADER_TYPE shaderType,
 		const std::string& path,
 		const std::string& name,
 		const std::string& entryPoint,
 		const ShaderPreprocessorConfig* config) {
-		DG::ShaderCreateInfo info;
-		info.Desc.ShaderType = shaderType;
-		info.Desc.Name = name.c_str();
-		info.EntryPoint = entryPoint.c_str();
-
-		std::cout << "Loading " << path << "..." << std::endl;
-
-		ShaderPreprocessorOutput output;
-		mShaderLoader.Load(path, &output, config);
-
-		info.Source = output.mContent.c_str();
-		info.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
-
-		DG::IShader* shader = nullptr;
-		mManager->GetParent()->GetDevice()->CreateShader(info, &shader);
-
-		return shader;
+		LoadParams<ShaderResource> shaderParams(path, shaderType, name, config, entryPoint);
+		return resourceManager->Load<ShaderResource>(shaderParams);
 	}
 
 	ResourceCache<PipelineResource>::~ResourceCache() {
@@ -723,19 +731,55 @@ namespace Morpheus {
 			
 			std::cout << "Loading Internal Pipeline " << source << "..." << std::endl;
 
+			AsyncResourceParams asyncParams;
+			asyncParams.bUseAsync = false;
+
+			into->mSource = source;
+
 			// Spawn from factory
 			factoryIt->second(
 				mManager->GetParent()->GetDevice(),
 				mManager,
 				mManager->GetParent()->GetRenderer(),
-				mLoader.GetShaderLoader(),
 				into,
-				overrides);
-
-			into->mSource = source;
+				overrides,
+				&asyncParams);
 		} else {
 			// Spawn from json
-			mLoader.Load(source, into, overrides);
+			PipelineLoader::Load(mManager, mManager->GetEmbededFileLoader(), source, into, overrides);
+		}
+	}
+
+	TaskId ResourceCache<PipelineResource>::ActuallyLoadAsync(const std::string& source, PipelineResource* into,
+		ThreadPool* pool, 
+		TaskBarrierCallback callback,
+		const ShaderPreprocessorConfig* overrides) {
+		
+		auto factoryIt = mPipelineFactories.find(source);
+
+		// See if this corresponds to one of our pipeline factories
+		if (factoryIt != mPipelineFactories.end()) {
+			
+			std::cout << "Loading Internal Pipeline " << source << "..." << std::endl;
+
+			AsyncResourceParams asyncParams;
+			asyncParams.bUseAsync = true;
+			asyncParams.mThreadPool = pool;
+			asyncParams.mCallback = callback;
+			
+			into->mSource = source;
+
+			// Async spawn from factory
+			return factoryIt->second(
+				mManager->GetParent()->GetDevice(),
+				mManager,
+				mManager->GetParent()->GetRenderer(),
+				into,
+				overrides,
+				&asyncParams);
+		} else {
+			// Spawn from json
+			throw std::runtime_error("JSON pipeline not supported in async mode");
 		}
 	}
 
@@ -744,58 +788,60 @@ namespace Morpheus {
 		auto src = params_cast->mSource;
 		auto overrides = &params_cast->mOverrides;
 
-		auto it = mCachedResources.find(src);
-		if (it != mCachedResources.end()) {
-			return it->second;
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			auto it = mCachedResources.find(src);
+			if (it != mCachedResources.end()) {
+				return it->second;
+			}
 		}
 
 		PipelineResource* resource = new PipelineResource(mManager);
 		ActuallyLoad(src, resource, overrides);
 		resource->mSource = params_cast->mSource;
-		mCachedResources[src] = resource;
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mCachedResources[src] = resource;
+		}
+		
 		return resource;
 	}
 
-	IResource* ResourceCache<PipelineResource>::DeferredLoad(const void* params) {
+	TaskId ResourceCache<PipelineResource>::AsyncLoadDeferred(const void* params,
+		ThreadPool* threadPool,
+		IResource** output,
+		const TaskBarrierCallback& callback)  {
+
 		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
 		auto src = params_cast->mSource;
+		auto overrides = &params_cast->mOverrides;
 
-		auto it = mCachedResources.find(src);
-		if (it != mCachedResources.end()) {
-			return it->second;
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			auto it = mCachedResources.find(src);
+			if (it != mCachedResources.end()) {
+				*output = it->second;
+				return TASK_NONE;
+			}
 		}
 
 		PipelineResource* resource = new PipelineResource(mManager);
-		mCachedResources[src] = resource;
+		TaskId task = ActuallyLoadAsync(src, resource, threadPool, callback, overrides);
+		resource->mSource = params_cast->mSource;
 
-		// Load this later
-		mDefferedResources.push_back(std::make_pair(resource, *params_cast));
-		return resource;
-	}
-
-	void ResourceCache<PipelineResource>::ProcessDeferred() {
-		for (auto& resource : mDefferedResources) {
-			ActuallyLoad(resource.second.mSource, resource.first, &resource.second.mOverrides);
-			resource.first->mSource = resource.second.mSource;
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mCachedResources[src] = resource;
 		}
 
-		mDefferedResources.clear();
+		*output = resource;
+		
+		return task;
 	}
 
 	void ResourceCache<PipelineResource>::Add(IResource* resource, const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<PipelineResource>*>(params);
-		auto src = params_cast->mSource;
-
-		auto pipeline = resource->ToPipeline();
-
-		auto it = mCachedResources.find(src);
-		if (it != mCachedResources.end()) {
-			if (it->second != pipeline)
-				Unload(it->second);
-			else
-				return;
-		}
-		mCachedResources[src] = pipeline;
+		throw std::runtime_error("Not supported!");
 	}
 
 	void ResourceCache<PipelineResource>::Unload(IResource* resource) {
@@ -807,7 +853,7 @@ namespace Morpheus {
 				mCachedResources.erase(it);
 			}
 		}
-
+	
 		delete resource;
 	}
 

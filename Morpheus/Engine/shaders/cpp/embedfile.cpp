@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 
 	do_search(fs::directory_iterator(path), &map, f_out);
 
-	f_out << "void makeSourceMap(std::unordered_map<std::string, const char*>* map) {" << endl;
+	f_out << "void MakeSourceMap(std::unordered_map<std::string, const char*>* map) {" << endl;
 	for (auto& it : map) {
 		f_out << "\t(*map)[\"/internal/" << it.first << "\"] = " << it.second << ";" << endl;
 		f_out << "\t(*map)[\"internal/" << it.first << "\"] = " << it.second << ";" << endl;

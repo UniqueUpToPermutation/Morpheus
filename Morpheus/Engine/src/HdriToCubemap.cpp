@@ -3,6 +3,7 @@
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Brdf.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
 
 #include "GraphicsUtilities.h"
 #include "MapHelper.hpp"
@@ -32,9 +33,6 @@ namespace Morpheus {
 		bool bConvertSRGBToLinear) {
 
 		mCubemapFormat = cubemapFormat;
-		
-		auto pipelineCache = resourceManager->GetCache<PipelineResource>();
-		auto loader = pipelineCache->GetLoader();
 
 		auto device = resourceManager->GetParent()->GetDevice();
 
@@ -44,17 +42,23 @@ namespace Morpheus {
 		else 
 			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
 
-		auto cubemapFaceVS = loader->LoadShader(DG::SHADER_TYPE_VERTEX,
-			"internal/CubemapFace.vsh",
+		LoadParams<ShaderResource> vsParams("internal/CubemapFace.vsh",
+			DG::SHADER_TYPE_VERTEX,
 			"Cubemap Face Vertex Shader",
-			"main",
-			&config);
+			&config,
+			"main");
 
-		auto irradiancePS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
-			"internal/HdriToCubemap.psh",
+		LoadParams<ShaderResource> psParams("internal/HdriToCubemap.psh",
+			DG::SHADER_TYPE_PIXEL,
 			"HDRI Convert Pixel Shader",
-			"main",
-			&config);
+			&config,
+			"main");
+
+		auto cubemapFaceVSResource = resourceManager->Load<ShaderResource>(vsParams);
+		auto cubemapFacePSResource = resourceManager->Load<ShaderResource>(psParams);
+
+		auto cubemapFaceVS = cubemapFaceVSResource->GetShader();
+		auto cubemapFacePS = cubemapFacePSResource->GetShader();
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -78,7 +82,7 @@ namespace Morpheus {
 			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
 
 			PSOCreateInfo.pVS = cubemapFaceVS;
-			PSOCreateInfo.pPS = irradiancePS;
+			PSOCreateInfo.pPS = cubemapFacePS;
 
 			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 			// clang-format off
@@ -104,8 +108,8 @@ namespace Morpheus {
 			mPipelineState->CreateShaderResourceBinding(&mSRB, true);
 		}
 
-		irradiancePS->Release();
-		cubemapFaceVS->Release();
+		cubemapFaceVSResource->Release();
+		cubemapFacePSResource->Release();
 	}
 
 	void HDRIToCubemapConverter::Convert(DG::IDeviceContext* context, 

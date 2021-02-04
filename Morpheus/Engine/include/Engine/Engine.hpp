@@ -21,6 +21,7 @@
 #include <Engine/Scene.hpp>
 #include <Engine/Renderer.hpp>
 #include <Engine/Entity.hpp>
+#include <Engine/ThreadPool.hpp>
 
 namespace Diligent
 {
@@ -120,6 +121,7 @@ namespace Morpheus {
 		ResourceManager* 	mResourceManager 	= nullptr;
 		Scene* 				mScene 				= nullptr;
 		IRenderer*			mRenderer 			= nullptr;
+		ThreadPool			mThreadPool;
 
 		int          mInitialWindowWidth  	= 0;
 		int          mInitialWindowHeight 	= 0;
@@ -167,6 +169,19 @@ namespace Morpheus {
 		static Engine* mGlobalInstance;
 
 	public:
+
+		inline void Yield() {
+			mThreadPool.Yield();
+		}
+		inline void YieldUntil(TaskBarrier* barrier) {
+			mThreadPool.YieldUntil(barrier);
+		}
+		inline void YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
+			mThreadPool.YieldFor(duration);
+		}
+		inline void YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
+			mThreadPool.YieldUntil(time);
+		}
 
 		DG::float4x4 GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const;
 		DG::float4x4 GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const;
@@ -221,6 +236,9 @@ namespace Morpheus {
 		}
 		inline DG::ImGuiImplDiligent* GetUI() {
 			return mImGui.get();
+		}
+		inline ThreadPool* GetThreadPool() {
+			return &mThreadPool;
 		}
 
 		void InitializeDefaultSystems(Scene* scene);

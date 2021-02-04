@@ -1,29 +1,59 @@
 #pragma once
+
 #include <Engine/Entity.hpp>
+#include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
 	class TextureResource;
 	class PipelineResource;
 	class MaterialResource;
 	class GeometryResource;
+	class ShaderResource;
 	class ResourceManager;
 	class CollisionShapeResource;
 
+	struct AsyncResourceParams {
+		bool bUseAsync;
+		TaskBarrierCallback mCallback;
+		ThreadPool* mThreadPool;	
+	};
 	using resource_type = 
 		entt::identifier<
 			TextureResource,
 			PipelineResource,
 			MaterialResource,
 			GeometryResource,
-			CollisionShapeResource>;
+			CollisionShapeResource,
+			ShaderResource>;
 
 	class IResource;
-
 	class IResourceCache {
 	public:
+		// Loads resource on the current thread with no async
 		virtual IResource* Load(const void* params) = 0;
-		virtual IResource* DeferredLoad(const void* params) = 0;
-		virtual void ProcessDeferred() = 0;
+		// Returns a task desc that the caller must then trigger with the thread pool
+		virtual TaskId AsyncLoadDeferred(const void* params,
+			ThreadPool* threadPool,
+			IResource** output,
+			const TaskBarrierCallback& callback = nullptr) = 0;
+		
+		inline IResource* AsyncLoad(const void* params, 
+			ThreadPool* threadPool,
+			const TaskBarrierCallback& callback = nullptr) {
+
+			// Create a task for the thread pool and a resource to load into
+			IResource* result = nullptr;
+			TaskId task = AsyncLoadDeferred(params, threadPool, &result, callback);
+
+			// Emplace task into the thread pool queue
+			if (task != TASK_NONE) {
+				auto queue = threadPool->GetQueue();
+				queue.MakeImmediate(task);
+			}
+
+			return result;
+		}
+			
 		virtual void Add(IResource* resource, const void* params) = 0;
 		virtual void Unload(IResource* resource) = 0;
 		virtual void Clear() = 0;
@@ -44,6 +74,10 @@ namespace Morpheus {
 	private:
 		unsigned int mRefCount = 0;
 		ResourceManager* mManager;
+
+	protected:
+		TaskBarrier mLoadBarrier;
+		TaskBarrier mPreLoadBarrier;
 
 	public:
 		IResource(ResourceManager* manager) : 
@@ -75,6 +109,21 @@ namespace Morpheus {
 		virtual MaterialResource* ToMaterial();
 		virtual TextureResource* ToTexture();
 		virtual CollisionShapeResource* ToCollisionShape();
+		virtual ShaderResource* ToShader();
+
+		inline bool IsLoaded() const {
+			return mLoadBarrier.ActiveTaskCount() == 0;
+		}
+
+		// A barrier that is invoked when the resource is loaded.
+		inline TaskBarrier* GetLoadBarrier() {
+			return &mLoadBarrier;
+		}
+
+		// A barrier that is invoked when the dependencies of this resource have been loaded.
+		inline TaskBarrier* GetPreLoadBarrier() {
+			return &mPreLoadBarrier;
+		}
 
 		inline ResourceManager* GetManager() {
 			return mManager;
@@ -118,6 +167,14 @@ namespace Morpheus {
 	struct ResourceConvert<CollisionShapeResource> {
 		static inline CollisionShapeResource* Convert(IResource* resource) {
 			return resource->ToCollisionShape();
+		}
+	};
+
+	
+	template <>
+	struct ResourceConvert<ShaderResource> {
+		static inline ShaderResource* Convert(IResource* resource) {
+			return resource->ToShader();
 		}
 	};
 }

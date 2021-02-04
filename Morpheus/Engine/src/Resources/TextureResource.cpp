@@ -13,6 +13,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+#include <shared_mutex>
 namespace Morpheus {
 
 	template <uint channels, typename T>
@@ -52,6 +54,29 @@ namespace Morpheus {
 		}
 	}
 
+	DG::ITexture* RawTexture::Spawn(DG::IRenderDevice* device) {
+		DG::ITexture* texture = nullptr;
+
+		DG::TextureData data;
+
+		std::vector<DG::TextureSubResData> subs;
+		subs.reserve(mSubDescs.size());
+
+		for (auto& subDesc : mSubDescs) {
+			DG::TextureSubResData subDG;
+			subDG.DepthStride = subDesc.mDepthStride;
+			subDG.Stride = subDesc.mStride;
+			subDG.pData = &mData[subDesc.mSrcOffset];
+			subs.emplace_back(subDG);
+		}
+
+		data.NumSubresources = mSubDescs.size();
+		data.pSubResources = &subs[0];
+
+		device->CreateTexture(mDesc, &data, &texture);
+		return texture;
+	}
+
 	TextureResource* TextureResource::ToTexture() {
 		return this;
 	}
@@ -63,7 +88,8 @@ namespace Morpheus {
 	TextureLoader::TextureLoader(ResourceManager* manager) : mManager(manager) {
 	}
 
-	void TextureLoader::Load(const LoadParams<TextureResource>& params, TextureResource* resource) {
+	TaskId TextureLoader::Load(const LoadParams<TextureResource>& params, TextureResource* resource,
+		const AsyncResourceParams& asyncParams) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -71,13 +97,13 @@ namespace Morpheus {
 		auto ext = params.mSource.substr(pos);
 
 		if (ext == ".ktx" || ext == ".dds") {
-			LoadGli(params, resource);
+			return LoadGli(params, resource, asyncParams);
 		} else if (ext == ".hdr") {
-			LoadStb(params, resource);
+			return LoadStb(params, resource, asyncParams);
 		} else if (ext == ".png") {
-			LoadPng(params, resource);
+			return LoadPng(params, resource, asyncParams);
 		} else {
-			LoadDiligent(params, resource);
+			throw std::runtime_error("Texture file format not supported!");
 		}
 	}
 
@@ -150,7 +176,8 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureLoader::LoadGli(const LoadParams<TextureResource>& params, TextureResource* resource) {
+	TaskId TextureLoader::LoadGli(const LoadParams<TextureResource>& params, TextureResource* resource, 
+		const AsyncResourceParams& asyncParams) {
 		auto device = mManager->GetParent()->GetDevice();
 
 		gli::texture tex = gli::load(params.mSource);
@@ -239,21 +266,10 @@ namespace Morpheus {
 		for (auto& data : expanded_datas) {
 			delete[] data;
 		}
+
+		return TASK_NONE;
 	}
 
-	void TextureLoader::LoadDiligent(const LoadParams<TextureResource>& params, TextureResource* texture) {
-		DG::TextureLoadInfo loadInfo;
-		loadInfo.IsSRGB = params.bIsSRGB;
-		loadInfo.GenerateMips = params.bGenerateMips;
-		DG::ITexture* tex = nullptr;
-
-		std::cout << "Loading " << params.mSource << "..." << std::endl;
-
-		CreateTextureFromFile(params.mSource.c_str(), loadInfo, mManager->GetParent()->GetDevice(), &tex);
-		
-		texture->mTexture = tex;
-		texture->mSource = params.mSource;
-	}
 
 	inline float LinearToSRGB(float x)
 	{
@@ -397,12 +413,15 @@ namespace Morpheus {
 		}
 	}
 
-	void TextureLoader::LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture) {
+	TaskId TextureLoader::LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture,
+		const AsyncResourceParams& asyncParams) {
 		unsigned char* pixel_data = nullptr;
 		bool b_hdr;
 		int comp;
 		int x;
 		int y;
+
+		size_t currentIndx = 0;
 
 		if (stbi_is_hdr(params.mSource.c_str())) {
 			float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
@@ -463,40 +482,43 @@ namespace Morpheus {
 			}
 		}
 
-		std::vector<DG::TextureSubResData> subDatas;
-		std::vector<void*> rawDatas;
+		std::vector<TextureSubResDataDesc> subDatas;
+		std::vector<uint8_t> rawData;
+
+		size_t sz_multiplier = b_hdr ?  sizeof(float) / sizeof(uint8_t) : 1;
+		size_t sz = x * y * new_comp * sz_multiplier;
+
+		rawData.resize(sz * 2);
+
 		size_t mipCount = MipCount(x, y);
-		for (size_t i = 0; i < mipCount; ++i) {
-			uint width = std::max(1, x >> i);
-			uint height = std::max(1, y >> i);
-			DG::TextureSubResData s;
-			s.DepthStride = width * height * new_comp * (b_hdr ? sizeof(float) : sizeof(uint8_t));
-			s.Stride = width * new_comp * (b_hdr ? sizeof(float) : sizeof(uint8_t));
-			void* raw_data;
-			if (b_hdr) {
-				raw_data = new float[width * height * new_comp];
-			} else {
-				raw_data = new uint8_t[width * height * new_comp];
-			}
-			s.pData = raw_data;
-			subDatas.emplace_back(s);
-			rawDatas.emplace_back(raw_data);
-		}
 
 		if (bExpand && b_hdr) {
-			ImCpy<3, float>((float*)rawDatas[0], (float*)pixel_data, x * y);
+			ImCpy<3, float>((float*)&rawData[0], (float*)pixel_data, x * y);
 		}
 		if (bExpand && !b_hdr) {
-			ImCpy<3, uint8_t>((uint8_t*)rawDatas[0], pixel_data, x * y);
+			ImCpy<3, uint8_t>((uint8_t*)&rawData[0], pixel_data, x * y);
 		}
 		if (!bExpand && b_hdr) {
-			memcpy(rawDatas[0], pixel_data, x * y * new_comp * sizeof(float));
+			memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(float));
 		}
 		if (!bExpand && !b_hdr) {
-			memcpy(rawDatas[0], pixel_data, x * y * new_comp * sizeof(uint8_t));
+			memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(uint8_t));
 		}
 
+		auto last_mip_data = &rawData[0];
+		currentIndx += x * y * new_comp * sz_multiplier; 
+
+		TextureSubResDataDesc mip0;
+		mip0.mDepthStride = x * y * new_comp * sz_multiplier;
+		mip0.mStride = x * new_comp * sz_multiplier;
+		mip0.mSrcOffset = 0;
+
+		subDatas.emplace_back(mip0);
+
 		for (size_t i = 1; i < mipCount; ++i) {
+
+			auto mip_data = &rawData[currentIndx];
+
 			uint fineWidth = std::max(1, x >> (i - 1));
 			uint fineHeight = std::max(1, y >> (i - 1));
 			uint coarseWidth = std::max(1, x >> i);
@@ -507,21 +529,29 @@ namespace Morpheus {
 
 			if (b_hdr) {
 				ComputeCoarseMip<float>(new_comp, false,
-					(float*)rawDatas[i - 1], 
+					(float*)last_mip_data, 
 					fineStride,
 					fineWidth, fineHeight,
-					(float*)rawDatas[i], 
+					(float*)mip_data, 
 					coarseStride,
 					coarseWidth, coarseHeight);
 			} else {
 				ComputeCoarseMip<uint8_t>(new_comp, false,
-					(uint8_t*)rawDatas[i - 1],
+					(uint8_t*)last_mip_data,
 					fineStride,
 					fineWidth, fineHeight,
-					(uint8_t*)rawDatas[i],
+					(uint8_t*)mip_data,
 					coarseStride,
 					coarseWidth, coarseHeight);
 			}
+
+			TextureSubResDataDesc mip;
+			mip.mDepthStride = coarseWidth * coarseHeight * new_comp * sz_multiplier;
+			mip.mStride = coarseWidth * new_comp * sz_multiplier;
+			mip.mSrcOffset = currentIndx;
+			subDatas.emplace_back(mip);
+
+			currentIndx += coarseWidth * coarseHeight * new_comp * sz_multiplier;
 		}
 
 		DG::TextureDesc desc;
@@ -536,26 +566,19 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.ArraySize = 1;
 
-		DG::TextureData data;
-		data.NumSubresources = subDatas.size();
-		data.pSubResources = &subDatas[0];
+		RawTexture rawTexture(desc, std::move(rawData), subDatas);
 
-		DG::ITexture* tex = nullptr;
-		mManager->GetParent()->GetDevice()->CreateTexture(desc, &data, &tex);
+		DG::ITexture* tex = rawTexture.Spawn(mManager->GetParent()->GetDevice());
 
 		texture->mTexture = tex;
 		texture->mSource = params.mSource;
 
-		for (size_t i = 0; i < mipCount; ++i) {
-			if (b_hdr) {
-				delete[] (float*)rawDatas[i];
-			} else {
-				delete[] (uint8_t*)rawDatas[i];
-			}
-		}
+		return TASK_NONE;
 	}
 
-	void TextureLoader::LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture) {
+	TaskId TextureLoader::LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture,
+		const AsyncResourceParams& asyncParams) {
+
 		std::vector<uint8_t> image;
 		uint32_t width, height;
 		uint32_t error = lodepng::decode(image, width, height, params.mSource);
@@ -566,6 +589,12 @@ namespace Morpheus {
 		//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
 		//State state contains extra information about the PNG such as text chunks, ...
 		if (!error) {
+			std::vector<uint8_t> rawData;
+			std::vector<TextureSubResDataDesc> subDatas;
+			rawData.resize(image.size() * 2);
+
+			size_t currentIndx = 0;
+
 			GLuint TextureName = 0;
 
 			DG::TEXTURE_FORMAT format;
@@ -589,20 +618,20 @@ namespace Morpheus {
 
 			size_t mipCount = MipCount(width, height);
 
-			DG::TextureSubResData mip0;
-			mip0.DepthStride = width * height * 4 * sizeof(uint8_t);
-			mip0.Stride = width * 4 * sizeof(uint8_t);
-			mip0.pData = &image[0];
-
-			std::vector<DG::TextureSubResData> subDatas;
+			TextureSubResDataDesc mip0;
+			mip0.mDepthStride = width * height * 4 * sizeof(uint8_t);
+			mip0.mStride = width * 4 * sizeof(uint8_t);
+			mip0.mSrcOffset = currentIndx;
 			subDatas.emplace_back(mip0);
 
-			std::vector<uint8_t*> mipDatas;
-			mipDatas.emplace_back(&image[0]);
+			std::memcpy(&rawData[0], &image[0], width * height * 4);
+
+			currentIndx = width * height * 4;
+
+			uint8_t* last_mip_data = &rawData[0];
 
 			for (size_t i = 1; i < mipCount; ++i) {
-				auto new_mip_data = new uint8_t[width * height * 4];
-				mipDatas.emplace_back(new_mip_data);
+				auto new_mip_data = &rawData[currentIndx];
 
 				uint fineWidth = std::max(1u, width >> (i - 1));
 				uint fineHeight = std::max(1u, height >> (i - 1));
@@ -613,37 +642,35 @@ namespace Morpheus {
 				uint coarseStride = coarseWidth * 4 * sizeof(uint8_t);
 
 				ComputeCoarseMip<uint8_t>(4, params.bIsSRGB,
-					mipDatas[i - 1],
+					last_mip_data,
 					fineStride,
 					fineWidth, fineHeight,
-					mipDatas[i],
+					new_mip_data,
 					coarseStride,
 					coarseWidth, coarseHeight);
 
-				DG::TextureSubResData mipDesc;
-				mipDesc.DepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
-				mipDesc.Stride = coarseWidth * 4 * sizeof(uint8_t);
-				mipDesc.pData = new_mip_data;
+				TextureSubResDataDesc mipDesc;
+				mipDesc.mDepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
+				mipDesc.mStride = coarseWidth * 4 * sizeof(uint8_t);
+				mipDesc.mSrcOffset = currentIndx;
 				subDatas.emplace_back(mipDesc);
+
+				currentIndx += coarseWidth * coarseHeight * 4;
+				last_mip_data = new_mip_data;
 			}
 
-			DG::TextureData data;
-			data.NumSubresources = subDatas.size();
-			data.pSubResources = &subDatas[0];
+			RawTexture rawTexture(desc, std::move(rawData), subDatas);
 
-			DG::ITexture* tex = nullptr;
-			mManager->GetParent()->GetDevice()->CreateTexture(desc, &data, &tex);
+			DG::ITexture* tex = rawTexture.Spawn(mManager->GetParent()->GetDevice());
 
 			texture->mTexture = tex;
 			texture->mSource = params.mSource;
-
-			for (size_t i = 1; i < mipCount; ++i) {
-				delete[] mipDatas[i];
-			}
 		}
 		else {
 			throw std::runtime_error("Error loading PNG!");
 		}
+
+		return TASK_NONE;
 	}
 
 	ResourceCache<TextureResource>::ResourceCache(ResourceManager* manager) :
@@ -654,52 +681,72 @@ namespace Morpheus {
 		Clear();
 	}
 
+	TaskId ResourceCache<TextureResource>::ActuallyLoad(const void* params,
+		const AsyncResourceParams& asyncParams,
+		IResource** output) {
+
+		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
+		
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			auto it = mResourceMap.find(params_cast->mSource);
+
+			if (it != mResourceMap.end()) {
+				*output = it->second;
+				return TASK_NONE;
+			}
+		} 
+
+		auto result = new TextureResource(mManager);
+		auto taskId = mLoader.Load(*params_cast, result, asyncParams);
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mResourceMap[params_cast->mSource] = result;
+		}
+
+		*output = result;
+		return taskId;
+	}
+
 	IResource* ResourceCache<TextureResource>::Load(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
-		
-		auto it = mResourceMap.find(params_cast->mSource);
+		AsyncResourceParams asyncParams;
+		asyncParams.bUseAsync = false;
 
-		if (it != mResourceMap.end()) {
-			return it->second;
-		} else {
-			auto result = new TextureResource(mManager);
-			mLoader.Load(*params_cast, result);
-			mResourceMap[params_cast->mSource] = result;
-			return result;
-		}
+		IResource* result = nullptr;
+		ActuallyLoad(params, asyncParams, &result);
+		
+		return result;
 	}
 
-	IResource* ResourceCache<TextureResource>::DeferredLoad(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
-		
-		auto it = mResourceMap.find(params_cast->mSource);
+	TaskId ResourceCache<TextureResource>::AsyncLoadDeferred(const void* params, 
+		ThreadPool* pool,
+		IResource** resource,
+		const TaskBarrierCallback& callback) {
 
-		if (it != mResourceMap.end()) {
-			return it->second;
-		} else {
-			auto result = new TextureResource(mManager);
-			mDeferredResources.emplace_back(std::make_pair(result, *params_cast));
-			mResourceMap[params_cast->mSource] = result;
-			return result;
-		}
-	}
+		AsyncResourceParams asyncParams;
+		asyncParams.bUseAsync = false;
+		asyncParams.mThreadPool = pool;
+		asyncParams.mCallback = callback;
 
-	void ResourceCache<TextureResource>::ProcessDeferred() {
-		for (auto resource : mDeferredResources) {
-			mLoader.Load(resource.second, resource.first);
-		}
-
-		mDeferredResources.clear();
+		return ActuallyLoad(params, asyncParams, resource);
 	}
 
 	void ResourceCache<TextureResource>::Add(TextureResource* tex, const std::string& source) {
 		tex->mSource = source;
-		mResourceMap[source] = tex;
-		mResourceSet.emplace(tex);
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mResourceMap[source] = tex;
+			mResourceSet.emplace(tex);
+		}
 	}
 
 	void ResourceCache<TextureResource>::Add(TextureResource* tex) {
-		mResourceSet.emplace(tex);
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mResourceSet.emplace(tex);
+		}
 	}
 
 	void ResourceCache<TextureResource>::Add(IResource* resource, const void* params) {

@@ -6,47 +6,40 @@
 #include <functional>
 
 namespace Morpheus {
-	typedef std::function<void(
+	
+	typedef std::function<TaskId(
 		DG::IRenderDevice*, 
 		ResourceManager*, 
 		IRenderer*, 
-		ShaderLoader*,
 		PipelineResource*,
-		const ShaderPreprocessorConfig*)> factory_func_t;
+		const ShaderPreprocessorConfig*,
+		const AsyncResourceParams*)> factory_func_t;
 
-	DG::IShader* LoadShader(DG::IRenderDevice* device,
-		DG::SHADER_TYPE shaderType,
-		const std::string& path,
-		const std::string& name,
-		const std::string& entryPoint,
-		const ShaderPreprocessorConfig* config,
-		ShaderLoader* loader);
-
-	void CreateBasicTexturedPipeline(DG::IRenderDevice* device,
+	TaskId CreateBasicTexturedPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
-		ShaderLoader* shaderLoader,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides = nullptr);
+		const ShaderPreprocessorConfig* overrides = nullptr,
+		const AsyncResourceParams* asyncParams = nullptr);
 
-	void CreateSkyboxPipeline(DG::IRenderDevice* device,
+	TaskId CreateSkyboxPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
-		ShaderLoader* shaderLoader,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides);
+		const ShaderPreprocessorConfig* overrides,
+		const AsyncResourceParams* asyncParams = nullptr);
 
-	void CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
+	TaskId CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
-		ShaderLoader* shaderLoader,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides);
+		const ShaderPreprocessorConfig* overrides,
+		const AsyncResourceParams* asyncParams = nullptr);
 
-	void CreateWhitePipeline(DG::IRenderDevice* device,
+	TaskId CreateWhitePipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
-		ShaderLoader* shaderLoader,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides);
+		const ShaderPreprocessorConfig* overrides,
+		const AsyncResourceParams* asyncParams = nullptr);
 }

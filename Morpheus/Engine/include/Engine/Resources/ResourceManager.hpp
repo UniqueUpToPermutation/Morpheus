@@ -5,6 +5,7 @@
 
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ShaderLoader.hpp>
+#include <Engine/Resources/EmbeddedFileLoader.hpp>
 
 namespace Morpheus {
 
@@ -15,12 +16,14 @@ namespace Morpheus {
 		std::unordered_map<entt::id_type, IResourceCache*> mResourceCaches;
 		std::vector<IResource*> mDisposalList;
 		ShaderPreprocessorConfig mShaderPreprocessorConfig;
+		EmbeddedFileLoader mEmbeddedFileLoader;
 
 		Engine* mParent;
+		ThreadPool* mThreadPool;
 
 	public:
 
-		ResourceManager(Engine* parent);
+		ResourceManager(Engine* parent, ThreadPool* threadPool);
 		~ResourceManager();
 
 		template <typename T>
@@ -77,7 +80,8 @@ namespace Morpheus {
 		}
 
 		template <typename T>
-		inline T* DeferredLoad(const LoadParams<T>& params) {
+		inline T* AsyncLoad(const LoadParams<T>& params, 
+			const TaskBarrierCallback& callback = nullptr) {
 			auto resource_id = resource_type::type<T>;
 			auto it = mResourceCaches.find(resource_id);
 
@@ -85,22 +89,45 @@ namespace Morpheus {
 				throw std::runtime_error("Could not find resource cache for resource type!");
 			}
 
-			auto result = it->second->DeferredLoad(&params);
+			auto result = it->second->AsyncLoad(&params, mThreadPool, callback);
 			result->AddRef(); // Increment references
 
 			return result->template To<T>();
 		}
 
 		template <typename T>
-		inline T* DeferredLoad(const std::string& source) {
+		inline T* AsyncLoad(const std::string& source, 
+			const TaskBarrierCallback& callback = nullptr) {
 			auto params = LoadParams<T>::FromString(source);
-			return DeferredLoad<T>(params);
+			return AsyncLoad<T>(params, callback);
 		}
 
-		inline void ProcessDeferred() {
-			for (auto cache : mResourceCaches) {
-				cache.second->ProcessDeferred();
+		template <typename T>
+		inline TaskId AsyncLoadDeferred(const LoadParams<T>& params,
+			T** output,
+			const TaskBarrierCallback& callback = nullptr) {
+			auto resource_id = resource_type::type<T>;
+			auto it = mResourceCaches.find(resource_id);
+
+			if (it == mResourceCaches.end()) {
+				throw std::runtime_error("Could not find resource cache for resource type!");
 			}
+
+			IResource* resource = nullptr;
+			auto task = it->second->AsyncLoadDeferred(&params, mThreadPool, &resource, callback);
+			resource->AddRef(); // Increment References
+
+			*output = resource->template To<T>();
+
+			return task;
+		}
+
+		template <typename T>
+		inline TaskId AsyncLoad(const std::string& source,
+			T** output,
+			const TaskBarrierCallback& callback = nullptr) {
+			auto params = LoadParams<T>::FromString(source);
+			return AsyncLoad<T>(params, output, callback);
 		}
 
 		inline void RequestUnload(IResource* resource) {
@@ -111,6 +138,10 @@ namespace Morpheus {
 
 		inline Engine* GetParent() {
 			return mParent;
+		}
+
+		inline EmbeddedFileLoader* GetEmbededFileLoader() {
+			return &mEmbeddedFileLoader;
 		}
 
 		void LoadMesh(const std::string& geometrySource,

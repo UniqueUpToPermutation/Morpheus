@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shared_mutex>
+
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ShaderLoader.hpp>
 #include <Engine/Pipelines/PipelineFactory.hpp>
@@ -135,63 +137,61 @@ namespace Morpheus {
 	DG::SHADER_TYPE ReadShaderType(const std::string& str);
 
 	class PipelineLoader {
-	private:
-		ResourceManager* mManager;
-		ShaderLoader mShaderLoader;
-
 	public:
-		inline PipelineLoader(ResourceManager* manager) :
-			mManager(manager), 
-			mShaderLoader(manager) {
-		}
-
-		DG::TEXTURE_FORMAT ReadTextureFormat(const std::string& str);
-		DG::PRIMITIVE_TOPOLOGY ReadPrimitiveTopology(const std::string& str);
-		void ReadRasterizerDesc(const nlohmann::json& json, DG::RasterizerStateDesc* desc);
-		void ReadDepthStencilDesc(const nlohmann::json& json, DG::DepthStencilStateDesc* desc);
-		DG::CULL_MODE ReadCullMode(const std::string& str);
-		DG::FILL_MODE ReadFillMode(const std::string& str);
-		DG::STENCIL_OP ReadStencilOp(const std::string& str);
-		DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
-		void ReadSampleDesc(const nlohmann::json& json, DG::SampleDesc* desc);
-		void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
-		std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
-		DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
-		DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);
-		VertexAttributeLayout ReadVertexAttributes(const nlohmann::json& json);
-		DG::SHADER_RESOURCE_VARIABLE_TYPE ReadShaderResourceVariableType(const nlohmann::json& json);
-		DG::PipelineResourceLayoutDesc ReadResourceLayout(const nlohmann::json& json,
+		static DG::TEXTURE_FORMAT ReadTextureFormat(ResourceManager* resourceManager, const std::string& str);
+		static DG::PRIMITIVE_TOPOLOGY ReadPrimitiveTopology(const std::string& str);
+		static void ReadRasterizerDesc(const nlohmann::json& json, DG::RasterizerStateDesc* desc);
+		static void ReadDepthStencilDesc(ResourceManager* resourceManager, const nlohmann::json& json, DG::DepthStencilStateDesc* desc);
+		static DG::CULL_MODE ReadCullMode(const std::string& str);
+		static DG::FILL_MODE ReadFillMode(const std::string& str);
+		static DG::STENCIL_OP ReadStencilOp(const std::string& str);
+		static DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
+		static void ReadSampleDesc(ResourceManager* resourceManager, const nlohmann::json& json, DG::SampleDesc* desc);
+		static void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
+		static std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
+		static DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
+		static DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);
+		static VertexAttributeLayout ReadVertexAttributes(const nlohmann::json& json);
+		static DG::SHADER_RESOURCE_VARIABLE_TYPE ReadShaderResourceVariableType(const nlohmann::json& json);
+		static DG::PipelineResourceLayoutDesc ReadResourceLayout(ResourceManager* resourceManager,
+			const nlohmann::json& json,
 			std::vector<DG::ShaderResourceVariableDesc>* variables,
 			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
 			std::vector<char*>* strings);
-		DG::SamplerDesc ReadSamplerDesc(const nlohmann::json& json);
-		DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
-		DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
-		DG::FILTER_TYPE ReadFilterType(const nlohmann::json& json);
-		DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
+		static DG::SamplerDesc ReadSamplerDesc(ResourceManager* resourceManager, const nlohmann::json& json);
+		static DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
+		static DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
+		static DG::FILTER_TYPE ReadFilterType(ResourceManager* resourceManager, const nlohmann::json& json);
+		static DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
 
-		void Load(const std::string& source, PipelineResource* into, 
+		static void Load(ResourceManager* resourceManager, 
+			EmbeddedFileLoader* fileLoader,
+			const std::string& source, 
+			PipelineResource* into, 
 			const ShaderPreprocessorConfig* overrides=nullptr);
-		void Load(const nlohmann::json& json, const std::string& path, PipelineResource* into, 
+		static void Load(ResourceManager* resourceManager,
+			EmbeddedFileLoader* fileLoader,
+			const nlohmann::json& json, 
+			const std::string& path, 
+			PipelineResource* into, 
 			const ShaderPreprocessorConfig* overrides=nullptr);
-		DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
-		DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(const nlohmann::json& json, 
+		static DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
+		static DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(ResourceManager* resourceManager,
+			const nlohmann::json& json, 
 			std::vector<DG::LayoutElement>* layoutElements,
 			std::vector<DG::ShaderResourceVariableDesc>* variables,
 			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
 			std::vector<char*>* strings);
-		DG::IShader* LoadShader(const nlohmann::json& shaderConfig,
+		static ShaderResource* LoadShader(ResourceManager* resourceManager,
+			const nlohmann::json& shaderConfig,
 			const std::string& path,
 			const ShaderPreprocessorConfig* config = nullptr);
-		DG::IShader* LoadShader(DG::SHADER_TYPE shaderType,
+		static ShaderResource* LoadShader(ResourceManager* resourceManager,
+			DG::SHADER_TYPE shaderType,
 			const std::string& path,
 			const std::string& name,
 			const std::string& entryPoint,
 			const ShaderPreprocessorConfig* config = nullptr);
-
-		inline ShaderLoader* GetShaderLoader() {
-			return &mShaderLoader;
-		}
 	};
 
 	template <>
@@ -199,29 +199,30 @@ namespace Morpheus {
 	private:
 		std::unordered_map<std::string, PipelineResource*> mCachedResources;
 		std::unordered_map<std::string, factory_func_t> mPipelineFactories;
-		std::vector<std::pair<PipelineResource*, LoadParams<PipelineResource>>> mDefferedResources;
-		PipelineLoader mLoader;
 		ResourceManager* mManager;
 
 		void InitFactories();
 		void ActuallyLoad(const std::string& source, PipelineResource* into, 
 			const ShaderPreprocessorConfig* overrides=nullptr);
+		TaskId ActuallyLoadAsync(const std::string& source, PipelineResource* into,
+			ThreadPool* pool,
+			TaskBarrierCallback callback,
+			const ShaderPreprocessorConfig* overrides=nullptr);
+
+		std::shared_mutex mMutex;
 
 	public:
 		inline ResourceCache(ResourceManager* manager) :
-			mLoader(manager),
 			mManager(manager) {
 			InitFactories();
 		}
 		~ResourceCache();
 
-		inline PipelineLoader* GetLoader() {
-			return &mLoader;
-		}
-
 		IResource* Load(const void* params) override;
-		IResource* DeferredLoad(const void* params) override;
-		void ProcessDeferred() override;
+		TaskId AsyncLoadDeferred(const void* params,
+			ThreadPool* threadPool,
+			IResource** output,
+			const TaskBarrierCallback& callback = nullptr) override;
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

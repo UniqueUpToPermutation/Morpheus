@@ -1,6 +1,7 @@
 #include <Engine/PostProcessor.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
 
 #include "MapHelper.hpp"
 #include "GraphicsUtilities.h"
@@ -39,22 +40,25 @@ namespace Morpheus {
 		DG::TEXTURE_FORMAT renderTargetColorFormat,
 		DG::TEXTURE_FORMAT depthStencilFormat) {
 
-		auto pipelineCache = resourceManager->GetCache<PipelineResource>();
-		auto loader = pipelineCache->GetLoader();
-
 		auto device = resourceManager->GetParent()->GetDevice();
 
-		auto fullscreenTriangleVS = loader->LoadShader(DG::SHADER_TYPE_VERTEX,
-			"internal/FullscreenTriangle.vsh",
+		LoadParams<ShaderResource> vsParams("internal/FullscreenTriangle.vsh",
+			DG::SHADER_TYPE_VERTEX,
 			"Post Processor VS",
-			"main",
-			nullptr);
+			nullptr,
+			"main");
 
-		auto postProcessorPS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
-			"internal/PostProcessor.psh",
+		LoadParams<ShaderResource> psParams("internal/PostProcessor.psh",
+			DG::SHADER_TYPE_PIXEL,
 			"Post Processor PS",
-			"main",
-			nullptr);
+			nullptr,
+			"main");
+
+		auto fullscreenTriangleVSResource = resourceManager->Load<ShaderResource>(vsParams);
+		auto postProcessorPSResource = resourceManager->Load<ShaderResource>(psParams);
+
+		auto fullscreenTriangleVS = fullscreenTriangleVSResource->GetShader();
+		auto postProcessorPS = postProcessorPSResource->GetShader();
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -109,8 +113,8 @@ namespace Morpheus {
 			mPipeline->CreateShaderResourceBinding(&mShaderResources, true);
 		}
 
-		postProcessorPS->Release();
-		fullscreenTriangleVS->Release();
+		postProcessorPSResource->Release();
+		fullscreenTriangleVSResource->Release();
 
 		mInputFramebuffer = mShaderResources->GetVariableByName(DG::SHADER_TYPE_PIXEL, 
 			"mInputFramebuffer");

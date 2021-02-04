@@ -1,36 +1,65 @@
 #include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
-	TaskId TaskQueueInterface::Immediate(TaskFunc func, TaskBarrier* barrier, int assignedThread) {
-		if (barrier)
-			barrier->Increment();
+	TaskId TaskQueueInterface::Immediate(const TaskDesc& desc) {
+		if (desc.mBarrier)
+			desc.mBarrier->Increment();
 
-		TaskId id = mPool->mCurrentId++;
-		Task task(func, id, barrier, assignedThread);
+		mPool->mCurrentId++;
+		if (mPool->mCurrentId < 0) {
+			mPool->mCurrentId = 0;
+		}
+		TaskId id = mPool->mCurrentId;
 
-		if (assignedThread == ASSIGNED_THREAD_ANY) {
+		Task task(desc, id);
+
+		if (task.mAssignedThread == ASSIGN_THREAD_ANY) {
 			mPool->mSharedImmediateTasks.push(task);
 		} else {
-			mPool->mIndividualImmediateQueues[assignedThread].push(task);
+			mPool->mIndividualImmediateQueues[task.mAssignedThread].push(task);
 		}
 
 		mPool->mPipeGraph.insert_vertex(id);
 		return id;
 	}
 
-	TaskId TaskQueueInterface::Defer(TaskFunc func, TaskBarrier* barrier, int assignedThread) {
-		if (barrier)
-			barrier->Increment();
+	void TaskQueueInterface::MakeImmediate(TaskId task) {
+		// If this is the only pipe that the task is waiting on 
+		auto taskIt = mPool->mDeferredTasks.find(task);
+		assert(taskIt->second.mInputsLeftToCollect == 0);
 
-		TaskId id = mPool->mCurrentId++;
-		Task task(func, id, barrier, assignedThread);
+		// Trigger the task if all input pipes are ready
+		if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
+			mPool->mSharedImmediateTasks.push(taskIt->second);
+		} else {
+			mPool->mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
+		}
+		mPool->mDeferredTasks.erase(taskIt);
+	}
+
+	TaskId TaskQueueInterface::Defer(const TaskDesc& desc) {
+		if (desc.mBarrier)
+			desc.mBarrier->Increment();
+
+		mPool->mCurrentId++;
+		if (mPool->mCurrentId < 0) { // Handle overflow
+			mPool->mCurrentId = 0;
+		}
+		TaskId id = mPool->mCurrentId;
+
+		Task task(desc, id);
 		mPool->mDeferredTasks[id] = task;
 		mPool->mPipeGraph.insert_vertex(id);
 		return id;
 	}
 
 	PipeId TaskQueueInterface::MakePipe() {
-		PipeId id = mPool->mCurrentId++;
+		mPool->mCurrentId++;
+		if (mPool->mCurrentId < 0) { // Handle overflow
+			mPool->mCurrentId = 0;
+		}
+		PipeId id = mPool->mCurrentId;
+
 		mPool->mPipes.emplace(id, ThreadPipe(id));
 		mPool->mPipeGraph.insert_vertex(id);
 		return id;
@@ -56,7 +85,12 @@ namespace Morpheus {
 		if (barrier)
 			barrier->Increment();
 
-		TaskId id = mPool->mCurrentId++;
+		mPool->mCurrentId++;
+		if (mPool->mCurrentId < 0) { // Handle overflow
+			mPool->mCurrentId = 0;
+		}
+		TaskId id = mPool->mCurrentId;
+
 		Task task(func, id, barrier);
 
 		mPool->mIOTasks.push(task);
@@ -68,7 +102,8 @@ namespace Morpheus {
 		return id;
 	}
 
-	void ThreadPool::ThreadProc(bool bIsMainThread, uint threadNumber, TaskBarrier* barrier) {
+	void ThreadPool::ThreadProc(bool bIsMainThread, uint threadNumber, TaskBarrier* barrier,
+		const std::chrono::high_resolution_clock::time_point* quitTime) {
 		TaskParams params;
 		params.mThreadId = threadNumber;
 		params.mPool = this;
@@ -80,6 +115,14 @@ namespace Morpheus {
 			// We have reached our desired barrier
 			if (barrier && barrier->ActiveTaskCount() == 0) {
 				break;
+			}
+
+			// We have reached the maximum yield time
+			if (quitTime) {
+				auto time = std::chrono::high_resolution_clock::now();
+				if (time > *quitTime) {
+					break;
+				}
 			}
 
 			bool bHasTask = false;
@@ -147,7 +190,7 @@ namespace Morpheus {
 
 							// Trigger the task if all input pipes are ready
 							if (task.mInputsLeftToCollect == 0) {
-								if (taskIt->second.mAssignedThread == ASSIGNED_THREAD_ANY) {
+								if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
 									mSharedImmediateTasks.push(taskIt->second);
 								} else {
 									mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
@@ -168,12 +211,8 @@ namespace Morpheus {
 
 				// Release the barrier object
 				if (params.mBarrier) {
-					params.mBarrier->Decrement();
-
 					// If there are no tasks left for this barrier, invoke the OnReached callback
-					if (params.mBarrier->ActiveTaskCount() == 0) {
-						params.mBarrier->OnReached(this);
-					}
+					params.mBarrier->Decrement(this);
 				}
 			} else {
 				// IO tasks queued?
@@ -251,7 +290,7 @@ namespace Morpheus {
 							// Trigger the task if all input pipes are ready
 							if (taskIt->second.mInputsLeftToCollect == 0) {
 
-								if (taskIt->second.mAssignedThread == ASSIGNED_THREAD_ANY) {
+								if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
 									mSharedImmediateTasks.push(taskIt->second);
 								} else {
 									mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
@@ -265,12 +304,8 @@ namespace Morpheus {
 
 				// Release the barrier object
 				if (task.mBarrier) {
-					task.mBarrier->Decrement();
-
 					// Trigger the callback if the barrier has been reached
-					if (task.mBarrier->ActiveTaskCount() == 0) {
-						task.mBarrier->OnReached(this);
-					}
+					task.mBarrier->Decrement(this);
 				}
 			}
 			else {
@@ -280,11 +315,22 @@ namespace Morpheus {
 	}
 
 	void ThreadPool::Yield() {
-		ThreadProc(true, 0, nullptr);
+		ThreadProc(true, 0, nullptr, nullptr);
 	}
 
 	void ThreadPool::YieldUntil(TaskBarrier* barrier) {
-		ThreadProc(true, 0, barrier);
+		ThreadProc(true, 0, barrier, nullptr);
+	}
+
+	void ThreadPool::YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
+		std::chrono::high_resolution_clock::time_point time = std::chrono::high_resolution_clock::now();
+		std::chrono::high_resolution_clock::time_point stopTime = time + duration;
+
+		ThreadProc(true, 0, nullptr, &stopTime);
+	}
+
+	void ThreadPool::YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
+		ThreadProc(true, 0, nullptr, &time);
 	}
 
 	void ThreadPool::Startup(uint threads) {	
@@ -295,7 +341,7 @@ namespace Morpheus {
 		for (uint i = 1; i < threads; ++i) {
 			std::cout << "Initializing Thread " << i << std::endl;
 			std::function<void()> threadProc = [this, i]() {
-				ThreadProc(false, i, nullptr);
+				ThreadProc(false, i, nullptr, nullptr);
 			};
 			mThreads.emplace_back(std::thread(threadProc));
 		}
@@ -304,24 +350,29 @@ namespace Morpheus {
 		mIOThread = std::thread([this]() {
 			IOThreadProc(0);
 		});
+
+		bInitialized = true;
 	}
 
 	void ThreadPool::Shutdown() {
-		bExit = true;
+		if (bInitialized) {
+			bExit = true;
 
-		mIOCondition.notify_one();
+			mIOCondition.notify_one();
 
-		std::cout << "Joining IO Thread" << std::endl;
-		mIOThread.join();
+			std::cout << "Joining IO Thread" << std::endl;
+			mIOThread.join();
 
-		uint i = 0;
-		for (auto& thread : mThreads) {
-			std::cout << "Joining Thread " << ++i << std::endl;
-			thread.join();
+			uint i = 0;
+			for (auto& thread : mThreads) {
+				std::cout << "Joining Thread " << ++i << std::endl;
+				thread.join();
+			}
+
+			mPipes.clear();
+			mIndividualImmediateQueues.clear();
 		}
-
-		mPipes.clear();
-		mIndividualImmediateQueues.clear();
+		bInitialized = false;
 	}
 
 	void ThreadPool::WakeIO() {

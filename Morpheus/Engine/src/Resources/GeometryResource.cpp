@@ -369,72 +369,42 @@ namespace Morpheus {
 	}
 
 	IResource* ResourceCache<GeometryResource>::Load(const void* params) {
+
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
 		auto it = mResourceMap.find(params_cast->mSource);
-
-		if (it != mResourceMap.end()) {
+		if (it != mResourceMap.end()) 
 			return it->second;
+
+		PipelineResource* pipeline = nullptr;
+		if (params_cast->mPipelineResource) {
+			pipeline = params_cast->mPipelineResource;
 		} else {
-			PipelineResource* pipeline = nullptr;
-			if (params_cast->mPipelineResource) {
-				pipeline = params_cast->mPipelineResource;
-			} else {
-				pipeline = mManager->Load<PipelineResource>(params_cast->mPipelineSource);
-			}
-
-			auto resource = new GeometryResource(mManager);
-			mLoader.Load(params_cast->mSource, pipeline, resource);
-
-			if (!params_cast->mPipelineResource) {
-				// If we loaded the pipeline, we should release it
-				pipeline->Release();
-			}
-
-			mResourceMap[params_cast->mSource] = resource;
-			return resource;
+			pipeline = mManager->Load<PipelineResource>(params_cast->mPipelineSource);
 		}
-	}
 
-	IResource* ResourceCache<GeometryResource>::DeferredLoad(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
+		auto resource = new GeometryResource(mManager);
+		mLoader.Load(params_cast->mSource, pipeline, resource);
+
+		if (!params_cast->mPipelineResource) {
+			// If we loaded the pipeline, we should release it
+			pipeline->Release();
+		}
+
+		mResourceMap[params_cast->mSource] = resource;
 		
-		auto it = mResourceMap.find(params_cast->mSource);
-
-		if (it != mResourceMap.end()) {
-			return it->second;
-		} else {
-			auto resource = new GeometryResource(mManager);
-			mDeferredResources.emplace_back(std::make_pair(resource, *params_cast));
-
-			mResourceMap[params_cast->mSource] = resource;
-			return resource;
-		}
+		return resource;
 	}
 
-	void ResourceCache<GeometryResource>::ProcessDeferred() {
-		for (auto& resource : mDeferredResources) {
-			PipelineResource* pipeline = nullptr;
-			auto& params = resource.second;
-
-			if (params.mPipelineResource) {
-				pipeline = params.mPipelineResource;
-			} else {
-				pipeline = mManager->Load<PipelineResource>(params.mPipelineSource);
-			}
-
-			mLoader.Load(params.mSource, pipeline, resource.first);
-
-			if (!params.mPipelineResource) {
-				// If we loaded the pipeline, we should release it
-				pipeline->Release();
-			}
-		}
-
-		mDeferredResources.clear();
+	TaskId ResourceCache<GeometryResource>::AsyncLoadDeferred(const void* params,
+	ThreadPool* threadPool,
+		IResource** output,
+		const TaskBarrierCallback& callback) {
+		throw std::runtime_error("Not implemented!");
 	}
 
 	void ResourceCache<GeometryResource>::Add(IResource* resource, const void* params) {
+		std::lock_guard<std::mutex> lock(mMutex);
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
 		auto it = mResourceMap.find(params_cast->mSource);

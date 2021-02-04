@@ -2,6 +2,7 @@
 
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
 #include <Engine/Engine.hpp>
 
 #include "GraphicsUtilities.h"
@@ -37,13 +38,45 @@ namespace Morpheus {
 		DG::IRenderDevice* device,
 		uint Samples) {
 
-		LoadParams<PipelineResource> params;
-		params.mSource = "internal/PrecomputeBRDF.json";
-		params.mOverrides.mDefines["NUM_SAMPLES"] = std::to_string(Samples);
+		ShaderPreprocessorConfig overrides;
+		overrides.mDefines["NUM_SAMPLES"] = std::to_string(Samples);
 
-		auto pipeline = resourceManager->Load<PipelineResource>(params);
+		LoadParams<ShaderResource> vsParams(
+			"internal/FullscreenTriangle.vsh",
+			DG::SHADER_TYPE_VERTEX,
+			"Fullscreen Triangle",
+			&overrides,
+			"main"
+		);
 
-		context->SetPipelineState(pipeline->GetState());
+		LoadParams<ShaderResource> psParams(
+			"internal/PrecomputeBRDF.psh",
+			DG::SHADER_TYPE_PIXEL,
+			"Fullscreen Triangle",
+			&overrides,
+			"main"
+		);
+
+		ShaderResource* vsResource = resourceManager->Load<ShaderResource>(vsParams);
+		ShaderResource* psResource = resourceManager->Load<ShaderResource>(psParams);
+
+		DG::GraphicsPipelineStateCreateInfo psoInfo;
+		psoInfo.PSODesc.Name = "Precompute BRDF PSO";
+		psoInfo.PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+
+		psoInfo.GraphicsPipeline.NumRenderTargets = 1;
+		psoInfo.GraphicsPipeline.RTVFormats[0] = DG::TEX_FORMAT_RG16_FLOAT;
+		psoInfo.GraphicsPipeline.PrimitiveTopology = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		psoInfo.GraphicsPipeline.RasterizerDesc.CullMode = DG::CULL_MODE_NONE;
+		psoInfo.GraphicsPipeline.SmplDesc.Count = 1;
+		psoInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
+		
+		psoInfo.pVS = vsResource->GetShader();
+		psoInfo.pPS = psResource->GetShader();
+
+		DG::IPipelineState* pipelineState = nullptr;
+		device->CreateGraphicsPipelineState(psoInfo, &pipelineState);
+		context->SetPipelineState(pipelineState);
 
 		DG::ITextureView* pRTVs[] = {mLut->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET)};
 		context->SetRenderTargets(1, pRTVs, nullptr, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -58,7 +91,9 @@ namespace Morpheus {
 		// clang-format on
 		context->TransitionResourceStates(_countof(Barriers), Barriers);
 
-		pipeline->Release();
+		pipelineState->Release();
+		vsResource->Release();
+		psResource->Release();
 	}
 
 	void CookTorranceLUT::SavePng(const std::string& path, 
@@ -117,8 +152,6 @@ namespace Morpheus {
 
 		mEnvironmentMapSamples = config.mEnvMapSamples;
 		
-		auto pipelineCache = resourceManager->GetCache<PipelineResource>();
-		auto loader = pipelineCache->GetLoader();
 		auto device = resourceManager->GetParent()->GetDevice();
 
 		ShaderPreprocessorConfig irradianceConfig;
@@ -130,29 +163,39 @@ namespace Morpheus {
 		prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
 		irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
 
-		auto cubemapFaceVS = loader->LoadShader(DG::SHADER_TYPE_VERTEX,
-			"internal/CubemapFace.vsh",
+		LoadParams<ShaderResource> vsParams("internal/CubemapFace.vsh",
+			DG::SHADER_TYPE_VERTEX,
 			"Cubemap Face Vertex Shader",
-			"main",
-			nullptr);
+			nullptr,
+			"main");
 
-		auto irradiancePS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
-			"internal/ComputeIrradiance.psh",
+		LoadParams<ShaderResource> irrPsParams("internal/ComputeIrradiance.psh",
+			DG::SHADER_TYPE_PIXEL,
 			"Compute Irradiance Pixel Shader",
-			"main",
-			&irradianceConfig);
-
-		auto environmentPS = loader->LoadShader(DG::SHADER_TYPE_PIXEL,
-			"internal/PrefilterEnvironment.psh",
+			&irradianceConfig,
+			"main");
+			
+		LoadParams<ShaderResource> envPsParams("internal/PrefilterEnvironment.psh",
+			DG::SHADER_TYPE_PIXEL,
 			"Compute Environment Pixel Shader",
-			"main",
-			&prefilterEnvConfig);
+			&prefilterEnvConfig,
+			"main");
 
-		auto irradianceSHCS = loader->LoadShader(DG::SHADER_TYPE_COMPUTE,
-			"internal/ComputeIrradianceSH.csh",
+		LoadParams<ShaderResource> irrSHParams("internal/ComputeIrradianceSH.csh",
+			DG::SHADER_TYPE_COMPUTE,
 			"Compute Irradiance SH Compute Shader",
-			"main",
-			&irradianceSHConfig);
+			&irradianceSHConfig,
+			"main");
+
+		auto cubemapFaceVSResource = resourceManager->Load<ShaderResource>(vsParams);
+		auto irradiancePSResource = resourceManager->Load<ShaderResource>(irrPsParams);
+		auto environmentPSResource = resourceManager->Load<ShaderResource>(envPsParams);
+		auto irradianceSHCSResource = resourceManager->Load<ShaderResource>(irrSHParams);
+
+		auto cubemapFaceVS = cubemapFaceVSResource->GetShader();
+		auto irradiancePS = irradiancePSResource->GetShader();
+		auto environmentPS = environmentPSResource->GetShader();
+		auto irradianceSHCS = irradianceSHCSResource->GetShader();
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -282,10 +325,10 @@ namespace Morpheus {
 			mSHIrradiancePipeline->CreateShaderResourceBinding(&mSHIrradianceSRB, true);
 		}
 
-		cubemapFaceVS->Release();
-		irradiancePS->Release();
-		environmentPS->Release();
-		irradianceSHCS->Release();
+		cubemapFaceVSResource->Release();
+		irradiancePSResource->Release();
+		environmentPSResource->Release();
+		irradianceSHCSResource->Release();
 	}
 
 	void LightProbeProcessor::ComputeIrradiance(DG::IDeviceContext* context, 
