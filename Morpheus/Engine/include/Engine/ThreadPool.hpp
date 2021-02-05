@@ -26,7 +26,6 @@ namespace Morpheus {
 	typedef int BarrierId;
 
 	class ThreadPool;
-
 	class TaskBarrier;
 
 	struct TaskParams {
@@ -57,7 +56,6 @@ namespace Morpheus {
 		TaskBarrier* mBarrier;
 
 	public:
-		uint mInputsLeftToCollect;
 		int mAssignedThread;
 		TaskId mId;
 		TaskFunc mFunc;
@@ -66,7 +64,6 @@ namespace Morpheus {
 			int assignedThread = ASSIGN_THREAD_ANY) :
 			mFunc(func),
 			mId(id),
-			mInputsLeftToCollect(0),
 			mBarrier(barrier),
 			mAssignedThread(assignedThread) {
 		}
@@ -74,7 +71,6 @@ namespace Morpheus {
 		inline Task(const TaskDesc& task, TaskId id) :
 			mFunc(task.mFunc),
 			mId(id),
-			mInputsLeftToCollect(0),
 			mBarrier(task.mBarrier),
 			mAssignedThread(task.mAssignedThread) {
 		}
@@ -82,7 +78,6 @@ namespace Morpheus {
 		inline Task() :
 			mFunc(nullptr),
 			mId(0),
-			mInputsLeftToCollect(0),
 			mBarrier(nullptr),
 			mAssignedThread(ASSIGN_THREAD_ANY) {
 		}
@@ -93,16 +88,12 @@ namespace Morpheus {
 
 	class ThreadPipe {
 	private:
-		uint mOutputsLeftToTrigger;
-		uint mInputsLeftToCollect;
 		TaskId mId;
 		std::promise<entt::meta_any> mPromise;
 		std::shared_future<entt::meta_any> mFuture;
 
 	public:
 		inline ThreadPipe(TaskId id) :
-			mOutputsLeftToTrigger(0),
-			mInputsLeftToCollect(0),
 			mId(id) {
 			mFuture = mPromise.get_future();
 		}
@@ -110,9 +101,7 @@ namespace Morpheus {
 		inline ThreadPipe(ThreadPipe&& other) :
 			mId(other.mId),
 			mPromise(std::move(other.mPromise)),
-			mFuture(std::move(other.mFuture)),
-			mOutputsLeftToTrigger(other.mOutputsLeftToTrigger),
-			mInputsLeftToCollect(other.mInputsLeftToCollect) {
+			mFuture(std::move(other.mFuture)) {
 		}
 
 		inline void Write(entt::meta_any&& any) {
@@ -174,6 +163,7 @@ namespace Morpheus {
 
 		void PipeFrom(TaskId task, PipeId pipe);
 		void PipeTo(PipeId pipe, TaskId task);
+		void ScheduleAfter(TaskBarrier* before, TaskId after);
 
 		TaskId IOTask(TaskFunc func, bool bWakeIOThread = true, TaskBarrier* barrier = nullptr);
 	};
@@ -182,6 +172,7 @@ namespace Morpheus {
 	private:
 		std::atomic<uint> mTaskCount = 0;
 		TaskBarrierCallback mOnReached;
+		BarrierId mNodeId = -1;
 
 	public:
 		inline TaskBarrier() {
@@ -189,6 +180,10 @@ namespace Morpheus {
 
 		inline TaskBarrier(const TaskBarrierCallback& onReachedCallback) :
 			mOnReached(onReachedCallback) {
+		}
+
+		inline bool HasSchedulingNode() const {
+			return mNodeId >= 0;
 		}
 
 		inline void Increment() {
@@ -222,6 +217,31 @@ namespace Morpheus {
 		inline void SetCallback(TaskBarrierCallback callback) {
 			mOnReached = callback;
 		}
+
+		friend class ThreadPool;
+		friend class TaskQueueInterface;
+	};
+
+	enum class TaskNodeType {
+		UNKNOWN_NODE,
+		TASK_NODE,
+		PIPE_NODE,
+		BARRIER_NODE
+	};
+
+	struct TaskNodeData {
+		TaskNodeType mType;
+		int mInputsLeftToCollect;
+		int mOutputsLeftToTrigger;
+
+		inline TaskNodeData(TaskNodeType type) :
+			mType(type),
+			mInputsLeftToCollect(0),
+			mOutputsLeftToTrigger(0) {
+		}
+
+		inline TaskNodeData() : TaskNodeData(TaskNodeType::UNKNOWN_NODE) {
+		}
 	};
 
 	class ThreadPool {
@@ -232,6 +252,7 @@ namespace Morpheus {
 		std::thread mIOThread;
 		std::unordered_map<TaskId, Task> mDeferredTasks;
 		std::unordered_map<PipeId, ThreadPipe> mPipes;
+		std::unordered_map<uint, TaskNodeData> mNodeData;
 		std::mutex mMutex;
 		std::atomic<bool> bExit;
 		std::queue<Task> mSharedImmediateTasks;
@@ -240,7 +261,7 @@ namespace Morpheus {
 		std::mutex mIOConditionMutex;
 		std::mutex mIOQueueMutex;
 		std::atomic<TaskId> mCurrentId;
-		NGraph::Graph mPipeGraph;
+		NGraph::Graph mTaskGraph;
 
 	public:
 		inline uint ThreadCount() const {

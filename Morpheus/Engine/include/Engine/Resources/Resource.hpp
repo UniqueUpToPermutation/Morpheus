@@ -77,7 +77,6 @@ namespace Morpheus {
 
 	protected:
 		TaskBarrier mLoadBarrier;
-		TaskBarrier mPreLoadBarrier;
 
 	public:
 		IResource(ResourceManager* manager) : 
@@ -119,12 +118,6 @@ namespace Morpheus {
 		inline TaskBarrier* GetLoadBarrier() {
 			return &mLoadBarrier;
 		}
-
-		// A barrier that is invoked when the dependencies of this resource have been loaded.
-		inline TaskBarrier* GetPreLoadBarrier() {
-			return &mPreLoadBarrier;
-		}
-
 		inline ResourceManager* GetManager() {
 			return mManager;
 		}

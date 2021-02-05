@@ -25,7 +25,6 @@ namespace Morpheus {
 		ShaderResource* basicTexturedVSResource = nullptr;
 		ShaderResource* basicTexturedPSResource = nullptr;
 
-		TaskBarrier* preLoadBarrier = into->GetPreLoadBarrier();
 		TaskBarrier* postLoadBarrier = into->GetLoadBarrier();
 		TaskId loadVSTask;
 		TaskId loadPSTask;
@@ -34,15 +33,10 @@ namespace Morpheus {
 			basicTexturedVSResource = manager->Load<ShaderResource>(vsShaderParams);
 			basicTexturedPSResource = manager->Load<ShaderResource>(psShaderParams);
 		} else {
-			preLoadBarrier->Increment(2);
 			loadVSTask = manager->AsyncLoadDeferred<ShaderResource>(vsShaderParams, 
-				&basicTexturedVSResource, [preLoadBarrier](ThreadPool* pool) {
-				preLoadBarrier->Decrement(pool);
-			});
+				&basicTexturedVSResource);
 			loadPSTask = manager->AsyncLoadDeferred<ShaderResource>(psShaderParams, 
-				&basicTexturedPSResource, [preLoadBarrier](ThreadPool* pool) {
-				preLoadBarrier->Decrement(pool);
-			});
+				&basicTexturedPSResource);
 		}
 
 		std::function<void()> buildPipeline = [=]() {
@@ -138,14 +132,13 @@ namespace Morpheus {
 		} else {
 			auto queue = asyncParams->mThreadPool->GetQueue();
 
-			// When all prerequisites have been loaded, create the pipeline on main thread
-			preLoadBarrier->SetCallback([postLoadBarrier, buildPipeline](ThreadPool* pool) {
-				pool->GetQueue().Immediate([buildPipeline](const TaskParams& params) {
-					buildPipeline();
-				}, postLoadBarrier, 0);
-			});
+			TaskId buildPipelineTask = queue.Defer([buildPipeline](const TaskParams& params) { 
+				buildPipeline();
+			}, postLoadBarrier, 0);
 
-			// When the pipeline has been created, call the callback
+			// Schedule the loading of the build pipeline task 
+			queue.ScheduleAfter(basicTexturedVSResource->GetLoadBarrier(), buildPipelineTask);
+			queue.ScheduleAfter(basicTexturedPSResource->GetLoadBarrier(), buildPipelineTask);
 			postLoadBarrier->SetCallback(asyncParams->mCallback);
 
 			// Create a deferred task to trigger the loading of the vertex and pixel shaders
