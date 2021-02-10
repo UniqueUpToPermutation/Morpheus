@@ -3,11 +3,13 @@
 #include <Engine/Resources/PipelineResource.hpp>
 
 namespace Morpheus {
-	WhiteMaterialPrototype::WhiteMaterialPrototype(
-		ResourceManager* manager,
-		const std::string& source, 
-		const std::string& path,
-		const nlohmann::json& config) {
+
+	TaskId WhiteMaterialPrototype::InitializePrototype(
+			ResourceManager* manager,
+			const std::string& source,
+			const std::string& path,
+			const nlohmann::json& config,
+			const MaterialAsyncParams& asyncParams) {
 
 		std::string pipeline_src = config.value("Pipeline", "White");
 
@@ -22,7 +24,12 @@ namespace Morpheus {
 				return true;
 		};
 
-		mPipeline = manager->Load<PipelineResource>(pipeline_src);
+		if (asyncParams.bUseAsync) {
+			return manager->AsyncLoadDeferred<PipelineResource>(pipeline_src, &mPipeline);
+		} else {
+			mPipeline = manager->Load<PipelineResource>(pipeline_src);
+			return TASK_NONE;
+		}
 	}
 
 	WhiteMaterialPrototype::WhiteMaterialPrototype(
@@ -36,8 +43,7 @@ namespace Morpheus {
 	}
 
 	void WhiteMaterialPrototype::InitializeMaterial(
-		ResourceManager* manager,
-		ResourceCache<MaterialResource>* cache,
+		DG::IRenderDevice* device,
 		MaterialResource* into) {
 
 		DG::IShaderResourceBinding* srb = nullptr;
@@ -56,5 +62,9 @@ namespace Morpheus {
 
 	MaterialPrototype* WhiteMaterialPrototype::DeepCopy() const {
 		return new WhiteMaterialPrototype(*this);
+	}
+
+	void WhiteMaterialPrototype::ScheduleLoadBefore(TaskNodeDependencies dependencies) {
+		dependencies.After(mPipeline->GetLoadBarrier());
 	}
 }

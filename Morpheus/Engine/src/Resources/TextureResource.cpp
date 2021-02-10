@@ -1,6 +1,7 @@
 #include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/ThreadTasks.hpp>
 
 #include "TextureUtilities.h"
 #include "TextureLoader.h"
@@ -54,7 +55,7 @@ namespace Morpheus {
 		}
 	}
 
-	DG::ITexture* RawTexture::Spawn(DG::IRenderDevice* device) {
+	DG::ITexture* RawTexture::SpawnOnGPU(DG::IRenderDevice* device) {
 		DG::ITexture* texture = nullptr;
 
 		DG::TextureData data;
@@ -82,7 +83,8 @@ namespace Morpheus {
 	}
 
 	TextureResource::~TextureResource() {
-		mTexture->Release();	
+		if (mTexture)
+			mTexture->Release();	
 	}
 
 	TextureLoader::TextureLoader(ResourceManager* manager) : mManager(manager) {
@@ -181,6 +183,7 @@ namespace Morpheus {
 		auto device = mManager->GetParent()->GetDevice();
 
 		gli::texture tex = gli::load(params.mSource);
+
 		if (tex.empty()) {
 			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
 			throw std::runtime_error("Failed to load texture!");
@@ -568,7 +571,7 @@ namespace Morpheus {
 
 		RawTexture rawTexture(desc, std::move(rawData), subDatas);
 
-		DG::ITexture* tex = rawTexture.Spawn(mManager->GetParent()->GetDevice());
+		DG::ITexture* tex = rawTexture.SpawnOnGPU(mManager->GetParent()->GetDevice());
 
 		texture->mTexture = tex;
 		texture->mSource = params.mSource;
@@ -576,101 +579,165 @@ namespace Morpheus {
 		return TASK_NONE;
 	}
 
+	void TextureLoader::LoadPngDataRaw(const LoadParams<TextureResource>& params, 
+		const std::vector<uint8_t>& image,
+		uint32_t width, uint32_t height,
+		RawTexture* into) {
+		std::vector<uint8_t> rawData;
+		std::vector<TextureSubResDataDesc> subDatas;
+		rawData.resize(image.size() * 2);
+
+		size_t currentIndx = 0;
+
+		GLuint TextureName = 0;
+
+		DG::TEXTURE_FORMAT format;
+		if (params.bIsSRGB) {
+			format = DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
+		} else {
+			format = DG::TEX_FORMAT_RGBA8_UNORM;
+		}
+
+		DG::TextureDesc desc;
+		desc.BindFlags = DG::BIND_SHADER_RESOURCE;
+		desc.Width = width;
+		desc.Height = height;
+		desc.MipLevels = 0;
+		desc.Name = params.mSource.c_str();
+		desc.Format = format;
+		desc.Type = DG::RESOURCE_DIM_TEX_2D;
+		desc.Usage = DG::USAGE_IMMUTABLE;
+		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
+		desc.ArraySize = 1;
+
+		size_t mipCount = MipCount(width, height);
+
+		TextureSubResDataDesc mip0;
+		mip0.mDepthStride = width * height * 4 * sizeof(uint8_t);
+		mip0.mStride = width * 4 * sizeof(uint8_t);
+		mip0.mSrcOffset = currentIndx;
+		subDatas.emplace_back(mip0);
+
+		std::memcpy(&rawData[0], &image[0], width * height * 4);
+
+		currentIndx = width * height * 4;
+
+		uint8_t* last_mip_data = &rawData[0];
+
+		for (size_t i = 1; i < mipCount; ++i) {
+			auto new_mip_data = &rawData[currentIndx];
+
+			uint fineWidth = std::max(1u, width >> (i - 1));
+			uint fineHeight = std::max(1u, height >> (i - 1));
+			uint coarseWidth = std::max(1u, width >> i);
+			uint coarseHeight = std::max(1u, height >> i);
+
+			uint fineStride = fineWidth * 4 * sizeof(uint8_t);
+			uint coarseStride = coarseWidth * 4 * sizeof(uint8_t);
+
+			ComputeCoarseMip<uint8_t>(4, params.bIsSRGB,
+				last_mip_data,
+				fineStride,
+				fineWidth, fineHeight,
+				new_mip_data,
+				coarseStride,
+				coarseWidth, coarseHeight);
+
+			TextureSubResDataDesc mipDesc;
+			mipDesc.mDepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
+			mipDesc.mStride = coarseWidth * 4 * sizeof(uint8_t);
+			mipDesc.mSrcOffset = currentIndx;
+			subDatas.emplace_back(mipDesc);
+
+			currentIndx += coarseWidth * coarseHeight * 4;
+			last_mip_data = new_mip_data;
+		}
+
+		into->Set(desc, std::move(rawData), subDatas);
+	}
+
 	TaskId TextureLoader::LoadPng(const LoadParams<TextureResource>& params, TextureResource* texture,
 		const AsyncResourceParams& asyncParams) {
 
-		std::vector<uint8_t> image;
-		uint32_t width, height;
-		uint32_t error = lodepng::decode(image, width, height, params.mSource);
+		if (!asyncParams.bUseAsync) {
+			std::vector<uint8_t> image;
+			uint32_t width, height;
+			uint32_t error = lodepng::decode(image, width, height, params.mSource);
 
-		//if there's an error, display it
-		if (error) std::cout << "Decoder error " << error << ": " << lodepng_error_text(error) << std::endl;
+			//if there's an error, display it
+			if (error) std::cout << "Decoder error " << error << ": " << lodepng_error_text(error) << std::endl;
 
-		//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
-		//State state contains extra information about the PNG such as text chunks, ...
-		if (!error) {
-			std::vector<uint8_t> rawData;
-			std::vector<TextureSubResDataDesc> subDatas;
-			rawData.resize(image.size() * 2);
+			//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
+			//State state contains extra information about the PNG such as text chunks, ...
+			if (!error) {
+				RawTexture rawTexture;
+				LoadPngDataRaw(params, image, width, height, &rawTexture);
 
-			size_t currentIndx = 0;
+				DG::ITexture* tex = rawTexture.SpawnOnGPU(mManager->GetParent()->GetDevice());
 
-			GLuint TextureName = 0;
-
-			DG::TEXTURE_FORMAT format;
-			if (params.bIsSRGB) {
-				format = DG::TEX_FORMAT_RGBA8_UNORM_SRGB;
-			} else {
-				format = DG::TEX_FORMAT_RGBA8_UNORM;
+				texture->mTexture = tex;
+				texture->mSource = params.mSource;
+			}
+			else {
+				throw std::runtime_error("Error loading PNG!");
 			}
 
-			DG::TextureDesc desc;
-			desc.BindFlags = DG::BIND_SHADER_RESOURCE;
-			desc.Width = width;
-			desc.Height = height;
-			desc.MipLevels = 0;
-			desc.Name = params.mSource.c_str();
-			desc.Format = format;
-			desc.Type = DG::RESOURCE_DIM_TEX_2D;
-			desc.Usage = DG::USAGE_IMMUTABLE;
-			desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
-			desc.ArraySize = 1;
+			return TASK_NONE;
+		} else {
+			auto queue = asyncParams.mThreadPool->GetQueue();
 
-			size_t mipCount = MipCount(width, height);
+			TaskBarrier* barrier = texture->GetLoadBarrier();
+			DG::IRenderDevice* device = mManager->GetParent()->GetDevice();
 
-			TextureSubResDataDesc mip0;
-			mip0.mDepthStride = width * height * 4 * sizeof(uint8_t);
-			mip0.mStride = width * 4 * sizeof(uint8_t);
-			mip0.mSrcOffset = currentIndx;
-			subDatas.emplace_back(mip0);
+			PipeId filePipe;
+			TaskId readFileTask = ReadFileToMemoryJobDeferred(params.mSource, &queue, &filePipe);
+			PipeId rawTexPipe = queue.MakePipe();
 
-			std::memcpy(&rawData[0], &image[0], width * height * 4);
+			// Convert file data into RawTexture
+			TaskId prepareRawTexture = queue.MakeTask([filePipe, rawTexPipe, params](const TaskParams& taskParams) {
+				auto& bufAny = taskParams.mPool->ReadPipe(filePipe);
 
-			currentIndx = width * height * 4;
+				// Immediately assume ownership of result of read file operation
+				std::unique_ptr<ReadFileToMemoryResult> result(bufAny.cast<ReadFileToMemoryResult*>());
 
-			uint8_t* last_mip_data = &rawData[0];
+				std::vector<uint8_t> image;
+				uint32_t width, height;
+				auto error = lodepng::decode(image, width, height, result->GetData(), result->GetSize());
 
-			for (size_t i = 1; i < mipCount; ++i) {
-				auto new_mip_data = &rawData[currentIndx];
+				if (!error) {
+					std::unique_ptr<RawTexture> rawTex(new RawTexture);
+					TextureLoader::LoadPngDataRaw(params, image, width, height, rawTex.get());
 
-				uint fineWidth = std::max(1u, width >> (i - 1));
-				uint fineHeight = std::max(1u, height >> (i - 1));
-				uint coarseWidth = std::max(1u, width >> i);
-				uint coarseHeight = std::max(1u, height >> i);
+					// Relinquish ownership of RawTexture to pipe
+					taskParams.mPool->WritePipe(rawTexPipe, rawTex.release());
+				} else {
+					auto ex = std::make_exception_ptr(std::runtime_error("Failed to decode PNG from memory!"));
+					taskParams.mPool->WritePipeException(rawTexPipe, ex);
+				}
+			});
 
-				uint fineStride = fineWidth * 4 * sizeof(uint8_t);
-				uint coarseStride = coarseWidth * 4 * sizeof(uint8_t);
+			// Convert RawTexture into TextureResource
+			barrier->SetCallback(asyncParams.mCallback);
 
-				ComputeCoarseMip<uint8_t>(4, params.bIsSRGB,
-					last_mip_data,
-					fineStride,
-					fineWidth, fineHeight,
-					new_mip_data,
-					coarseStride,
-					coarseWidth, coarseHeight);
+			TaskId rawTexToGpu = queue.MakeTask([texture, rawTexPipe, device, params](const TaskParams& taskParams) {
+				auto& ptr = taskParams.mPool->ReadPipe(rawTexPipe);
 
-				TextureSubResDataDesc mipDesc;
-				mipDesc.mDepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
-				mipDesc.mStride = coarseWidth * 4 * sizeof(uint8_t);
-				mipDesc.mSrcOffset = currentIndx;
-				subDatas.emplace_back(mipDesc);
+				// Immediately assume ownership of raw texture
+				std::unique_ptr<RawTexture> rawTexture(ptr.cast<RawTexture*>());
 
-				currentIndx += coarseWidth * coarseHeight * 4;
-				last_mip_data = new_mip_data;
-			}
+				DG::ITexture* tex = rawTexture->SpawnOnGPU(device);
 
-			RawTexture rawTexture(desc, std::move(rawData), subDatas);
+				texture->mTexture = tex;
+				texture->mSource = params.mSource;
+			}, barrier, 0);
 
-			DG::ITexture* tex = rawTexture.Spawn(mManager->GetParent()->GetDevice());
+			// Pipe everything!
+			queue.Dependencies(prepareRawTexture).After(filePipe);
+			queue.Dependencies(rawTexPipe).After(prepareRawTexture);
+			queue.Dependencies(rawTexToGpu).After(rawTexPipe);
 
-			texture->mTexture = tex;
-			texture->mSource = params.mSource;
+			return readFileTask;
 		}
-		else {
-			throw std::runtime_error("Error loading PNG!");
-		}
-
-		return TASK_NONE;
 	}
 
 	ResourceCache<TextureResource>::ResourceCache(ResourceManager* manager) :
@@ -725,7 +792,7 @@ namespace Morpheus {
 		const TaskBarrierCallback& callback) {
 
 		AsyncResourceParams asyncParams;
-		asyncParams.bUseAsync = false;
+		asyncParams.bUseAsync = true;
 		asyncParams.mThreadPool = pool;
 		asyncParams.mCallback = callback;
 

@@ -1,145 +1,75 @@
 #include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
-	TaskId TaskQueueInterface::Immediate(const TaskDesc& desc) {
-		if (desc.mBarrier)
-			desc.mBarrier->Increment();
-
-		mPool->mCurrentId++;
-		if (mPool->mCurrentId < 0) {
-			mPool->mCurrentId = 0;
-		}
-		TaskId id = mPool->mCurrentId;
-
-		Task task(desc, id);
-
-		if (task.mAssignedThread == ASSIGN_THREAD_ANY) {
-			mPool->mSharedImmediateTasks.push(task);
-		} else {
-			mPool->mIndividualImmediateQueues[task.mAssignedThread].push(task);
+	void TaskBarrier::OnReached(ThreadPool* pool, bool acquireMutex) {
+		if (mOnReached) {
+			auto tmp = mOnReached;
+			mOnReached = nullptr;
+			tmp(pool);
 		}
 
-		TaskNodeData data(TaskNodeType::TASK_NODE);
-		mPool->mTaskGraph.insert_vertex(id);
-		mPool->mNodeData[id] = data;
-		
-		return id;
-	}
-
-	void TaskQueueInterface::MakeImmediate(TaskId task) {
-		// If this is the only pipe that the task is waiting on 
-		auto taskIt = mPool->mDeferredTasks.find(task);
-
-		auto nodeData = mPool->mNodeData.find(task);
-		assert(nodeData->second.mInputsLeftToCollect == 0);
-
-		// Trigger the task if all input pipes are ready
-		if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-			mPool->mSharedImmediateTasks.push(taskIt->second);
-		} else {
-			mPool->mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-		}
-		mPool->mDeferredTasks.erase(taskIt);
-	}
-
-	TaskId TaskQueueInterface::Defer(const TaskDesc& desc) {
-		if (desc.mBarrier)
-			desc.mBarrier->Increment();
-
-		mPool->mCurrentId++;
-		if (mPool->mCurrentId < 0) { // Handle overflow
-			mPool->mCurrentId = 0;
-		}
-		TaskId id = mPool->mCurrentId;
-
-		Task task(desc, id);
-		mPool->mDeferredTasks[id] = task;
-		mPool->mTaskGraph.insert_vertex(id);
-
-		TaskNodeData data(TaskNodeType::TASK_NODE);
-		mPool->mNodeData[id] = data;
-		return id;
+		pool->FinalizeBarrier(this, acquireMutex);
 	}
 
 	PipeId TaskQueueInterface::MakePipe() {
-		mPool->mCurrentId++;
-		if (mPool->mCurrentId < 0) { // Handle overflow
-			mPool->mCurrentId = 0;
-		}
-		PipeId id = mPool->mCurrentId;
-
+		TaskNodeId id = mPool->CreateNode(TaskNodeType::PIPE_NODE);
 		mPool->mPipes.emplace(id, ThreadPipe(id));
-		mPool->mTaskGraph.insert_vertex(id);
-
-		TaskNodeData data(TaskNodeType::PIPE_NODE);
-		mPool->mNodeData[id] = data;
 		return id;
 	}
 
-	void TaskQueueInterface::PipeFrom(TaskId task, PipeId pipe) {
-		mPool->mTaskGraph.insert_edge(task, pipe);
+	TaskId TaskQueueInterface::MakeTask(const TaskDesc& desc) {
+		TaskNodeId id = mPool->CreateNode(TaskNodeType::TASK_NODE);
+		mPool->mDeferredTasks.emplace(id, Task(desc, id));
 
-		auto pipeIt = mPool->mNodeData.find(pipe);
-		pipeIt->second.mInputsLeftToCollect++;
+		if (desc.mBarrier) {
+			desc.mBarrier->Increment();
+		}
+
+		return id;
 	}
 
-	void TaskQueueInterface::PipeTo(PipeId pipe, TaskId task) {
-		mPool->mTaskGraph.insert_edge(pipe, task);
-		auto pipeIt = mPool->mNodeData.find(pipe);
-		auto taskIt = mPool->mNodeData.find(task);
-
-		taskIt->second.mInputsLeftToCollect++;
-		pipeIt->second.mOutputsLeftToTrigger++;
+	TaskNodeDependencies TaskQueueInterface::Dependencies(TaskId task) {
+		return TaskNodeDependencies(task.mId, mPool, mPool->mNodeData.find(task.mId));
 	}
 
-	void TaskQueueInterface::ScheduleAfter(TaskBarrier* before, TaskId after) {
-		// Node has not yet been assigned
-		BarrierId id;
-		
-		if (!before->HasSchedulingNode()) {
-			mPool->mCurrentId++;
-			if (mPool->mCurrentId < 0) { // Handle overflow
-				mPool->mCurrentId = 0;
+	TaskNodeDependencies TaskQueueInterface::Dependencies(PipeId pipe) {
+		return TaskNodeDependencies(pipe.mId, mPool, mPool->mNodeData.find(pipe.mId));
+	}
+
+	void TaskQueueInterface::Schedule(TaskId task) {
+		if (task.IsValid()) {
+			auto data = mPool->mNodeData.find(task.mId);
+
+			if (data->second.mInputsLeftToCollect == 0) {
+				mPool->EnqueueTask(task.mId);
+			}
+		}
+	}
+
+	void TaskNodeDependencies::After(TaskNodeId otherId) {
+		auto other = mPool->mNodeData.find(otherId);
+
+		mIterator->second.mInputsLeftToCollect++;
+		other->second.mOutputsLeftToTrigger++;
+
+		mPool->mTaskGraph.insert_edge(otherId, mId);
+	}
+
+	TaskNodeDependencies& TaskNodeDependencies::After(TaskBarrier* barrier) {
+		if (barrier->ActiveTaskCount() > 0) {
+			if (!barrier->HasSchedulingNode()) {
+				barrier->mNodeId = mPool->CreateNode(TaskNodeType::BARRIER_NODE);
 			}
 
-			id = mPool->mCurrentId;
-			mPool->mTaskGraph.insert_vertex(id);
-			TaskNodeData data(TaskNodeType::BARRIER_NODE);
-			mPool->mNodeData[id] = data;
+			auto other = mPool->mNodeData.find(barrier->mNodeId.mId);
 
-			before->mNodeId = id;
-		} else {
-			id = before->mNodeId;
+			mIterator->second.mInputsLeftToCollect++;
+			other->second.mOutputsLeftToTrigger++;
+
+			mPool->mTaskGraph.insert_edge(barrier->mNodeId.mId, mId);
 		}
 
-		mPool->mTaskGraph.insert_edge(id, after);
-		auto afterIt = mPool->mNodeData.find(after);
-
-		afterIt->second.mInputsLeftToCollect++;
-	}
-
-	TaskId TaskQueueInterface::IOTask(TaskFunc func, bool bWakeIO, TaskBarrier* barrier) {
-		if (barrier)
-			barrier->Increment();
-
-		mPool->mCurrentId++;
-		if (mPool->mCurrentId < 0) { // Handle overflow
-			mPool->mCurrentId = 0;
-		}
-		TaskId id = mPool->mCurrentId;
-
-		Task task(func, id, barrier);
-
-		mPool->mIOTasks.push(task);
-		mPool->mTaskGraph.insert_vertex(id);
-
-		TaskNodeData data(TaskNodeType::TASK_NODE);
-		mPool->mNodeData[id] = data;
-
-		if (bWakeIO)
-			mPool->WakeIO();
-
-		return id;
+		return *this;
 	}
 
 	void ThreadPool::ThreadProc(bool bIsMainThread, uint threadNumber, TaskBarrier* barrier,
@@ -147,9 +77,6 @@ namespace Morpheus {
 		TaskParams params;
 		params.mThreadId = threadNumber;
 		params.mPool = this;
-
-		std::vector<uint> pipesToDestroy;
-		std::vector<uint> nodesToTrigger;
 
 		while (!bExit) {
 			// We have reached our desired barrier
@@ -181,38 +108,6 @@ namespace Morpheus {
 
 					task = sourceQueue->front();
 					sourceQueue->pop();
-
-					// Round up all incomming nodes (pipes)
-					auto incommingPipes = mTaskGraph.in_neighbors(task.mId);
-					for (auto vertIt = incommingPipes.begin(); vertIt != incommingPipes.end(); ++vertIt) {
-
-						auto nodeDataIt = mNodeData.find(*vertIt);
-						--nodeDataIt->second.mOutputsLeftToTrigger;
-
-						assert(nodeDataIt->second.mType == TaskNodeType::PIPE_NODE);
-
-						// Destroy nodes that have no outputs left to trigger
-						if (nodeDataIt->second.mOutputsLeftToTrigger == 0) {
-							pipesToDestroy.emplace_back(*vertIt);
-						}
-					}
-
-					// Round up all outgoing nodes
-					auto outgoingPipes = mTaskGraph.out_neighbors(task.mId);
-					for (auto vertIt = outgoingPipes.begin(); vertIt != outgoingPipes.end(); ++vertIt) {
-
-						auto nodeDataIt = mNodeData.find(*vertIt);
-						--nodeDataIt->second.mInputsLeftToCollect;
-
-						// Trigger nodes that have no inputs left to collect
-						if (nodeDataIt->second.mInputsLeftToCollect == 0) {
-							nodesToTrigger.emplace_back(*vertIt);
-						}					
-					}
-
-					// Remove this task vertex from the graph
-					mTaskGraph.remove_vertex(task.mId);
-					mNodeData.erase(task.mId);
 				}
 			}
 
@@ -221,99 +116,24 @@ namespace Morpheus {
 				params.mTaskId = task.mId;
 				task.mFunc(params);
 
-				// Need to update pipes
-				if (nodesToTrigger.size() > 0 || pipesToDestroy.size() > 0)
 				{
 					std::lock_guard<std::mutex> lock(mMutex);
-					for (auto node : nodesToTrigger) {
-						auto nodeDataIt = mNodeData.find(node);
 
-						if (nodeDataIt->second.mType == TaskNodeType::TASK_NODE) {
-							// If this node is a task add it to the appropriate immediate queue
-							auto taskIt = mDeferredTasks.find(node);
-							if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-								mSharedImmediateTasks.push(taskIt->second);
-							} else {
-								mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-							}
-							mDeferredTasks.erase(taskIt);
-
-						} else if (nodeDataIt->second.mType == TaskNodeType::PIPE_NODE) {
-
-							// If node is a pipe, attempt to trigger all children
-							auto outgoingTasks = mTaskGraph.out_neighbors(node);
-
-							for (auto it = outgoingTasks.begin(); it != outgoingTasks.end(); ++it) {
-								// If this is the only pipe that the task is waiting on 
-								auto nodeIt = mNodeData.find(*it);
-								--nodeIt->second.mInputsLeftToCollect;
-
-								assert(nodeIt->second.mType == TaskNodeType::TASK_NODE);
-
-								// Trigger the task if all input pipes are ready
-								if (nodeIt->second.mInputsLeftToCollect == 0) {
-									auto taskIt = mDeferredTasks.find(*it);
-
-									if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-										mSharedImmediateTasks.push(taskIt->second);
-									} else {
-										mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-									}
-									mDeferredTasks.erase(taskIt);
-								}
-							}
-						}
-					}
-
-					for (auto pipeId : pipesToDestroy) {
-						auto pipe = mPipes.find(pipeId);
-						mTaskGraph.remove_vertex(pipeId);
-						mPipes.erase(pipe);
-					}
-
-					pipesToDestroy.clear();
-					nodesToTrigger.clear();
+					RepoIncomming(task.mId);
+					TriggerOutgoing(task.mId);
+					DestroyNode(task.mId);
 				}
 
 				// Release the barrier object
 				if (params.mBarrier) {
 					// If there are no tasks left for this barrier, invoke the OnReached callback
-					params.mBarrier->Decrement(this);
-
-					if (params.mBarrier->HasSchedulingNode()) {
-						// Barrier has children, attempt to trigger all children
-						auto outgoingTasks = mTaskGraph.out_neighbors(params.mBarrier->mNodeId);
-
-						for (auto it = outgoingTasks.begin(); it != outgoingTasks.end(); ++it) {
-							// If this is the only node that the task is waiting on 
-							auto nodeIt = mNodeData.find(*it);
-							--nodeIt->second.mInputsLeftToCollect;
-
-							assert(nodeIt->second.mType == TaskNodeType::TASK_NODE);
-
-							// Trigger the task if all input pipes are ready
-							if (nodeIt->second.mInputsLeftToCollect == 0) {
-								auto taskIt = mDeferredTasks.find(*it);
-
-								if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-									mSharedImmediateTasks.push(taskIt->second);
-								} else {
-									mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-								}
-								mDeferredTasks.erase(taskIt);
-							}
-						}
-					}
-
-					mTaskGraph.remove_vertex(params.mBarrier->mNodeId);
-					mNodeData.erase(params.mBarrier->mNodeId);
-					params.mBarrier->mNodeId = -1;
+					params.mBarrier->Decrement(this, true);
 				}
 			} else {
 				// IO tasks queued?
 				if (mIOTasks.size() > 0) {
 					std::unique_lock<std::mutex> lock(mIOConditionMutex, std::try_to_lock);
-					if (lock.owns_lock()){
+					if (lock.owns_lock()) {
 						mIOCondition.notify_one(); // We need to wake IO thread
 					}
 				}
@@ -340,7 +160,6 @@ namespace Morpheus {
 		params.mThreadId = ioThreadNumber;
 
 		std::unique_lock<std::mutex> lock(mIOConditionMutex);
-		std::vector<uint> nodesToTrigger;
 
 		Task task;
 		bool bHasTask = false;
@@ -352,25 +171,6 @@ namespace Morpheus {
 				if (bHasTask) {
 					task = mIOTasks.front();
 					mIOTasks.pop();
-
-					std::lock_guard<std::mutex> mainLock(mMutex);
-
-					// Round up all outgoing nodes
-					auto outgoingPipes = mTaskGraph.out_neighbors(task.mId);
-					for (auto vertIt = outgoingPipes.begin(); vertIt != outgoingPipes.end(); ++vertIt) {
-
-						auto nodeDataIt = mNodeData.find(*vertIt);
-						--nodeDataIt->second.mInputsLeftToCollect;
-
-						// Trigger nodes that have no inputs left to collect
-						if (nodeDataIt->second.mInputsLeftToCollect == 0) {
-							nodesToTrigger.emplace_back(*vertIt);
-						}					
-					}
-
-					// Remove this task vertex from the graph
-					mTaskGraph.remove_vertex(task.mId);
-					mNodeData.erase(task.mId);
 				}
 			}
 
@@ -379,83 +179,17 @@ namespace Morpheus {
 				task.mFunc(params);
 
 				// Need to update pipes
-				if (nodesToTrigger.size() > 0)
 				{
 					std::lock_guard<std::mutex> lock(mMutex);
-					for (auto node : nodesToTrigger) {
-						auto nodeDataIt = mNodeData.find(node);
-
-						if (nodeDataIt->second.mType == TaskNodeType::TASK_NODE) {
-							// If this node is a task add it to the appropriate immediate queue
-							auto taskIt = mDeferredTasks.find(node);
-							if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-								mSharedImmediateTasks.push(taskIt->second);
-							} else {
-								mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-							}
-							mDeferredTasks.erase(taskIt);
-
-						} else if (nodeDataIt->second.mType == TaskNodeType::PIPE_NODE) {
-
-							// If node is a pipe, attempt to trigger all children
-							auto outgoingTasks = mTaskGraph.out_neighbors(node);
-
-							for (auto it = outgoingTasks.begin(); it != outgoingTasks.end(); ++it) {
-								// If this is the only pipe that the task is waiting on 
-								auto nodeIt = mNodeData.find(*it);
-								--nodeIt->second.mInputsLeftToCollect;
-
-								assert(nodeIt->second.mType == TaskNodeType::TASK_NODE);
-
-								// Trigger the task if all input pipes are ready
-								if (nodeIt->second.mInputsLeftToCollect == 0) {
-									auto taskIt = mDeferredTasks.find(*it);
-
-									if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-										mSharedImmediateTasks.push(taskIt->second);
-									} else {
-										mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-									}
-									mDeferredTasks.erase(taskIt);
-								}
-							}
-						}
-					}
+					RepoIncomming(params.mTaskId);
+					TriggerOutgoing(params.mTaskId);
+					DestroyNode(params.mTaskId);
 				}
 
 				// Release the barrier object
 				if (task.mBarrier) {
 					// If there are no tasks left for this barrier, invoke the OnReached callback
-					params.mBarrier->Decrement(this);
-
-					if (params.mBarrier->HasSchedulingNode()) {
-						// Barrier has children, attempt to trigger all children
-						auto outgoingTasks = mTaskGraph.out_neighbors(params.mBarrier->mNodeId);
-
-						for (auto it = outgoingTasks.begin(); it != outgoingTasks.end(); ++it) {
-							// If this is the only node that the task is waiting on 
-							auto nodeIt = mNodeData.find(*it);
-							--nodeIt->second.mInputsLeftToCollect;
-
-							assert(nodeIt->second.mType == TaskNodeType::TASK_NODE);
-
-							// Trigger the task if all input pipes are ready
-							if (nodeIt->second.mInputsLeftToCollect == 0) {
-								auto taskIt = mDeferredTasks.find(*it);
-
-								if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
-									mSharedImmediateTasks.push(taskIt->second);
-								} else {
-									mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
-								}
-								mDeferredTasks.erase(taskIt);
-							}
-						}
-					}
-
-					mTaskGraph.remove_vertex(params.mBarrier->mNodeId);
-					mNodeData.erase(params.mBarrier->mNodeId);
-					params.mBarrier->mNodeId = -1;
+					params.mBarrier->Decrement(this, true);
 				}
 			}
 			else {
@@ -466,6 +200,110 @@ namespace Morpheus {
 
 	void ThreadPool::Yield() {
 		ThreadProc(true, 0, nullptr, nullptr);
+	}
+
+	TaskNodeId ThreadPool::CreateNode(TaskNodeType type) {
+		++mCurrentId;
+
+		if (mCurrentId < 0) { // Handle overflow
+			mCurrentId = 0;
+		}
+
+		TaskNodeId id = mCurrentId;
+
+		mTaskGraph.insert_vertex(id);
+		mNodeData[id] = TaskNodeData(type);
+
+		return id;
+	}
+
+	void ThreadPool::DestroyNode(TaskNodeId id) {
+		mTaskGraph.remove_vertex(id);
+		auto data = mNodeData.find(id);
+
+		switch (data->second.mType) {
+		case TaskNodeType::BARRIER_NODE:
+			break;
+
+		case TaskNodeType::PIPE_NODE:
+			mPipes.erase(id);
+			break;
+
+		case TaskNodeType::TASK_NODE:
+			break;
+
+		default:
+			throw std::runtime_error("Unknown task node type!");
+		}
+	}
+
+	void ThreadPool::TriggerOutgoing(TaskNodeId id) {
+		auto outgoingTasks = mTaskGraph.out_neighbors(id);
+
+		for (auto outTask = outgoingTasks.begin(); outTask != outgoingTasks.end(); ++outTask) {
+			Trigger(*outTask);
+		}
+	}
+
+	void ThreadPool::RepoIncomming(TaskNodeId id) {
+		auto incommingTasks = mTaskGraph.in_neighbors(id);
+
+		for (auto inTask = incommingTasks.begin(); inTask != incommingTasks.end(); ++inTask) {
+			auto data = mNodeData.find(*inTask);
+
+			--data->second.mOutputsLeftToTrigger;
+
+			if (data->second.mOutputsLeftToTrigger == 0) {
+				DestroyNode(*inTask);
+			}
+		}
+	}
+
+	void ThreadPool::Trigger(TaskNodeId id) {
+		auto data = mNodeData.find(id);
+
+		--data->second.mInputsLeftToCollect;
+
+		if (data->second.mInputsLeftToCollect == 0) {
+			switch (data->second.mType) {
+				case TaskNodeType::PIPE_NODE:
+					TriggerOutgoing(id);
+					break;
+				case TaskNodeType::TASK_NODE:
+					EnqueueTask(id);
+					break;
+				default:
+					throw std::runtime_error("Unacceptable TaskNodeType detected!");
+			}
+		}
+	}
+
+	void ThreadPool::EnqueueTask(TaskNodeId id) {
+		auto taskIt = mDeferredTasks.find(id);
+		if (taskIt->second.mAssignedThread == ASSIGN_THREAD_ANY) {
+			mSharedImmediateTasks.push(taskIt->second);
+		} else if (taskIt->second.mAssignedThread == ASSIGN_THREAD_IO) {
+			mIOTasks.emplace(taskIt->second);
+			WakeIO();
+		} else {
+			mIndividualImmediateQueues[taskIt->second.mAssignedThread].push(taskIt->second);
+		}
+		mDeferredTasks.erase(taskIt);
+	}
+
+	void ThreadPool::FinalizeBarrier(TaskBarrier* barrier, bool acquireMutex) {
+		std::unique_lock<std::mutex> lock;
+
+		if (acquireMutex) {
+			lock = std::unique_lock<std::mutex>(mMutex);
+		}
+
+		if (barrier->HasSchedulingNode()) {
+			// Barrier has children, attempt to trigger all children
+			TriggerOutgoing(barrier->mNodeId.mId);
+			DestroyNode(barrier->mNodeId.mId);
+			barrier->mNodeId = -1;
+		}
 	}
 
 	void ThreadPool::YieldUntil(TaskBarrier* barrier) {

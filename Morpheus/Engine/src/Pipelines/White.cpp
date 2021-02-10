@@ -121,22 +121,24 @@ namespace Morpheus {
 		} else {
 			auto queue = asyncParams->mThreadPool->GetQueue();
 
-			TaskId buildPipelineTask = queue.Defer([buildPipeline](const TaskParams& params) { 
+			TaskId buildPipelineTask = queue.MakeTask([buildPipeline](const TaskParams& params) { 
 				buildPipeline();
 			}, postLoadBarrier, 0);
 
-			// Schedule the loading of the build pipeline task 
-			queue.ScheduleAfter(whiteVSResource->GetLoadBarrier(), buildPipelineTask);
-			queue.ScheduleAfter(whitePSResource->GetLoadBarrier(), buildPipelineTask);
+			// Schedule the loading of the build pipeline task
+			queue.Dependencies(buildPipelineTask)
+				.After(whiteVSResource->GetLoadBarrier())
+				.After(whitePSResource->GetLoadBarrier());
+		
 			postLoadBarrier->SetCallback(asyncParams->mCallback);
 
 			// Create a deferred task to trigger the loading of the vertex and pixel shaders
-			return queue.Defer([loadVSTask, loadPSTask](const TaskParams& params) {
+			return queue.MakeTask([loadVSTask, loadPSTask](const TaskParams& params) {
 				auto queue = params.mPool->GetQueue();
 
 				// Load vertex and pixel shaders
-				queue.MakeImmediate(loadVSTask);
-				queue.MakeImmediate(loadPSTask);
+				queue.Schedule(loadVSTask);
+				queue.Schedule(loadPSTask);
 			});
 		}
 	}

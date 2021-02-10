@@ -7,11 +7,12 @@
 #include <Engine/Resources/MaterialResource.hpp>
 
 namespace Morpheus {
-	BasicTexturedMaterialPrototype::BasicTexturedMaterialPrototype(
+	TaskId BasicTexturedMaterialPrototype::InitializePrototype(
 		ResourceManager* manager,
-		const std::string& source, 
+		const std::string& source,
 		const std::string& path,
-		const nlohmann::json& config) {
+		const nlohmann::json& config,
+		const MaterialAsyncParams& asyncParams) {
 
 		std::string color_src = config.value("Color", "WHITE_TEXTURE");
 		std::string pipeline_src = config.value("Pipeline", "BasicTextured");
@@ -40,8 +41,24 @@ namespace Morpheus {
 		params.mSource = color_src;
 		params.bIsSRGB = true; // Gamma correct albedo!
 
-		mColor = manager->Load<TextureResource>(params);
-		mPipeline = manager->Load<PipelineResource>(pipeline_src);
+		if (asyncParams.bUseAsync) {
+			auto loadColor = manager->AsyncLoadDeferred<TextureResource>(params, &mColor);
+			auto loadPipeline = manager->AsyncLoadDeferred<PipelineResource>(pipeline_src, &mPipeline);
+
+			auto queue = asyncParams.mPool->GetQueue();
+
+			return queue.MakeTask([loadColor, loadPipeline](const TaskParams& params) {
+				auto queue = params.mPool->GetQueue();
+
+				queue.Schedule(loadColor);
+				queue.Schedule(loadPipeline);
+			});
+		} else {
+			mColor = manager->Load<TextureResource>(params);
+			mPipeline = manager->Load<PipelineResource>(pipeline_src);
+
+			return TASK_NONE;
+		}
 	}
 
 	BasicTexturedMaterialPrototype::BasicTexturedMaterialPrototype(
@@ -60,8 +77,7 @@ namespace Morpheus {
 	}
 
 	void BasicTexturedMaterialPrototype::InitializeMaterial(
-		ResourceManager* manager,
-		ResourceCache<MaterialResource>* cache,
+		DG::IRenderDevice* device,
 		MaterialResource* into) {
 
 		DG::IShaderResourceBinding* srb = nullptr;
@@ -74,6 +90,12 @@ namespace Morpheus {
 		std::vector<DG::IBuffer*> bufs;
 
 		InternalInitialize(into, srb, mPipeline, textures, bufs);
+	}
+
+	void BasicTexturedMaterialPrototype::ScheduleLoadBefore(TaskNodeDependencies dependencies) {
+		dependencies
+			.After(mPipeline->GetLoadBarrier())
+			.After(mColor->GetLoadBarrier());
 	}
 
 	BasicTexturedMaterialPrototype::BasicTexturedMaterialPrototype(const BasicTexturedMaterialPrototype& other) : 

@@ -11,7 +11,7 @@ namespace Morpheus {
 		return resource_type::type<ShaderResource>;
 	}
 
-	DG::IShader* RawShader::Spawn(DG::IRenderDevice* device) {
+	DG::IShader* RawShader::SpawnOnGPU(DG::IRenderDevice* device) {
 		DG::IShader* shader = nullptr;
 		mCreateInfo.Source = mShaderSource.c_str();
 		mCreateInfo.EntryPoint = mEntryPoint.c_str();
@@ -29,7 +29,7 @@ namespace Morpheus {
 		mLoader.Load(params_cast->mSource, mManager->GetEmbededFileLoader(), &output, params_cast->mOverrides);
 		RawShader raw(output, params_cast->mShaderType, params_cast->mName, params_cast->mEntryPoint);
 
-		auto shader = raw.Spawn(mManager->GetParent()->GetDevice());
+		auto shader = raw.SpawnOnGPU(mManager->GetParent()->GetDevice());
 		return new ShaderResource(mManager, shader);
 	}
 
@@ -58,24 +58,24 @@ namespace Morpheus {
 			auto queue = pool->GetQueue();
 			
 			PipeId pipe = queue.MakePipe();
-			preprocessShader = queue.Defer([pipe, paramsCopy, overrides, fileLoader, shaderLoader](const TaskParams& params) {
+			preprocessShader = queue.MakeTask([pipe, paramsCopy, overrides, fileLoader, shaderLoader](const TaskParams& params) {
 				ShaderPreprocessorOutput output;
 				shaderLoader->Load(paramsCopy.mSource, fileLoader, &output, &overrides);
 				params.mPool->WritePipe(pipe, new RawShader(output, paramsCopy.mShaderType, paramsCopy.mName, paramsCopy.mEntryPoint));
 			});
 
-			TaskId createShader = queue.Defer([pipe, renderDevice, resource](const TaskParams& params) {
+			TaskId createShader = queue.MakeTask([pipe, renderDevice, resource](const TaskParams& params) {
 				auto& value = params.mPool->ReadPipe(pipe);
 
 				RawShader* shaderRaw = value.cast<RawShader*>();
-				DG::IShader* shader = shaderRaw->Spawn(renderDevice);
+				DG::IShader* shader = shaderRaw->SpawnOnGPU(renderDevice);
 				delete shaderRaw;
 
 				resource->SetShader(shader);
 			}, barrier, ASSIGN_THREAD_MAIN);
 
-			queue.PipeFrom(preprocessShader, pipe);
-			queue.PipeTo(pipe, createShader);
+			queue.Dependencies(pipe).After(preprocessShader);
+			queue.Dependencies(createShader).After(pipe);
 		}
 
 		*output = resource;

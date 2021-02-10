@@ -46,9 +46,9 @@ namespace Morpheus {
 			TaskId task = AsyncLoadDeferred(params, threadPool, &result, callback);
 
 			// Emplace task into the thread pool queue
-			if (task != TASK_NONE) {
+			if (task.IsValid()) {
 				auto queue = threadPool->GetQueue();
-				queue.MakeImmediate(task);
+				queue.Schedule(task);
 			}
 
 			return result;
@@ -72,7 +72,7 @@ namespace Morpheus {
 
 	class IResource {
 	private:
-		unsigned int mRefCount = 0;
+		std::atomic<unsigned int> mRefCount = 0;
 		ResourceManager* mManager;
 
 	protected:

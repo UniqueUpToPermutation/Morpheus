@@ -718,7 +718,8 @@ namespace Morpheus {
 	}
 
 	PipelineResource::~PipelineResource() {
-		mState->Release();
+		if (mState)
+			mState->Release();
 	}
 
 	void ResourceCache<PipelineResource>::ActuallyLoad(const std::string& source, PipelineResource* into, 

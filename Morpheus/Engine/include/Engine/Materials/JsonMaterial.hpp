@@ -5,23 +5,26 @@
 namespace Morpheus {
 	class JsonMaterialPrototype : public MaterialPrototype {
 	private:
-	PipelineResource* mPipeline;
+		PipelineResource* mPipeline;
 		std::vector<DG::Uint32> mVariableIndices;
 		std::vector<TextureResource*> mTextures;
 
 	public:
-		JsonMaterialPrototype(
-			const JsonMaterialPrototype& other);
-		JsonMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
+		JsonMaterialPrototype(const JsonMaterialPrototype& other);
+		JsonMaterialPrototype();
 		~JsonMaterialPrototype();
 
-		void InitializeMaterial(
+		void ScheduleLoadBefore(TaskNodeDependencies dependencies) override;
+
+		TaskId InitializePrototype(
 			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
+			const std::string& source,
+			const std::string& path,
+			const nlohmann::json& config,
+			const MaterialAsyncParams& asyncParams) override;
+
+		void InitializeMaterial(
+			DG::IRenderDevice* device,
 			MaterialResource* into) override;
 		MaterialPrototype* DeepCopy() const override;
 	};

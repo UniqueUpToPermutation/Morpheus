@@ -5,25 +5,29 @@
 namespace Morpheus {
 	class WhiteMaterialPrototype : public MaterialPrototype {
 	private:
-		PipelineResource* mPipeline;
+		PipelineResource* mPipeline = nullptr;
 
 	public:
 		WhiteMaterialPrototype(
 			const WhiteMaterialPrototype& other);
-
-		WhiteMaterialPrototype(
-			ResourceManager* manager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config);
+		inline WhiteMaterialPrototype() {
+		}
 		WhiteMaterialPrototype(
 			PipelineResource* pipeline);
 		~WhiteMaterialPrototype();
 
-		void InitializeMaterial(
+		TaskId InitializePrototype(
 			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache,
+			const std::string& source,
+			const std::string& path,
+			const nlohmann::json& config,
+			const MaterialAsyncParams& asyncParams) override;
+
+		void InitializeMaterial(
+			DG::IRenderDevice* device,
 			MaterialResource* into) override;
 		MaterialPrototype* DeepCopy() const override;
+
+		void ScheduleLoadBefore(TaskNodeDependencies dependencies) override;
 	};
 }

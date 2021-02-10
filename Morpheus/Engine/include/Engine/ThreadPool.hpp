@@ -13,6 +13,7 @@
 #include <Engine/Graph.hpp>
 #include <Engine/Entity.hpp>
 
+#define ASSIGN_THREAD_IO -2
 #define ASSIGN_THREAD_ANY -1
 #define ASSIGN_THREAD_MAIN 0
 
@@ -21,9 +22,62 @@
 #define BARRIER_NONE -1
 
 namespace Morpheus {
-	typedef int PipeId;
-	typedef int TaskId;
-	typedef int BarrierId;
+	typedef int TaskNodeId;
+
+	enum class TaskNodeType {
+		UNKNOWN_NODE,
+		TASK_NODE,
+		PIPE_NODE,
+		BARRIER_NODE
+	};
+
+	struct TaskId {
+		TaskNodeId mId;
+
+		inline TaskId() :
+			mId(TASK_NONE) {	
+		}
+
+		inline TaskId(TaskNodeId id) :
+			mId(id) {
+		}
+
+		inline bool IsValid() const {
+			return mId >= 0;
+		}
+	};
+
+	struct PipeId {
+		TaskNodeId mId;
+
+		inline PipeId() :
+			mId(PIPE_NONE) {
+		}
+
+		inline PipeId(TaskNodeId id) :
+			mId(id) {
+		}
+
+		inline bool IsValid() const {
+			return mId >= 0;
+		}
+	};
+
+	struct BarrierId {
+		TaskNodeId mId;
+
+		inline BarrierId() :
+			mId(BARRIER_NONE) {
+		}
+
+		inline BarrierId(TaskNodeId id) :
+			mId(id) {
+		}
+
+		inline bool IsValid() const {
+			return mId >= 0;
+		}
+	};
 
 	class ThreadPool;
 	class TaskBarrier;
@@ -32,7 +86,7 @@ namespace Morpheus {
 		ThreadPool* mPool;
 		TaskBarrier* mBarrier;
 		uint mThreadId;
-		TaskId mTaskId;
+		TaskNodeId mTaskId;
 	};
 
 	typedef std::function<void(const TaskParams&)> TaskFunc;
@@ -51,16 +105,61 @@ namespace Morpheus {
 		}
 	};
 
+	struct TaskNodeData {
+		TaskNodeType mType;
+		int mInputsLeftToCollect;
+		int mOutputsLeftToTrigger;
+
+		inline TaskNodeData(TaskNodeType type) :
+			mType(type),
+			mInputsLeftToCollect(0),
+			mOutputsLeftToTrigger(0) {
+		}
+
+		inline TaskNodeData() : TaskNodeData(TaskNodeType::UNKNOWN_NODE) {
+		}
+	};
+
+	class TaskNodeDependencies {
+	private:
+		std::unordered_map<TaskNodeId, TaskNodeData>::iterator mIterator;
+		ThreadPool* mPool;
+		TaskNodeId mId;
+
+		void After(TaskNodeId other);
+
+	public:
+		TaskNodeDependencies(TaskNodeId id, 
+			ThreadPool* pool, 
+			const std::unordered_map<TaskNodeId, TaskNodeData>::iterator& it) :
+			mId(id),
+			mPool(pool),
+			mIterator(it) {
+		}
+
+		inline TaskNodeDependencies& After(TaskId other) {
+			if (other.IsValid())
+				After(other.mId);
+			return *this;
+		}
+		inline TaskNodeDependencies& After(PipeId other) {
+			if (other.IsValid())
+				After(other.mId);
+			return *this;
+		}
+		TaskNodeDependencies& After(TaskBarrier* barrier);
+	};
+
 	class Task {
 	private:
 		TaskBarrier* mBarrier;
 
 	public:
 		int mAssignedThread;
-		TaskId mId;
+		TaskNodeId mId;
 		TaskFunc mFunc;
 
-		inline Task(TaskFunc func, TaskId id, TaskBarrier* barrier = nullptr, 
+		inline Task(TaskFunc func, TaskNodeId id, TaskBarrier* barrier = nullptr, 
 			int assignedThread = ASSIGN_THREAD_ANY) :
 			mFunc(func),
 			mId(id),
@@ -68,7 +167,7 @@ namespace Morpheus {
 			mAssignedThread(assignedThread) {
 		}
 
-		inline Task(const TaskDesc& task, TaskId id) :
+		inline Task(const TaskDesc& task, TaskNodeId id) :
 			mFunc(task.mFunc),
 			mId(id),
 			mBarrier(task.mBarrier),
@@ -88,12 +187,12 @@ namespace Morpheus {
 
 	class ThreadPipe {
 	private:
-		TaskId mId;
+		TaskNodeId mId;
 		std::promise<entt::meta_any> mPromise;
 		std::shared_future<entt::meta_any> mFuture;
 
 	public:
-		inline ThreadPipe(TaskId id) :
+		inline ThreadPipe(TaskNodeId id) :
 			mId(id) {
 			mFuture = mPromise.get_future();
 		}
@@ -143,29 +242,23 @@ namespace Morpheus {
 			std::swap(mIOLock, other.mIOLock);
 		}
 
-		// Queues a task for immediate execution
-		TaskId Immediate(const TaskDesc& task);
-		// Converts a deferred task into an immediate task
-		void MakeImmediate(TaskId task);
-		// Queues a task for immediate execution
-		inline TaskId Immediate(TaskFunc func, TaskBarrier* barrier = nullptr, 
-			int assignedThread = ASSIGN_THREAD_ANY) {
-			return Immediate(TaskDesc(func, barrier, assignedThread));
-		}
-
-		TaskId Defer(const TaskDesc& task);
-		inline TaskId Defer(TaskFunc func, TaskBarrier* barrier = nullptr, 
-			int assignedThread = ASSIGN_THREAD_ANY) {
-			return Defer(TaskDesc(func, barrier, assignedThread));
-		}
-
 		PipeId MakePipe();
+		TaskId MakeTask(const TaskDesc& desc);
 
-		void PipeFrom(TaskId task, PipeId pipe);
-		void PipeTo(PipeId pipe, TaskId task);
-		void ScheduleAfter(TaskBarrier* before, TaskId after);
+		inline TaskId MakeTask(const TaskFunc& func, 
+			TaskBarrier* barrier = nullptr, 
+			int assignedThread = ASSIGN_THREAD_ANY) {
+			return MakeTask(TaskDesc(func, barrier, assignedThread));
+		}
 
-		TaskId IOTask(TaskFunc func, bool bWakeIOThread = true, TaskBarrier* barrier = nullptr);
+		inline TaskId MakeIOTask(const TaskFunc& func, TaskBarrier* barrier = nullptr) {
+			return MakeTask(TaskDesc(func, barrier, ASSIGN_THREAD_IO));
+		}
+
+		TaskNodeDependencies Dependencies(TaskId task);
+		TaskNodeDependencies Dependencies(PipeId pipe);
+
+		void Schedule(TaskId task);
 	};
 
 	class TaskBarrier {
@@ -183,7 +276,7 @@ namespace Morpheus {
 		}
 
 		inline bool HasSchedulingNode() const {
-			return mNodeId >= 0;
+			return mNodeId.mId >= 0;
 		}
 
 		inline void Increment() {
@@ -198,18 +291,12 @@ namespace Morpheus {
 			return mTaskCount;
 		}
 
-		inline void OnReached(ThreadPool* pool) {
-			if (mOnReached) {
-				auto tmp = mOnReached;
-				mOnReached = nullptr;
-				tmp(pool);
-			}
-		}
+		void OnReached(ThreadPool* pool, bool acquireMutex = true);
 
-		inline void Decrement(ThreadPool* pool, bool bTriggerOnReached = true) {
+		inline void Decrement(ThreadPool* pool, bool acquireMutex = true) {
 			uint count = mTaskCount.fetch_sub(1);
-			if (bTriggerOnReached && count == 1) {
-				OnReached(pool);
+			if (count == 1) {
+				OnReached(pool, acquireMutex);
 			}
 		}
 
@@ -220,28 +307,7 @@ namespace Morpheus {
 
 		friend class ThreadPool;
 		friend class TaskQueueInterface;
-	};
-
-	enum class TaskNodeType {
-		UNKNOWN_NODE,
-		TASK_NODE,
-		PIPE_NODE,
-		BARRIER_NODE
-	};
-
-	struct TaskNodeData {
-		TaskNodeType mType;
-		int mInputsLeftToCollect;
-		int mOutputsLeftToTrigger;
-
-		inline TaskNodeData(TaskNodeType type) :
-			mType(type),
-			mInputsLeftToCollect(0),
-			mOutputsLeftToTrigger(0) {
-		}
-
-		inline TaskNodeData() : TaskNodeData(TaskNodeType::UNKNOWN_NODE) {
-		}
+		friend class TaskNodeDependencies;
 	};
 
 	class ThreadPool {
@@ -250,9 +316,9 @@ namespace Morpheus {
 		std::vector<std::thread> mThreads;
 		std::vector<std::queue<Task>> mIndividualImmediateQueues;
 		std::thread mIOThread;
-		std::unordered_map<TaskId, Task> mDeferredTasks;
-		std::unordered_map<PipeId, ThreadPipe> mPipes;
-		std::unordered_map<uint, TaskNodeData> mNodeData;
+		std::unordered_map<TaskNodeId, Task> mDeferredTasks;
+		std::unordered_map<TaskNodeId, ThreadPipe> mPipes;
+		std::unordered_map<TaskNodeId, TaskNodeData> mNodeData;
 		std::mutex mMutex;
 		std::atomic<bool> bExit;
 		std::queue<Task> mSharedImmediateTasks;
@@ -260,8 +326,17 @@ namespace Morpheus {
 		std::condition_variable mIOCondition;
 		std::mutex mIOConditionMutex;
 		std::mutex mIOQueueMutex;
-		std::atomic<TaskId> mCurrentId;
+		std::atomic<TaskNodeId> mCurrentId;
 		NGraph::Graph mTaskGraph;
+
+		void FinalizeBarrier(TaskBarrier* barrier, bool acquireMutex = true);
+
+		TaskNodeId CreateNode(TaskNodeType type);
+		void DestroyNode(TaskNodeId id);
+		void TriggerOutgoing(TaskNodeId id);
+		void Trigger(TaskNodeId id);
+		void RepoIncomming(TaskNodeId id);
+		void EnqueueTask(TaskNodeId id);
 
 	public:
 		inline uint ThreadCount() const {
@@ -287,17 +362,17 @@ namespace Morpheus {
 		}
 
 		inline const entt::meta_any& ReadPipe(PipeId pipeId) {
-			auto pipe = mPipes.find(pipeId);
+			auto pipe = mPipes.find(pipeId.mId);
 			return pipe->second.Read();
 		}
 
 		inline void WritePipe(PipeId pipeId, entt::meta_any&& data) {
-			auto pipe = mPipes.find(pipeId);
+			auto pipe = mPipes.find(pipeId.mId);
 			pipe->second.Write(std::move(data));
 		}
 
 		inline void WritePipeException(PipeId pipeId, std::__exception_ptr::exception_ptr ex) {
-			auto pipe = mPipes.find(pipeId);
+			auto pipe = mPipes.find(pipeId.mId);
 			pipe->second.WriteException(ex);
 		}
 
@@ -320,5 +395,7 @@ namespace Morpheus {
 		void WakeIO();
 
 		friend class TaskQueueInterface;
+		friend class TaskBarrier;
+		friend class TaskNodeDependencies;
 	};
 }

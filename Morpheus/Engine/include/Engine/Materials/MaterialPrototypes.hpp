@@ -21,11 +21,24 @@ namespace Morpheus {
 	class TextureResource;
 	class MaterialPrototype;
 
+	struct MaterialAsyncParams {
+		bool bUseAsync;
+		ThreadPool* mPool;
+	};
+
 	typedef std::function<MaterialPrototype*(
-		ResourceManager* manager,
+		ResourceManager*,
 		const std::string&,
 		const std::string&,
-		const nlohmann::json& config)> prototype_spawner_t;
+		const nlohmann::json&)> prototype_spawner_t;
+
+	typedef std::function<TaskId(
+		ResourceManager*,
+		const std::string&,
+		const std::string&,
+		const nlohmann::json&,
+		ThreadPool*,
+		MaterialPrototype**)> prototype_spawner_async_t;
 
 	class MaterialPrototype {
 	protected:
@@ -37,11 +50,19 @@ namespace Morpheus {
 
 	public:
 		virtual ~MaterialPrototype() {}
-		virtual void InitializeMaterial(
+		virtual TaskId InitializePrototype(
 			ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache, 
+			const std::string& source,
+			const std::string& path,
+			const nlohmann::json& config,
+			const MaterialAsyncParams& asyncParams) = 0;
+
+		virtual void InitializeMaterial(
+			DG::IRenderDevice* device,
 			MaterialResource* into) = 0;
 		virtual MaterialPrototype* DeepCopy() const = 0;
+
+		virtual void ScheduleLoadBefore(TaskNodeDependencies dependencies) = 0;
 	};
 
 	template <typename T>
@@ -50,14 +71,43 @@ namespace Morpheus {
 		const std::string& source, 
 		const std::string& path,
 		const nlohmann::json& config) {
-		return new T(manager, source, path, config);
+
+		auto prototype = new T();
+		MaterialAsyncParams params;
+		params.bUseAsync = false;
+		prototype->InitializePrototype(manager, source, path, config, params);
+		return prototype;
 	}
+
+	template <typename T>
+	TaskId AbstractAsyncConstructor(
+		ResourceManager* manager,
+		const std::string& source,
+		const std::string& path,
+		const nlohmann::json& config,
+		ThreadPool* pool,
+		MaterialPrototype** result) {
+
+		auto prototype = new T();
+		MaterialAsyncParams params;
+		params.bUseAsync = true;
+		params.mPool = pool;
+		*result = prototype;
+		return prototype->InitializePrototype(manager, source, path, config, params);
+	};
 
 	class MaterialPrototypeFactory {
 	private:
 		std::unordered_map<std::string, prototype_spawner_t> mMap;
+		std::unordered_map<std::string, prototype_spawner_async_t> mAsyncMap;
 
 	public:
+		template <typename T>
+		void Add(const std::string& name) {
+			mMap[name] = &AbstractConstructor<T>;
+			mAsyncMap[name] = &AbstractAsyncConstructor<T>;
+		}
+
 		MaterialPrototypeFactory();
 		MaterialPrototype* Spawn(
 			const std::string& type,
@@ -65,6 +115,15 @@ namespace Morpheus {
 			const std::string& source, 
 			const std::string& path,
 			const nlohmann::json& config) const;
+
+		TaskId SpawnAsyncDeferred(
+			const std::string& type,
+			ResourceManager* mananager,
+			const std::string& source, 
+			const std::string& path,
+			const nlohmann::json& config,
+			ThreadPool* pool,
+			MaterialPrototype** out) const;
 	};
 
 	DG::float4 ReadFloat4(

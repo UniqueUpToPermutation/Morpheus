@@ -13,12 +13,9 @@
 namespace Morpheus {
 
 	MaterialPrototypeFactory::MaterialPrototypeFactory() {
-		mMap["BasicTexturedMaterial"] = 
-			&AbstractConstructor<BasicTexturedMaterialPrototype>;
-		mMap["StaticMeshPBRMaterial"] = 
-			&AbstractConstructor<StaticMeshPBRMaterialPrototype>;
-		mMap["WhiteMaterial"] = 
-			&AbstractConstructor<WhiteMaterialPrototype>;
+		Add<BasicTexturedMaterialPrototype>("BasicTexturedMaterial");
+		Add<StaticMeshPBRMaterialPrototype>("StaticMeshPBRMaterial");
+		Add<WhiteMaterialPrototype>("WhiteMaterial");
 	}
 
 	MaterialPrototype* MaterialPrototypeFactory::Spawn(
@@ -33,6 +30,21 @@ namespace Morpheus {
 			return it->second(manager, source, path, config);
 		}
 		return nullptr;
+	}
+
+	TaskId MaterialPrototypeFactory::SpawnAsyncDeferred(
+		const std::string& type,
+		ResourceManager* manager,
+		const std::string& source, 
+		const std::string& path,
+		const nlohmann::json& config,
+		ThreadPool* pool,
+		MaterialPrototype** out) const {
+		auto it = mAsyncMap.find(type);
+		if (it != mAsyncMap.end()) {
+			return it->second(manager, source, path, config, pool, out);
+		}
+		return TASK_NONE;
 	}
 
 	void MaterialPrototype::InternalInitialize(

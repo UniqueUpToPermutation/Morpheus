@@ -4,6 +4,8 @@
 #include <Engine/Materials/MaterialPrototypes.hpp>
 #include <Engine/InputController.hpp>
 
+#include <shared_mutex>
+
 #include "EngineFactory.h"
 #include "RefCntAutoPtr.hpp"
 #include "RenderDevice.h"
@@ -83,6 +85,9 @@ namespace Morpheus {
 		template <typename ViewType> 
 		inline ViewType* GetView();
 
+		template <typename T, typename... Args>
+		inline T* CreateView(MaterialResource* resource, Args &&... args);
+
 		friend class MaterialLoader;
 		friend class ResourceCache<MaterialResource>;
 		friend class MaterialPrototype;
@@ -118,6 +123,12 @@ namespace Morpheus {
 			const std::string& path,
 			const MaterialPrototypeFactory& prototypeFactory,
 			MaterialResource* loadInto);
+
+		TaskId AsyncLoad(const std::string& source,
+			const MaterialPrototypeFactory& prototypeFactory,
+			ThreadPool* pool,
+			TaskBarrierCallback barrierCallback,
+			MaterialResource* loadInto);
 	};
 
 	template <>
@@ -129,7 +140,7 @@ namespace Morpheus {
 		entt::registry mViewRegistry;
 		MaterialPrototypeFactory mPrototypeFactory;
 
-		std::mutex mMutex;
+		std::shared_mutex mResourceMapMutex;
 
 	public:
 		ResourceCache(ResourceManager* manager);
@@ -150,11 +161,22 @@ namespace Morpheus {
 				resource->mEntity, std::forward<Args>(args)...);
 		}
 
+		template <typename T>
+		inline T* GetView(MaterialResource* resource) {
+			return mViewRegistry.template try_get<T>(resource->mEntity);
+		}
+
 		friend class MaterialResource;
 	};
 
 	template <typename ViewType> 
-	ViewType* MaterialResource::GetView() {
-		return mCache->mViewRegistry.try_get<ViewType>(mEntity);
+	inline ViewType* MaterialResource::GetView() {
+		return mCache->GetView<ViewType>(this);
+	}
+
+	template <typename ViewType, typename... Args>
+	inline ViewType* MaterialResource::CreateView(MaterialResource* resource, Args &&... args) {
+		return mCache->template CreateView<ViewType, Args...>(
+			this, std::forward<Args>(args)...);
 	}
 }

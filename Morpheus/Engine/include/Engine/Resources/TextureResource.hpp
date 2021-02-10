@@ -37,7 +37,10 @@ namespace Morpheus {
 		std::vector<TextureSubResDataDesc> mSubDescs;
 
 	public:
-		RawTexture(const DG::TextureDesc& desc, 
+		inline RawTexture() {
+		}
+
+		inline RawTexture(const DG::TextureDesc& desc, 
 			std::vector<uint8_t>&& data, 
 			const std::vector<TextureSubResDataDesc>& subDescs) :
 			mDesc(desc),
@@ -45,7 +48,7 @@ namespace Morpheus {
 			mSubDescs(subDescs) {
 		}
 
-		RawTexture(const DG::TextureDesc& desc, 
+		inline RawTexture(const DG::TextureDesc& desc, 
 			const std::vector<uint8_t>& data, 
 			const std::vector<TextureSubResDataDesc>& subDescs) :
 			mDesc(desc),
@@ -53,7 +56,17 @@ namespace Morpheus {
 			mSubDescs(subDescs) {
 		}
 
-		DG::ITexture* Spawn(DG::IRenderDevice* device);
+		void Set(const DG::TextureDesc& desc, std::vector<uint8_t>&& data,
+			const std::vector<TextureSubResDataDesc>& subDescs) {
+			mDesc = desc;
+			mData = data;
+			mSubDescs = subDescs;
+		}
+
+		RawTexture(RawTexture&& other) = default;
+		RawTexture(const RawTexture& other) = delete;
+
+		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device);
 	};
 
 	class TextureResource : public IResource {
@@ -125,6 +138,10 @@ namespace Morpheus {
 
 	public:
 		TextureLoader(ResourceManager* manager);
+
+		static void LoadPngDataRaw(const LoadParams<TextureResource>& params,
+			const std::vector<uint8_t>& image,
+			uint32_t width, uint32_t height, RawTexture* into);
 
 		TaskId LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture,
 			const AsyncResourceParams& asyncParams);

@@ -3,8 +3,8 @@
 
 namespace Morpheus {
 	void IResource::Release() {
-		--mRefCount;
-		if (mRefCount == 0) {
+		auto value = mRefCount.fetch_sub(1);
+		if (value == 1) {
 			mManager->RequestUnload(this);
 		}
 	}

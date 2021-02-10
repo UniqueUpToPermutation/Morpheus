@@ -22,11 +22,12 @@ namespace Morpheus {
 		mMetallic->AddRef();
 	}
 
-	StaticMeshPBRMaterialPrototype::StaticMeshPBRMaterialPrototype(
+	TaskId StaticMeshPBRMaterialPrototype::InitializePrototype(
 		ResourceManager* manager,
-		const std::string& source, 
+		const std::string& source,
 		const std::string& path,
-		const nlohmann::json& config) {
+		const nlohmann::json& config,
+		const MaterialAsyncParams& asyncParams) {
 		std::string pipeline_src = 	"PBRStaticMesh";
 		std::string albedo_src = 	"WHITE_TEXTURE";
 		std::string normal_src = 	"DEFAULT_NORMAL_TEXTURE";
@@ -71,16 +72,40 @@ namespace Morpheus {
 				normal_src = path + "/" + normal_src;
 		}
 
-		mPipeline = 	manager->Load<PipelineResource>(pipeline_src);
-
 		LoadParams<TextureResource> albedo_params;
 		albedo_params.mSource = albedo_src;
 		albedo_params.bIsSRGB = true; // Gamma correct albedo!
 
-		mAlbedo = 		manager->Load<TextureResource>(albedo_params);
-		mRoughness =	manager->Load<TextureResource>(roughness_src);
-		mNormal =		manager->Load<TextureResource>(normal_src);
-		mMetallic = 	manager->Load<TextureResource>(metallic_src);
+		if (asyncParams.bUseAsync) {
+			auto pipelineTask = 	manager->AsyncLoadDeferred<PipelineResource>(pipeline_src, &mPipeline);
+			auto albedoTask = 		manager->AsyncLoadDeferred<TextureResource>(albedo_params, &mAlbedo);
+			auto roughnessTask =	manager->AsyncLoadDeferred<TextureResource>(roughness_src, &mRoughness);
+			auto normalTask =		manager->AsyncLoadDeferred<TextureResource>(normal_src, &mNormal);
+			auto metallicTask = 	manager->AsyncLoadDeferred<TextureResource>(metallic_src, &mMetallic);
+
+			auto queue = asyncParams.mPool->GetQueue();
+
+			return queue.MakeTask([pipelineTask, 
+				albedoTask, 
+				roughnessTask, 
+				normalTask, 
+				metallicTask](const TaskParams& params) {
+				auto queue = params.mPool->GetQueue();
+				queue.Schedule(pipelineTask);
+				queue.Schedule(albedoTask);
+				queue.Schedule(roughnessTask);
+				queue.Schedule(normalTask);
+				queue.Schedule(metallicTask);
+			});
+		} else {
+			mPipeline = 	manager->Load<PipelineResource>(pipeline_src);
+			mAlbedo = 		manager->Load<TextureResource>(albedo_params);
+			mRoughness =	manager->Load<TextureResource>(roughness_src);
+			mNormal =		manager->Load<TextureResource>(normal_src);
+			mMetallic = 	manager->Load<TextureResource>(metallic_src);
+
+			return TASK_NONE;
+		}
 	}
 
 	StaticMeshPBRMaterialPrototype::StaticMeshPBRMaterialPrototype(
@@ -110,9 +135,17 @@ namespace Morpheus {
 		mRoughness->Release();
 	}
 
+	void StaticMeshPBRMaterialPrototype::ScheduleLoadBefore(TaskNodeDependencies dependencies) {
+		dependencies
+			.After(mPipeline->GetLoadBarrier())
+			.After(mAlbedo->GetLoadBarrier())
+			.After(mNormal->GetLoadBarrier())
+			.After(mMetallic->GetLoadBarrier())
+			.After(mRoughness->GetLoadBarrier());
+	}
+
 	void StaticMeshPBRMaterialPrototype::InitializeMaterial(
-		ResourceManager* manager,
-		ResourceCache<MaterialResource>* cache,
+		DG::IRenderDevice* device,
 		MaterialResource* into) {
 		DG::IShaderResourceBinding* srb = nullptr;
 		mPipeline->GetState()->CreateShaderResourceBinding(&srb, true);
@@ -141,7 +174,7 @@ namespace Morpheus {
 		auto prefilteredEnvMapLoc = srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap");
 
 		// Create image based lighting view
-		cache->CreateView<ImageBasedLightingView>(into, 
+		into->CreateView<ImageBasedLightingView>(into, 
 			irradianceMapLoc, irradianceSHLoc, prefilteredEnvMapLoc);
 
 		std::vector<DG::IBuffer*> buffers;

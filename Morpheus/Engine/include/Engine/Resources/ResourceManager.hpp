@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <shared_mutex>
 
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ShaderLoader.hpp>
@@ -14,7 +15,8 @@ namespace Morpheus {
 	class ResourceManager {
 	private:
 		std::unordered_map<entt::id_type, IResourceCache*> mResourceCaches;
-		std::vector<IResource*> mDisposalList;
+		std::shared_mutex mDisposalListMutex;
+		std::queue<IResource*> mDisposalList;
 		ShaderPreprocessorConfig mShaderPreprocessorConfig;
 		EmbeddedFileLoader mEmbeddedFileLoader;
 
@@ -123,6 +125,14 @@ namespace Morpheus {
 		}
 
 		template <typename T>
+		inline TaskId AsyncLoadDeferred(const std::string& source,
+			T** output,
+			const TaskBarrierCallback& callback = nullptr) {
+			auto params = LoadParams<T>::FromString(source);
+			return AsyncLoadDeferred<T>(params, output, callback);		
+		}
+
+		template <typename T>
 		inline TaskId AsyncLoad(const std::string& source,
 			T** output,
 			const TaskBarrierCallback& callback = nullptr) {
@@ -131,7 +141,8 @@ namespace Morpheus {
 		}
 
 		inline void RequestUnload(IResource* resource) {
-			mDisposalList.emplace_back(resource);
+			std::unique_lock lock(mDisposalListMutex);
+			mDisposalList.emplace(resource);
 		}
 
 		void CollectGarbage();

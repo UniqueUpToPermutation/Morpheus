@@ -7,18 +7,29 @@
 
 namespace Morpheus {
 	void ResourceManager::CollectGarbage() {
-		for (auto item : mDisposalList) {
-			auto type = item->GetType();
+		while (true) {
+			IResource* resource = nullptr;
+			
+			{
+				// Get item
+				std::unique_lock<std::shared_mutex> lock(mDisposalListMutex);
+				if (mDisposalList.size() == 0)
+					break;
+
+				resource = mDisposalList.front();
+				mDisposalList.pop();
+			}
+			
+			// Unload the resource
+			auto type = resource->GetType();
 			auto it = mResourceCaches.find(type);
 			if (it != mResourceCaches.end()) {
-				it->second->Unload(item);
+				it->second->Unload(resource);
 			}
 			else {
 				throw std::runtime_error("Unrecognized resource type!");
 			}
 		}
-
-		mDisposalList.clear();
 	}
 
 	ResourceManager::ResourceManager(Engine* parent, ThreadPool* pool) : mParent(parent), mThreadPool(pool) {

@@ -53,7 +53,7 @@ namespace Morpheus {
 			mCreateInfo.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
 		}
 
-		DG::IShader* Spawn(DG::IRenderDevice* device);
+		DG::IShader* SpawnOnGPU(DG::IRenderDevice* device);
 	};
 
 	template <>
