@@ -13,7 +13,8 @@ namespace Morpheus {
 		IResource(manager),
 		mResourceBinding(nullptr),
 		mPipeline(nullptr),
-		mCache(cache) {
+		mCache(cache),
+		bSourced(false) {
 		mEntity = cache->mViewRegistry.create();
 	}
 
@@ -24,7 +25,8 @@ namespace Morpheus {
 		const std::vector<DG::IBuffer*>& buffers,
 		ResourceCache<MaterialResource>* cache) :
 		IResource(manager),
-		mCache(cache) {
+		mCache(cache),
+		bSourced(false) {
 		mEntity = cache->mViewRegistry.create();
 		Init(binding, pipeline, textures, buffers);
 	}
@@ -33,8 +35,6 @@ namespace Morpheus {
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
 		const std::vector<DG::IBuffer*>& buffers) {
-
-		bSourced = false;
 
 		pipeline->AddRef();
 		for (auto tex : textures) {
@@ -213,11 +213,10 @@ namespace Morpheus {
 
 		MaterialResource* resource = new MaterialResource(mManager, this);
 		mLoader.Load(src, mPrototypeFactory, resource);
-		resource->bSourced = true;
 
 		{
 			std::unique_lock<std::shared_mutex>(mResourceMapMutex);
-			resource->mSourceIterator = mResourceMap.emplace(src, resource).first;
+			resource->SetSource(mResourceMap.emplace(src, resource).first);
 		}
 
 		return resource;
@@ -243,11 +242,9 @@ namespace Morpheus {
 		MaterialResource* resource = new MaterialResource(mManager, this);
 		TaskId task = mLoader.AsyncLoad(src, mPrototypeFactory, threadPool, callback, resource);
 
-		resource->bSourced = true;
-
 		{
 			std::unique_lock<std::shared_mutex>(mResourceMapMutex);
-			resource->mSourceIterator = mResourceMap.emplace(src, resource).first;
+			resource->SetSource(mResourceMap.emplace(src, resource).first);
 		}
 
 		*output = resource;
