@@ -127,6 +127,7 @@ list(APPEND SOURCE
 	src/Camera.cpp
 	src/ThreadPool.cpp
 	src/ThreadTasks.cpp
+	src/SpriteBatch.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -140,7 +141,6 @@ list(APPEND SOURCE
 	src/Components/Transform.cpp
 	src/Components/SkyboxComponent.cpp
 	
-
 	src/Pipelines/PipelineFactory.cpp
 	src/Pipelines/BasicTextured.cpp
 	src/Pipelines/Skybox.cpp

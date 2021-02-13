@@ -53,7 +53,7 @@ namespace Morpheus {
 			ss << defaults->Stringify(overrides) << std::endl;
 		}
 
-		ss << std::endl << "#line 0 \"" << source << "\"" << std::endl; // Reset line numbers
+		ss << std::endl << "#line 1 \"" << source << "\"" << std::endl; // Reset line numbers
 
 		// Find all includes
 		size_t include_pos = contents.find("#include");
@@ -113,7 +113,7 @@ namespace Morpheus {
 				Load(includeSource, fileLoader, nextPath, defaults, overrides, streamOut,
 					output, alreadyVisited);
 				
-				ss << std::endl << "\n#line " << current_line << " \"" << source << "\"" << std::endl; // Reset line numbers
+				ss << std::endl << "\n#line " << current_line + 1 << " \"" << source << "\"" << std::endl; // Reset line numbers
 			}
 
 			include_pos = contents.find("#include", include_pos + 1);

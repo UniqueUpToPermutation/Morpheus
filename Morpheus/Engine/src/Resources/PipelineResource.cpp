@@ -722,6 +722,100 @@ namespace Morpheus {
 			mState->Release();
 	}
 
+	TaskId ResourceCache<PipelineResource>::AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
+		PipelineResource** output, const LoadParams<PipelineResource>& params,
+		const TaskBarrierCallback& callback) {
+
+		auto params_cast = &params;
+		auto src = params_cast->mSource;
+		auto overrides = &params_cast->mOverrides;
+
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			auto it = mCachedResources.find(src);
+			if (it != mCachedResources.end()) {
+				*output = it->second;
+				return TASK_NONE;
+			}
+		}
+
+		auto task = AsyncLoadFromFactory(threadPool, factory, output, &params.mOverrides, callback);
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			(*output)->SetSource(mCachedResources.emplace(src, *output).first);
+		}
+		
+		return task;
+	}
+
+	TaskId ResourceCache<PipelineResource>::AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
+		PipelineResource** output, const ShaderPreprocessorConfig* overrides,
+		const TaskBarrierCallback& callback) {
+
+		PipelineResource* resource = new PipelineResource(mManager);
+		AsyncResourceParams asyncParams;
+		asyncParams.bUseAsync = true;
+		asyncParams.mThreadPool = threadPool;
+		asyncParams.mCallback = callback;
+
+		TaskId task = factory(
+			mManager->GetParent()->GetDevice(),
+			mManager,
+			mManager->GetParent()->GetRenderer(),
+			resource,
+			overrides,
+			&asyncParams);
+
+		resource->mFactory = factory;
+
+		*output = resource;
+
+		return task;
+	}
+
+	PipelineResource* ResourceCache<PipelineResource>::LoadFromFactory(factory_func_t factory, const ShaderPreprocessorConfig* overrides) {
+		PipelineResource* resource = new PipelineResource(mManager);
+		AsyncResourceParams asyncParams;
+		asyncParams.bUseAsync = false;
+
+		factory(
+			mManager->GetParent()->GetDevice(),
+			mManager,
+			mManager->GetParent()->GetRenderer(),
+			resource,
+			overrides,
+			&asyncParams);
+
+		resource->mFactory = factory;
+
+		return resource;
+	}
+
+	PipelineResource* ResourceCache<PipelineResource>::LoadFromFactory(factory_func_t factory, const LoadParams<PipelineResource>& params) {
+		// Spawn from factory
+		auto params_cast = &params;
+		auto src = params_cast->mSource;
+		auto overrides = &params_cast->mOverrides;
+
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			auto it = mCachedResources.find(src);
+			if (it != mCachedResources.end()) {
+				return it->second;
+			}
+		}
+
+		auto resource = LoadFromFactory(factory, &params.mOverrides);
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			resource->SetSource(mCachedResources.emplace(src, resource).first);
+		}
+		
+		return resource;
+	}
+
 	void ResourceCache<PipelineResource>::ActuallyLoad(const std::string& source, PipelineResource* into, 
 		const ShaderPreprocessorConfig* overrides) {
 		
@@ -734,8 +828,7 @@ namespace Morpheus {
 
 			AsyncResourceParams asyncParams;
 			asyncParams.bUseAsync = false;
-
-			into->mSource = source;
+			into->mFactory = factoryIt->second;
 
 			// Spawn from factory
 			factoryIt->second(
@@ -747,7 +840,7 @@ namespace Morpheus {
 				&asyncParams);
 		} else {
 			// Spawn from json
-			PipelineLoader::Load(mManager, mManager->GetEmbededFileLoader(), source, into, overrides);
+			throw std::runtime_error("JSON pipeline not supported!");
 		}
 	}
 
@@ -767,8 +860,7 @@ namespace Morpheus {
 			asyncParams.bUseAsync = true;
 			asyncParams.mThreadPool = pool;
 			asyncParams.mCallback = callback;
-			
-			into->mSource = source;
+			into->mFactory = factoryIt->second;
 
 			// Async spawn from factory
 			return factoryIt->second(
@@ -780,7 +872,7 @@ namespace Morpheus {
 				&asyncParams);
 		} else {
 			// Spawn from json
-			throw std::runtime_error("JSON pipeline not supported in async mode");
+			throw std::runtime_error("JSON pipeline not supported!");
 		}
 	}
 
@@ -799,11 +891,10 @@ namespace Morpheus {
 
 		PipelineResource* resource = new PipelineResource(mManager);
 		ActuallyLoad(src, resource, overrides);
-		resource->mSource = params_cast->mSource;
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
-			mCachedResources[src] = resource;
+			resource->SetSource(mCachedResources.emplace(src, resource).first);
 		}
 		
 		return resource;
@@ -829,11 +920,10 @@ namespace Morpheus {
 
 		PipelineResource* resource = new PipelineResource(mManager);
 		TaskId task = ActuallyLoadAsync(src, resource, threadPool, callback, overrides);
-		resource->mSource = params_cast->mSource;
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
-			mCachedResources[src] = resource;
+			resource->SetSource(mCachedResources.emplace(src, resource).first);
 		}
 
 		*output = resource;
@@ -848,11 +938,9 @@ namespace Morpheus {
 	void ResourceCache<PipelineResource>::Unload(IResource* resource) {
 		auto pipeline = resource->ToPipeline();
 
-		auto it = mCachedResources.find(pipeline->GetSource());
-		if (it != mCachedResources.end()) {
-			if (it->second == pipeline) {
-				mCachedResources.erase(it);
-			}
+		if (pipeline->IsSourced()) {
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			mCachedResources.erase(pipeline->mIterator);
 		}
 	
 		delete resource;

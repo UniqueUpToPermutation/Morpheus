@@ -103,6 +103,36 @@ namespace Morpheus {
 			return mSource;
 		}
 
+		inline DG::float2 GetDimensions2D() const {
+			auto& desc = mTexture->GetDesc();
+			return DG::float2(desc.Width, desc.Height);
+		}
+
+		inline DG::float3 GetDimensions3D() const {
+			auto& desc = mTexture->GetDesc();
+			return DG::float3(desc.Width, desc.Height, desc.Depth);
+		}
+
+		inline uint GetWidth() const {
+			return mTexture->GetDesc().Width;
+		}
+
+		inline uint GetHeight() const {
+			return mTexture->GetDesc().Height;
+		}
+
+		inline uint GetDepth() const {
+			return mTexture->GetDesc().Depth;
+		}
+
+		inline uint GetLevels() const {
+			return mTexture->GetDesc().MipLevels;
+		}
+
+		inline uint GetArraySize() const {
+			return mTexture->GetDesc().ArraySize;
+		}
+
 		inline DG::ITextureView* GetShaderView() {
 			return mTexture->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
 		}
@@ -138,10 +168,6 @@ namespace Morpheus {
 
 	public:
 		TextureLoader(ResourceManager* manager);
-
-		static void LoadPngDataRaw(const LoadParams<TextureResource>& params,
-			const std::vector<uint8_t>& image,
-			uint32_t width, uint32_t height, RawTexture* into);
 
 		TaskId LoadGli(const LoadParams<TextureResource>& params, TextureResource* texture,
 			const AsyncResourceParams& asyncParams);

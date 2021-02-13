@@ -1,0 +1,10 @@
+#include "SpriteBatchStructures.hlsl"
+
+Texture2D mTexture;
+SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+void main(in SpriteBatchPSInput PSIn,
+	out float4 Color : SV_TARGET) {
+
+	Color = mTexture.Sample(mTexture_sampler, PSIn.mUV) * PSIn.mColor;
+}

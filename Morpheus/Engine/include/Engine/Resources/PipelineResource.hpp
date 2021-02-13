@@ -42,10 +42,12 @@ namespace Morpheus {
 	class PipelineResource : public IResource {
 	private:
 		DG::IPipelineState* mState;
-		std::string mSource;
+		factory_func_t mFactory;
 		std::vector<DG::LayoutElement> mVertexLayout;
 		VertexAttributeLayout mAttributeLayout;
 		InstancingType mInstancingType;
+		bool bSourced;
+		std::unordered_map<std::string, PipelineResource*>::iterator mIterator;
 
 		void Init(DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
@@ -57,19 +59,23 @@ namespace Morpheus {
 		inline PipelineResource(ResourceManager* manager) :
 			IResource(manager),
 			mState(nullptr),
-			mInstancingType(InstancingType::INSTANCED_STATIC_TRANSFORMS) {
+			mInstancingType(InstancingType::INSTANCED_STATIC_TRANSFORMS),
+			bSourced(false) {
 		}
 
 		inline PipelineResource(ResourceManager* manager, 
 			DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
 			VertexAttributeLayout attributeLayout,
-			InstancingType instancingType) : 
+			InstancingType instancingType,
+			factory_func_t factory) : 
 			IResource(manager),
 			mInstancingType(instancingType),
 			mState(state),
 			mVertexLayout(layoutElements),
-			mAttributeLayout(attributeLayout) {
+			mAttributeLayout(attributeLayout),
+			mFactory(factory),
+			bSourced(false) {
 		}
 
 		inline void SetAll(DG::IPipelineState* state,
@@ -92,6 +98,15 @@ namespace Morpheus {
 			return mState != nullptr;
 		}
 
+		inline bool IsSourced() const {
+			return bSourced;
+		}
+		
+		inline void SetSource(const std::unordered_map<std::string, PipelineResource*>::iterator& it) {
+			bSourced = true;
+			mIterator = it;
+		}
+
 		inline DG::IPipelineState* GetState() {
 			return mState;
 		}
@@ -100,8 +115,8 @@ namespace Morpheus {
 			return mState;
 		}
 
-		inline std::string GetSource() const {
-			return mSource;
+		inline const factory_func_t& GetFactory() const {
+			return mFactory;
 		}
 
 		entt::id_type GetType() const override {
@@ -217,6 +232,15 @@ namespace Morpheus {
 			InitFactories();
 		}
 		~ResourceCache();
+
+		PipelineResource* LoadFromFactory(factory_func_t factory, const LoadParams<PipelineResource>& params);
+		PipelineResource* LoadFromFactory(factory_func_t factory, const ShaderPreprocessorConfig* overrides = nullptr);
+		TaskId AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
+			PipelineResource** output, const LoadParams<PipelineResource>& params,
+			const TaskBarrierCallback& callback = nullptr);
+		TaskId AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
+			PipelineResource** output, const ShaderPreprocessorConfig* overrides = nullptr,
+			const TaskBarrierCallback& callback = nullptr);
 
 		IResource* Load(const void* params) override;
 		TaskId AsyncLoadDeferred(const void* params,

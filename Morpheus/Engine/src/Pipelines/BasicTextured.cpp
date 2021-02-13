@@ -1,6 +1,7 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/Renderer.hpp>
 
 namespace Morpheus {
 	TaskId CreateBasicTexturedPipeline(DG::IRenderDevice* device,
@@ -128,7 +129,7 @@ namespace Morpheus {
 
 		if (!asyncParams->bUseAsync) {
 			buildPipeline(); // Build pipeline on the current thread
-			return 0;
+			return TASK_NONE;
 		} else {
 			auto queue = asyncParams->mThreadPool->GetQueue();
 

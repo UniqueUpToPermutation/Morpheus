@@ -107,6 +107,8 @@ namespace Morpheus {
 
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;
+		DG::TEXTURE_FORMAT GetBackbufferColorFormat() const override;
+		DG::TEXTURE_FORMAT GetBackbufferDepthFormat() const override;
 		DG::ITextureView* GetLUTShaderResourceView() override;
 		bool GetUseSHIrradiance() const override;
 		bool GetUseIBL() const override;

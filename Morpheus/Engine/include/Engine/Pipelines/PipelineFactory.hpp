@@ -1,11 +1,18 @@
 #pragma once
 
-#include <Engine/Resources/ResourceManager.hpp>
-#include <Engine/Renderer.hpp>
-
 #include <functional>
 
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/ShaderResource.hpp>
+#include "RenderDevice.h"
+
+namespace DG = Diligent;
+
 namespace Morpheus {
+
+	class IRenderer;
+	class ResourceManager;
+	class PipelineResource;
 	
 	typedef std::function<TaskId(
 		DG::IRenderDevice*, 

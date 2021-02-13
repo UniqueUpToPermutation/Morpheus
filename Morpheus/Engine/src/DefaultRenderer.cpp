@@ -557,8 +557,16 @@ namespace Morpheus {
 		return 8;
 	}
 
+	DG::TEXTURE_FORMAT DefaultRenderer::GetBackbufferColorFormat() const {
+		return mEngine->GetSwapChain()->GetDesc().ColorBufferFormat;
+	}
+
 	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateFramebufferFormat() const {
 		return INTERMEDIATE_TEXTURE_FORMAT;
+	}
+
+	DG::TEXTURE_FORMAT DefaultRenderer::GetBackbufferDepthFormat() const {
+		return mEngine->GetSwapChain()->GetDesc().DepthBufferFormat;
 	}
 
 	DG::TEXTURE_FORMAT DefaultRenderer::GetIntermediateDepthbufferFormat() const {

@@ -57,7 +57,6 @@ namespace Morpheus {
 
 	DG::ITexture* RawTexture::SpawnOnGPU(DG::IRenderDevice* device) {
 		DG::ITexture* texture = nullptr;
-
 		DG::TextureData data;
 
 		std::vector<DG::TextureSubResData> subs;
@@ -416,32 +415,17 @@ namespace Morpheus {
 		}
 	}
 
-	TaskId TextureLoader::LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture,
-		const AsyncResourceParams& asyncParams) {
-		unsigned char* pixel_data = nullptr;
-		bool b_hdr;
-		int comp;
-		int x;
-		int y;
+	void LoadStbDataRaw(const LoadParams<TextureResource>& params,
+		bool bIsHDR,
+		int x,
+		int y,
+		int comp,
+		unsigned char* pixel_data,
+		RawTexture* rawTexture) {
 
 		size_t currentIndx = 0;
 
-		if (stbi_is_hdr(params.mSource.c_str())) {
-			float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
-			if(pixels) {
-				pixel_data = reinterpret_cast<unsigned char*>(pixels);
-				b_hdr = true;
-			}
-        }
-        else {
-			unsigned char* pixels = stbi_load(params.mSource.c_str(), &x, &y, &comp, 0);
-			if(pixels) {
-				pixel_data = pixels;
-				b_hdr = false;
-			}
-        }
-
-        if (!pixel_data) {
+		if (!pixel_data) {
 			throw std::runtime_error("Failed to load image file: " + params.mSource);
         }
 
@@ -449,7 +433,7 @@ namespace Morpheus {
 		bool bExpand = false;
 		uint new_comp = comp;
 
-		if (b_hdr) {
+		if (bIsHDR) {
 			switch (comp) {
 			case 1:
 				format = DG::TEX_FORMAT_R32_FLOAT;
@@ -488,24 +472,24 @@ namespace Morpheus {
 		std::vector<TextureSubResDataDesc> subDatas;
 		std::vector<uint8_t> rawData;
 
-		size_t sz_multiplier = b_hdr ?  sizeof(float) / sizeof(uint8_t) : 1;
+		size_t sz_multiplier = bIsHDR ?  sizeof(float) / sizeof(uint8_t) : 1;
 		size_t sz = x * y * new_comp * sz_multiplier;
 
 		rawData.resize(sz * 2);
 
 		size_t mipCount = MipCount(x, y);
 
-		if (bExpand && b_hdr) {
+		if (bExpand && bIsHDR) {
 			ImCpy<3, float>((float*)&rawData[0], (float*)pixel_data, x * y);
 		}
-		if (bExpand && !b_hdr) {
+		if (bExpand && !bIsHDR) {
 			ImCpy<3, uint8_t>((uint8_t*)&rawData[0], pixel_data, x * y);
 		}
-		if (!bExpand && b_hdr) {
-			memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(float));
+		if (!bExpand && bIsHDR) {
+			std::memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(float));
 		}
-		if (!bExpand && !b_hdr) {
-			memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(uint8_t));
+		if (!bExpand && !bIsHDR) {
+			std::memcpy(&rawData[0], pixel_data, x * y * new_comp * sizeof(uint8_t));
 		}
 
 		auto last_mip_data = &rawData[0];
@@ -519,7 +503,6 @@ namespace Morpheus {
 		subDatas.emplace_back(mip0);
 
 		for (size_t i = 1; i < mipCount; ++i) {
-
 			auto mip_data = &rawData[currentIndx];
 
 			uint fineWidth = std::max(1, x >> (i - 1));
@@ -530,7 +513,7 @@ namespace Morpheus {
 			uint fineStride = fineWidth * new_comp;
 			uint coarseStride = coarseWidth * new_comp;
 
-			if (b_hdr) {
+			if (bIsHDR) {
 				ComputeCoarseMip<float>(new_comp, false,
 					(float*)last_mip_data, 
 					fineStride,
@@ -569,17 +552,210 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.ArraySize = 1;
 
-		RawTexture rawTexture(desc, std::move(rawData), subDatas);
-
-		DG::ITexture* tex = rawTexture.SpawnOnGPU(mManager->GetParent()->GetDevice());
-
-		texture->mTexture = tex;
-		texture->mSource = params.mSource;
-
-		return TASK_NONE;
+		rawTexture->Set(desc, std::move(rawData), subDatas);
 	}
 
-	void TextureLoader::LoadPngDataRaw(const LoadParams<TextureResource>& params, 
+	TaskId TextureLoader::LoadStb(const LoadParams<TextureResource>& params, TextureResource* texture,
+		const AsyncResourceParams& asyncParams) {
+
+		if (!asyncParams.bUseAsync) {
+			unsigned char* pixel_data = nullptr;
+			bool b_hdr;
+			int comp;
+			int x;
+			int y;
+
+			size_t currentIndx = 0;
+
+			if (stbi_is_hdr(params.mSource.c_str())) {
+				float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
+				if (pixels) {
+					pixel_data = reinterpret_cast<unsigned char*>(pixels);
+					b_hdr = true;
+				}
+			}
+			else {
+				unsigned char* pixels = stbi_load(params.mSource.c_str(), &x, &y, &comp, 0);
+				if (pixels) {
+					pixel_data = pixels;
+					b_hdr = false;
+				}
+			}
+
+			RawTexture rawTexture;
+			LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, &rawTexture);
+
+			DG::ITexture* tex = rawTexture.SpawnOnGPU(mManager->GetParent()->GetDevice());
+
+			texture->mTexture = tex;
+			texture->mSource = params.mSource;
+
+			if (b_hdr) {
+				delete[] reinterpret_cast<float*>(pixel_data);
+			} else {
+				delete[] pixel_data;
+			}
+
+			return TASK_NONE;
+		} else {
+			auto queue = asyncParams.mThreadPool->GetQueue();
+
+			TaskBarrier* barrier = texture->GetLoadBarrier();
+			DG::IRenderDevice* device = mManager->GetParent()->GetDevice();
+
+			PipeId filePipe;
+			TaskId readFileTask = ReadFileToMemoryJobDeferred(params.mSource, &queue, &filePipe);
+			PipeId rawTexPipe = queue.MakePipe();
+
+			// Convert file data into RawTexture
+			TaskId prepareRawTexture = queue.MakeTask([filePipe, rawTexPipe, params](const TaskParams& taskParams) {
+				auto& bufAny = taskParams.mPool->ReadPipe(filePipe);
+
+				// Immediately assume ownership of result of read file operation
+				std::unique_ptr<ReadFileToMemoryResult> result(bufAny.cast<ReadFileToMemoryResult*>());
+
+				unsigned char* pixel_data = nullptr;
+				std::unique_ptr<unsigned char[]> pixels_uc = nullptr;
+				std::unique_ptr<float[]> pixels_f = nullptr;
+				bool b_hdr;
+				int comp;
+				int x;
+				int y;
+
+				if (stbi_is_hdr(params.mSource.c_str())) {
+					pixels_f.reset(stbi_loadf_from_memory(result->GetData(), result->GetSize(), &x, &y, &comp, 0));
+					if (pixels_f) {
+						pixel_data = reinterpret_cast<unsigned char*>(pixels_f.get());
+						b_hdr = true;
+					}
+				}
+				else {
+					pixels_uc.reset(stbi_load_from_memory(result->GetData(), result->GetSize(), &x, &y, &comp, 0));
+					if (pixels_uc) {
+						pixel_data = pixels_uc.get();
+						b_hdr = false;
+					} 
+				}
+
+				if (pixel_data) {
+					std::unique_ptr<RawTexture> rawTex(new RawTexture);
+					
+					LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, rawTex.get());
+
+					// Relinquish ownership of RawTexture to pipe
+					taskParams.mPool->WritePipe(rawTexPipe, rawTex.release());
+				} else {
+					auto ex = std::make_exception_ptr(std::runtime_error("Failed to decode from memory with STB!"));
+						taskParams.mPool->WritePipeException(rawTexPipe, ex);
+				}
+			});
+
+			// Convert RawTexture into TextureResource
+			barrier->SetCallback(asyncParams.mCallback);
+
+			TaskId rawTexToGpu = queue.MakeTask([texture, rawTexPipe, device, params](const TaskParams& taskParams) {
+				auto& ptr = taskParams.mPool->ReadPipe(rawTexPipe);
+
+				// Immediately assume ownership of raw texture
+				std::unique_ptr<RawTexture> rawTexture(ptr.cast<RawTexture*>());
+				DG::ITexture* tex = rawTexture->SpawnOnGPU(device);
+
+				texture->mTexture = tex;
+				texture->mSource = params.mSource;
+			}, barrier, 0);
+
+			// Pipe everything!
+			queue.Dependencies(prepareRawTexture).After(filePipe);
+			queue.Dependencies(rawTexPipe).After(prepareRawTexture);
+			queue.Dependencies(rawTexToGpu).After(rawTexPipe);
+
+			return readFileTask;
+		}
+	}
+
+	void LoadGliDataRaw(const LoadParams<TextureResource>& params,
+		gli::texture* tex,
+		RawTexture* into) {
+		if (tex->empty()) {
+			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
+			throw std::runtime_error("Failed to load texture!");
+		}
+
+		DG::TextureDesc desc;
+		desc.Name = params.mSource.c_str();
+
+		auto Target = tex->target();
+		auto Format = tex->format();
+		
+		desc.BindFlags = DG::BIND_SHADER_RESOURCE;
+		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
+		desc.Format = GliToDG(Format);
+		desc.Width = tex->extent().x;
+		desc.Height = tex->extent().y;
+
+		if (Target == gli::TARGET_3D) {
+			desc.Depth = tex->extent().z;
+		} else {
+			desc.ArraySize = tex->layers() * tex->faces();
+		}
+
+		desc.MipLevels = tex->levels();
+		desc.Usage = DG::USAGE_IMMUTABLE;
+		desc.Type = GliToDG(Target);
+
+		std::vector<TextureSubResDataDesc> subData;
+
+		size_t block_size = gli::block_size(tex->format());
+		
+		bool bExpand = false;
+
+		if (Format == gli::FORMAT_RGB8_UNORM_PACK8 ||
+			Format == gli::FORMAT_RGB8_SRGB_PACK8) {
+			bExpand = true;
+			block_size = 4;
+		}
+
+		std::vector<uint8_t> datas;
+		datas.resize(tex->extent().x * tex->extent().y * tex->extent().z * tex->layers() * tex->faces() * block_size);
+
+		size_t offset = 0;
+
+		for (std::size_t Layer = 0; Layer < tex->layers(); ++Layer) {
+			for (std::size_t Face = 0; Face < tex->faces(); ++Face) {
+				for (std::size_t Level = 0; Level < tex->levels(); ++Level)
+				{
+					size_t mip_width = std::max(desc.Width >> Level, 1u);
+					size_t mip_height = std::max(desc.Height >> Level, 1u);
+					size_t mip_depth = 1;
+
+					if (Target == gli::TARGET_3D) {
+						mip_depth = std::max(desc.Depth >> Level, 1u);
+					}
+
+					TextureSubResDataDesc data;
+					data.mSrcOffset = offset;
+					data.mStride = block_size * mip_width;
+					data.mDepthStride = block_size * mip_width * mip_height;
+
+					uint blocks = mip_width * mip_height * mip_depth;
+
+					if (bExpand) {
+						ExpandDataUInt8((uint8_t*)tex->data(Layer, Face, Level), &datas[offset], blocks);
+					} else {
+						std::memcpy(&datas[offset], tex->data(Layer, Face, Level), block_size * blocks);
+					}
+
+					offset += block_size * blocks;
+
+					subData.emplace_back(data);
+				}
+			}
+		}
+
+		into->Set(desc, std::move(datas), subData);
+	}
+
+	void LoadPngDataRaw(const LoadParams<TextureResource>& params, 
 		const std::vector<uint8_t>& image,
 		uint32_t width, uint32_t height,
 		RawTexture* into) {
@@ -706,7 +882,7 @@ namespace Morpheus {
 
 				if (!error) {
 					std::unique_ptr<RawTexture> rawTex(new RawTexture);
-					TextureLoader::LoadPngDataRaw(params, image, width, height, rawTex.get());
+					LoadPngDataRaw(params, image, width, height, rawTex.get());
 
 					// Relinquish ownership of RawTexture to pipe
 					taskParams.mPool->WritePipe(rawTexPipe, rawTex.release());

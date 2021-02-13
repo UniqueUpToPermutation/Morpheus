@@ -142,6 +142,34 @@ namespace Morpheus
 		return Proj;
 	}
 
+	DG::float4x4 Engine::GetAdjustedOrthoMatrix(
+		const DG::float2& fCameraSize,
+		float zNear, float zFar) const {
+		float XScale = 2.0 / fCameraSize.x;
+		float YScale = 2.0 / fCameraSize.y;
+
+		float4x4 Proj;
+		Proj._11 = XScale;
+		Proj._22 = YScale;
+
+		bool bIsGL = mDevice->GetDeviceCaps().IsGLDevice();
+
+		if (bIsGL)
+        {
+            Proj._33 = -(-(zFar + zNear) / (zFar - zNear));
+            Proj._43 = -2 * zNear * zFar / (zFar - zNear);
+        }
+        else
+        {
+            Proj._33 = zFar / (zFar - zNear);
+            Proj._43 = -zNear * zFar / (zFar - zNear);
+        }
+
+		Proj._44 = 1;
+
+		return Proj;
+	}
+
 	void Engine::SetScene(Scene* scene, bool bUnloadOld) {
 		if (bUnloadOld && mScene)
 			delete mScene;
@@ -260,6 +288,8 @@ namespace Morpheus
 #if VULKAN_SUPPORTED
 			case RENDER_DEVICE_TYPE_VULKAN:
 			{
+				EngineCI.Features.GeometryShaders   = DEVICE_FEATURE_STATE_ENABLED;
+				EngineCI.Features.Tessellation 		= DEVICE_FEATURE_STATE_ENABLED;
 				// EngineVkCreateInfo& EngVkAttribs = static_cast<EngineVkCreateInfo&>(EngineCI);
 			}
 			break;
@@ -268,7 +298,8 @@ namespace Morpheus
 #if GL_SUPPORTED
 			case RENDER_DEVICE_TYPE_GL:
 			{
-				// Nothing to do
+				EngineCI.Features.GeometryShaders   = DEVICE_FEATURE_STATE_ENABLED;
+				EngineCI.Features.Tessellation 		= DEVICE_FEATURE_STATE_ENABLED;
 			}
 			break;
 #endif

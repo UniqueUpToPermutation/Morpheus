@@ -15,8 +15,6 @@ namespace Morpheus {
 	}
 
 	DG::float4x4 Camera::GetView() const {
-		assert(mType == CameraType::PERSPECTIVE);
-
 		auto translate = DG::float4x4::Translation(-mEye);
 		
 		auto zAxis = DG::normalize(mLookAt - mEye);
@@ -30,12 +28,23 @@ namespace Morpheus {
 	}
 
 	DG::float4x4 Camera::GetProjection(Engine* engine) const {
-		// Get pretransform matrix that rotates the scene according the surface orientation
-    	auto srfPreTransform = engine->GetSurfacePretransformMatrix(DG::float3{0, 0, 1});
+		if (mType == CameraType::PERSPECTIVE) {
+			// Get pretransform matrix that rotates the scene according the surface orientation
+			auto srfPreTransform = engine->GetSurfacePretransformMatrix(DG::float3{0, 0, 1});
 
-    	// Get projection matrix adjusted to the current screen orientation
-    	auto proj = engine->GetAdjustedProjectionMatrix(mFieldOfView, mNearPlane, mFarPlane);
-		return srfPreTransform * proj;
+			// Get projection matrix adjusted to the current screen orientation
+			auto proj = engine->GetAdjustedProjectionMatrix(mFieldOfView, mNearPlane, mFarPlane);
+			return srfPreTransform * proj;
+		} else if (mType == CameraType::ORTHOGRAPHIC) {
+			// Get pretransform matrix that rotates the scene according the surface orientation
+			auto srfPreTransform = engine->GetSurfacePretransformMatrix(DG::float3{0, 0, 1});
+
+			// Get projection matrix adjusted to the current screen orientation
+			auto proj = engine->GetAdjustedOrthoMatrix(mOrthoSize, mNearPlane, mFarPlane);
+			return srfPreTransform * proj;
+		} else {
+			throw std::runtime_error("Invalid Camera Type!");
+		}
 	}
 
 	DG::float3 Camera::GetEye() const {

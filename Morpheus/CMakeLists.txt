@@ -106,3 +106,7 @@ endif()
 if(TARGET Morpheus-Engine)
 	add_subdirectory(AsyncTest)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(SpriteBatchTest)
+endif()
