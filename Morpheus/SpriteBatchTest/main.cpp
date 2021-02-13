@@ -20,28 +20,31 @@ int main(int argc, char** argv) {
 	std::unique_ptr<SpriteBatch> spriteBatch(
 		new SpriteBatch(en.GetDevice(), en.GetResourceManager()));
 
-	en.SetScene(scene);
+	en.InitializeDefaultSystems(scene);
+	scene->Begin();
 
 	float t = 0.0;
 
 	while (en.IsReady()) {
-		en.Update();
-		en.Render();
+		en.Update(scene);
+		en.Render(scene);
 
 		spriteBatch->Begin(en.GetImmediateContext());
 		spriteBatch->Draw(texture, DG::float2(0.0, 0.0), 
 			SpriteRect(DG::float2(0.0, 0.0), DG::float2(256, 256)),
 			DG::float2(128, 128), t);
-
 		spriteBatch->Draw(texture, DG::float2(256.0, 256.0), 
 			SpriteRect(DG::float2(0.0, 0.0), DG::float2(256, 256)),
 			DG::float2(128, 128), t);
-
-		t += 0.01;
 		spriteBatch->End();
 
+		t += 0.01;
+
+		en.RenderUI();
 		en.Present();
 	}
+
+	delete scene;
 
 	spriteBatch.reset();
 	texture->Release();

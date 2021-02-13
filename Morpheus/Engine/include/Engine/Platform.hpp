@@ -1,10 +1,13 @@
 #pragma once
 
+#include <functional>
 namespace Morpheus {
 	class Engine;
 	class EngineApp;
 	class PlatformLinux;
 	class PlatformWindows;
+
+	typedef std::function<void(double, double)> update_callback_t;
 
 	class IPlatform {
 	public:
@@ -14,7 +17,7 @@ namespace Morpheus {
 		virtual int Initialize(Engine* engine, int argc, char** argv) = 0;
 		virtual void Shutdown() = 0;
 		virtual bool IsValid() const = 0;
-		virtual void MessageLoop() = 0;
+		virtual void MessageLoop(const update_callback_t& callback) = 0;
 		virtual void Flush() = 0;
 
 		virtual PlatformLinux* ToLinux() = 0;

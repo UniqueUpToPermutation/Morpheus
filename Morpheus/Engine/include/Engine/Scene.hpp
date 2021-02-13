@@ -236,6 +236,10 @@ namespace Morpheus {
 			return bInitializedByEngine;
 		}
 
+		inline bool HasBegun() const {
+			return bBeginCalled;
+		}
+
 		friend class EntityNode;
 		friend class Engine;
 	};

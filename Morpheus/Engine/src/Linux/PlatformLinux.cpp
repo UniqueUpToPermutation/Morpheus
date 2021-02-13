@@ -283,7 +283,7 @@ namespace Morpheus
 #endif
 	}
 
-	void PlatformLinux::MessageLoop() {
+	void PlatformLinux::MessageLoop(const update_callback_t& callback) {
 		if (mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
 			XEvent xev;
 			// Handle all events in the queue
@@ -307,7 +307,8 @@ namespace Morpheus
 			auto ElapsedTime = CurrTime - mPrevTime;
 			mPrevTime         = CurrTime;
 
-			mEngine->Update(CurrTime, ElapsedTime);
+			if (callback)
+				callback(CurrTime, ElapsedTime);
 		}
 #if VULKAN_SUPPORTED
 		else if (mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
@@ -356,7 +357,8 @@ namespace Morpheus
 			auto ElapsedTime = CurrTime - mPrevTime;
 			mPrevTime         = CurrTime;
 
-			mEngine->Update(CurrTime, ElapsedTime);
+			if (callback)
+				callback(CurrTime, ElapsedTime);
 		}
 #endif
 	}

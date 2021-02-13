@@ -41,16 +41,11 @@ int main(int argc, char** argv) {
 	btBoxShape* box = new btBoxShape(btVector3(10.0f, 0.1f, 10.0f));
 	btRigidBody* ground_rb = new btRigidBody(0.0f, nullptr, box);
 
-	
-
 	Scene* scene = new Scene();
 	scene->AddSystem<PhysicsSystem>();
 
-
 	auto root = scene->GetRoot();
 	auto content = en.GetResourceManager();
-
-
 
 	GeometryResource* groundMesh;
 	MaterialResource* groundMaterial;
@@ -100,7 +95,8 @@ int main(int argc, char** argv) {
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
 	cameraNode.Add<EditorCameraController>(cameraNode, scene);
 
-	en.SetScene(scene);
+	en.InitializeDefaultSystems(scene);
+	scene->Begin();
 
 	uint frames = 0;
 
@@ -116,10 +112,13 @@ int main(int argc, char** argv) {
 		}
 		++frames;
 
-		en.Update();
-		en.Render();
+		en.Update(scene);
+		en.Render(scene);
+		en.RenderUI();
 		en.Present();
 	}
+
+	delete scene;
 
 	en.Shutdown();
 

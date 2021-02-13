@@ -39,7 +39,7 @@ namespace Morpheus {
 		int Initialize(Engine* engine, int argc, char** argv) override;
 		void Shutdown() override;
 		bool IsValid() const override;
-		void MessageLoop() override;
+		void MessageLoop(const update_callback_t& callback) override;
 		void Flush() override;
 
 		PlatformLinux* ToLinux() override;

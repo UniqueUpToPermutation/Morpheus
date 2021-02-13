@@ -528,21 +528,6 @@ namespace Morpheus {
 			context->SetRenderTargets(1, &pRTV, pDSV,
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		}
-
-		auto imGui = mEngine->GetUI();
-
-		if (imGui)
-		{
-			if (mEngine->GetShowUI())
-			{
-				// No need to call EndFrame as ImGui::Render calls it automatically
-				imGui->Render(context);
-			}
-			else
-			{
-				imGui->EndFrame();
-			}
-		}
 	}
 
 	DG::FILTER_TYPE DefaultRenderer::GetDefaultFilter() const {

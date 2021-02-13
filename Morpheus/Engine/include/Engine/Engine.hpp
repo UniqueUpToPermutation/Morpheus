@@ -44,10 +44,13 @@ namespace Morpheus {
 		const char* GetAppTitle() const override final { 
 			return mAppTitle.c_str(); 
 		}
-		void Update();
+		void Update(Scene* activeScene);
+		void Update(const update_callback_t& callback);
 		void Update(double CurrTime, double ElapsedTime) override;
 		void WindowResize(int width, int height) override;
 		void Render() override;
+		void Render(Scene* activeScene);
+		void RenderUI();
 		void Present() override;
 
 		void SelectDeviceType();

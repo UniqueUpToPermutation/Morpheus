@@ -87,13 +87,16 @@ int main(int argc, char** argv) {
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
 	cameraNode.Add<EditorCameraController>(cameraNode, scene);
 
-	en.SetScene(scene);
+	en.InitializeDefaultSystems(scene);
+	scene->Begin();
 
 	while (en.IsReady()) {
-		en.Update();
-		en.Render();
+		en.Update(scene);
+		en.Render(scene);
+		en.RenderUI();
 		en.Present();
 	}
 
+	delete scene;
 	en.Shutdown();
 }

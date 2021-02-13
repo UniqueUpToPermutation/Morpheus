@@ -999,12 +999,24 @@ namespace Morpheus
 		}
 	}
 
-	void Engine::Update() {
-		mPlatform->MessageLoop();
+	void Engine::Update(Scene* activeScene) {
+		update_callback_t updater = [activeScene](double CurrTime, double ElapsedTime) {
+			activeScene->Update(CurrTime, ElapsedTime);
+		};
+		Update(updater);
 	}
 
-	void Engine::Update(double CurrTime, double ElapsedTime)
-	{
+	void Engine::Update(const update_callback_t& callback) {
+		update_callback_t callbackCopy = callback;
+		update_callback_t updater = [this, callbackCopy](double CurrTime, double ElapsedTime) {
+			Update(CurrTime, ElapsedTime);
+			callbackCopy(CurrTime, ElapsedTime);
+		};
+
+		mPlatform->MessageLoop(updater);
+	}
+
+	void Engine::Update(double CurrTime, double ElapsedTime) {
 		mCurrentTime = CurrTime;
 
 		if (mImGui) {
@@ -1018,21 +1030,38 @@ namespace Morpheus
 		if (mDevice) {
 			mInputController.ClearState();
 		}
-
-		if (mScene) {
-			mScene->Update(CurrTime, ElapsedTime);
-		}
 	}
 
 	void Engine::Render()
 	{
+		throw std::runtime_error("Please pass a scene to as a parameter to Engine::Render!");
+	}
+
+	void Engine::Render(Scene* activeScene) {
 		EntityNode camera = EntityNode::Invalid();
 
-		if (mScene) {
-			camera = mScene->GetCameraNode();
+		if (activeScene) {
+			camera = activeScene->GetCameraNode();
 		}
 
-		mRenderer->Render(mScene, camera);
+		mRenderer->Render(activeScene, camera);
+	}
+
+	void Engine::RenderUI() {
+		auto imGui = GetUI();
+
+		if (imGui)
+		{
+			if (GetShowUI())
+			{
+				// No need to call EndFrame as ImGui::Render calls it automatically
+				imGui->Render(mImmediateContext);
+			}
+			else
+			{
+				imGui->EndFrame();
+			}
+		}
 	}
 
 	void Engine::CompareGoldenImage(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)

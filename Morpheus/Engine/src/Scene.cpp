@@ -15,6 +15,11 @@ namespace Morpheus {
 	}
 
 	void Scene::Begin() {
+		if (!IsInitializedByEngine()) {
+			throw std::runtime_error("Scene has not been initialized by engine!"
+				"Please call Engine::InitializeDefaultSystems on this scene!");
+		}
+
 		if (!bBeginCalled) {
 			SceneBeginEvent e;
 			e.mSender = this;
@@ -67,6 +72,10 @@ namespace Morpheus {
 	}
 
 	void Scene::Update(double currTime, double elapsedTime) {
+		if (!bBeginCalled) {
+			throw std::runtime_error("Scene::Begin has not yet been called!");
+		}
+
 		// Update everything else that needs updating
 		UpdateEvent e;
 		e.mSender = this;

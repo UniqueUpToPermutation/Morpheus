@@ -24,7 +24,6 @@ int main(int argc, char** argv) {
 	en.Startup(argc, argv);
 
 	Scene* scene = new Scene();
-	en.SetScene(scene);
 
 	auto manager = en.GetResourceManager();
 
@@ -44,10 +43,14 @@ int main(int argc, char** argv) {
 		std::cout << "Loaded HDR texture!" << std::endl;
 	});
 
+	en.InitializeDefaultSystems(scene);
+	scene->Begin();
+
 	while (en.IsReady()) {
 		en.YieldFor(std::chrono::milliseconds(10));
-		en.Update();
-		en.Render();
+		en.Update(scene);
+		en.Render(scene);
+		en.RenderUI();
 		en.Present();
 	}
 
