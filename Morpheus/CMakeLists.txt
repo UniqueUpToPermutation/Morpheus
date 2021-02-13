@@ -92,15 +92,7 @@ if(TARGET Morpheus-Engine)
 endif()
 
 if(TARGET Morpheus-Engine)
-	add_subdirectory(enttTest)
-endif()
-
-if(TARGET Morpheus-Engine)
 	add_subdirectory(Physics)
-endif()
-
-if(TARGET Morpheus-Engine)
-	add_subdirectory(GuiTest)
 endif()
 
 if(TARGET Morpheus-Engine)
