@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
 
+	en.CollectGarbage();
+
 	float t = 0.0;
 
 	while (en.IsReady()) {

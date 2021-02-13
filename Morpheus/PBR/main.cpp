@@ -90,6 +90,8 @@ int main(int argc, char** argv) {
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
 
+	en.CollectGarbage();
+
 	while (en.IsReady()) {
 		en.Update(scene);
 		en.Render(scene);

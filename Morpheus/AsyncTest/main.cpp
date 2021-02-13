@@ -46,6 +46,8 @@ int main(int argc, char** argv) {
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
 
+	en.CollectGarbage();
+
 	while (en.IsReady()) {
 		en.YieldFor(std::chrono::milliseconds(10));
 		en.Update(scene);

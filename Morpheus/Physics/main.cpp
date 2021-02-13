@@ -98,6 +98,8 @@ int main(int argc, char** argv) {
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
 
+	en.CollectGarbage();
+
 	uint frames = 0;
 
 	while (en.IsReady()) {
