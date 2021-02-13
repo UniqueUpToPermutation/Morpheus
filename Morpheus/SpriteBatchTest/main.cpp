@@ -14,8 +14,7 @@ int main(int argc, char** argv) {
 	camera->SetType(CameraType::ORTHOGRAPHIC);
 	camera->SetClipPlanes(-1.0, 1.0);
 
-	TextureResource* texture = en.GetResourceManager()->Load<TextureResource>("brick_albedo.png");
-	TextureResource* texture2 = en.GetResourceManager()->Load<TextureResource>("sprite.png");
+	TextureResource* spriteTexture = en.GetResourceManager()->Load<TextureResource>("sprite.png");
 	std::unique_ptr<SpriteBatch> spriteBatch(
 		new SpriteBatch(en.GetDevice(), en.GetResourceManager()));
 
@@ -73,7 +72,7 @@ int main(int argc, char** argv) {
 		spriteBatch->Begin(en.GetImmediateContext());
 
 		for (auto& obj : insts) {
-			spriteBatch->Draw(texture2, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
+			spriteBatch->Draw(spriteTexture, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
 				DG::float2(128, 128), DG::float2(64, 64), obj.mRotation, obj.mColor);
 		}
 
@@ -86,8 +85,7 @@ int main(int argc, char** argv) {
 	delete scene;
 
 	spriteBatch.reset();
-	texture->Release();
-	texture2->Release();
+	spriteTexture->Release();
 
 	en.Shutdown();
 }
