@@ -159,6 +159,14 @@ namespace Morpheus {
 		const DG::float2& size, const SpriteRect& rect, 
 		const DG::float2& origin, const float rotation, 
 		const DG::float4& color) {
+
+		if (!mLastTexture)
+			mLastTexture = texture;
+		if (mWriteIndex == mBatchSize || (mLastTexture && mLastTexture != texture)) {
+			Flush();
+			mLastTexture = texture;
+		}
+
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
 		auto dim2d = texture->GetDimensions2D();
 		
@@ -177,18 +185,20 @@ namespace Morpheus {
 		instance->mUVBottom = uvbottom_unscaled / dim2d;
 
 		++mWriteIndex;
-		if (!mLastTexture)
-			mLastTexture = texture;
-		if (mWriteIndex == mBatchSize || (mLastTexture && mLastTexture != texture)) {
-			Flush();
-			mLastTexture = texture;
-		}
 	}
 
 	void SpriteBatch::Draw(TextureResource* texture, const DG::float2& pos, 
 		const DG::float2& size, const SpriteRect& rect, 
 		const DG::float2& origin, const float rotation, 
 		const DG::float4& color) {
+
+		if (!mLastTexture)
+			mLastTexture = texture;
+		if (mWriteIndex == mBatchSize || mLastTexture != texture) {
+			Flush();
+			mLastTexture = texture;
+		}
+
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
 		auto dim2d = texture->GetDimensions2D();
 		
@@ -207,12 +217,6 @@ namespace Morpheus {
 		instance->mUVBottom = uvbottom_unscaled / dim2d;
 
 		++mWriteIndex;
-		if (!mLastTexture)
-			mLastTexture = texture;
-		if (mWriteIndex == mBatchSize || mLastTexture != texture) {
-			Flush();
-			mLastTexture = texture;
-		}
 	}
 
 	SpriteBatchState SpriteBatch::CreateState(PipelineResource* resource) {
@@ -313,6 +317,17 @@ namespace Morpheus {
 			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
 			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
 			GraphicsPipeline.DSVFormat 					  = renderer->GetBackbufferDepthFormat();
+
+			DG::RenderTargetBlendDesc blendState;
+			blendState.BlendEnable = true;
+			blendState.BlendOp = DG::BLEND_OPERATION_ADD;
+			blendState.BlendOpAlpha = DG::BLEND_OPERATION_ADD;
+			blendState.DestBlend = DG::BLEND_FACTOR_INV_SRC_ALPHA;
+			blendState.SrcBlend = DG::BLEND_FACTOR_SRC_ALPHA;
+			blendState.DestBlendAlpha = DG::BLEND_FACTOR_ONE;
+			blendState.SrcBlendAlpha = DG::BLEND_FACTOR_ONE;
+
+			GraphicsPipeline.BlendDesc.RenderTargets[0] = blendState;
 
 			// Number of MSAA samples
 			GraphicsPipeline.SmplDesc.Count = 1;

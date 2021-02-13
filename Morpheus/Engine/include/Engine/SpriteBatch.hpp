@@ -143,6 +143,40 @@ namespace Morpheus {
 			const DG::float2& origin, const float rotation, 
 			const DG::float4& color);
 
+		inline void Draw(TextureResource* texture, const DG::float3& pos,
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation) {
+			auto dimensions = texture->GetDimensions2D();
+			Draw(texture, pos,  size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+
+		inline void Draw(TextureResource* texture, const DG::float2& pos, 
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation) {
+			auto dimensions = texture->GetDimensions2D();
+			Draw(texture, pos,  size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+
+		inline void Draw(TextureResource* texture, const DG::float3& pos,
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation,
+			const DG::float4& color) {
+			auto dimensions = texture->GetDimensions2D();
+			Draw(texture, pos, size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+
+		inline void Draw(TextureResource* texture, const DG::float2& pos, 
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation,
+			const DG::float4& color) {
+			auto dimensions = texture->GetDimensions2D();
+			Draw(texture, pos,  size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+
 		inline void Draw(TextureResource* texture, const DG::float3& pos) {
 			auto dimensions = texture->GetDimensions2D();
 			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},

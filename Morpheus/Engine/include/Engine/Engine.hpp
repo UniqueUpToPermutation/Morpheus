@@ -122,7 +122,6 @@ namespace Morpheus {
 		InputController		mInputController;
 		IPlatform*			mPlatform			= nullptr;
 		ResourceManager* 	mResourceManager 	= nullptr;
-		Scene* 				mScene 				= nullptr;
 		IRenderer*			mRenderer 			= nullptr;
 		ThreadPool			mThreadPool;
 
@@ -199,9 +198,7 @@ namespace Morpheus {
 				mSwapChain && 
 				mImmediateContext;
 		}
-
-		void SetScene(Scene* scene, bool bUnloadOld = true);
-
+		
 		inline InputController& GetInputController() {
 			return mInputController;
 		}
@@ -228,9 +225,6 @@ namespace Morpheus {
 		}
 		inline ResourceManager* GetResourceManager() {
 			return mResourceManager;
-		}
-		inline Scene* GetScene() {
-			return mScene;
 		}
 		inline bool GetShowUI() const {
 			return bShowUI;

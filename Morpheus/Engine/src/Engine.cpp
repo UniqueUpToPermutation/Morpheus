@@ -170,24 +170,6 @@ namespace Morpheus
 		return Proj;
 	}
 
-	void Engine::SetScene(Scene* scene, bool bUnloadOld) {
-		if (bUnloadOld && mScene)
-			delete mScene;
-
-		mScene = scene;
-
-		if (mScene) {
-			if (!mScene->IsInitializedByEngine()) {
-				std::cout << "Engine::SetScene: Default systems have not yet been initialized for scene." << std::endl;
-				InitializeDefaultSystems(mScene);
-			}
-
-			mScene->Begin();
-		}
-
-		CollectGarbage();
-	}
-
 	void Engine::CollectGarbage() {
 		std::cout << "Collecting garbage..." << std::endl;
 		if (mResourceManager)
@@ -197,11 +179,6 @@ namespace Morpheus
 	void Engine::Shutdown() {
 
 		mThreadPool.Shutdown();
-
-		if (mScene) {
-			delete mScene;
-			mScene = nullptr; 
-		}
 
 		if (mRenderer) {
 			delete mRenderer;
