@@ -6,8 +6,10 @@ using namespace Morpheus;
 
 int main(int argc, char** argv) {
 
+	EngineParams params;
+
 	Engine en;
-	en.Startup();
+	en.Startup(params);
 
 	Scene* scene = new Scene();
 	auto camera = scene->GetCamera();

@@ -22,33 +22,11 @@ int main(int argc, char** argv) {
 
 	Scene* scene = new Scene();
 
-
 	auto root = scene->GetRoot();
 	auto content = en.GetResourceManager();
 
-
-	// Create Grid of Spheres
-	GeometryResource* sphereMesh;
-	MaterialResource* sphereMaterial;
-	content->LoadMesh("sphere.obj", "brick.json", &sphereMesh, &sphereMaterial);
-	
-	int gridRadius = 0;
-	for (int x = -gridRadius; x <= gridRadius; ++x) {
-		for (int y = -gridRadius; y <= gridRadius; ++y) {
-			auto meshNode = root.CreateChild();
-			meshNode.Add<GeometryComponent>(sphereMesh);
-			meshNode.Add<MaterialComponent>(sphereMaterial);
-			Transform& transform = meshNode.Add<Transform>();
-			transform.SetTranslation(x * 3.0f, 0.0f, y * 3.0f);
-		}
-	}
-
-	sphereMesh->Release();
-	sphereMaterial->Release();
-
-
 	// Create Gun
-	/*GeometryResource* gunMesh;
+	GeometryResource* gunMesh;
 	MaterialResource* gunMaterial;
 	content->LoadMesh("cerberus.obj", "cerberusmat.json", &gunMesh, &gunMaterial);
 	
@@ -57,14 +35,13 @@ int main(int argc, char** argv) {
 	gunNode.Add<MaterialComponent>(gunMaterial);
 
 	Transform& transform = gunNode.Add<Transform>(
-		DG::float3(0.0f, 8.0f, 0.0f),
+		DG::float3(0.0f, 0.0f, 0.0f),
 		DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI),
 		DG::float3(8.0f, 8.0f, 8.0f)
 	);
 
 	gunMaterial->Release();
-	gunMesh->Release();*/
-
+	gunMesh->Release();
 
 	// Load HDRI and convert it to a cubemap
 	auto skybox_hdri = en.GetResourceManager()->Load<TextureResource>("environment.hdr");
@@ -73,14 +50,12 @@ int main(int argc, char** argv) {
 	auto skybox_texture = conv.Convert(en.GetDevice(), en.GetImmediateContext(), skybox_hdri->GetShaderView(), 2048, true);
 	skybox_hdri->Release();
 
-
 	// Create skybox from HDRI cubemap
 	auto tex_res = new TextureResource(content, skybox_texture);
 	tex_res->AddRef();
 	auto skybox = root.CreateChild();
 	skybox.Add<SkyboxComponent>(tex_res);
 	tex_res->Release();
-
 
 	// Create a controller 
 	auto cameraNode = scene->GetCameraNode();

@@ -188,16 +188,10 @@ namespace Morpheus {
 		desc.Name = "HDRI Generated Cubemap";
 		desc.Format = mCubemapFormat;
 		
-		if (bGenerateMips)
-			desc.MiscFlags = DG::MISC_TEXTURE_FLAG_GENERATE_MIPS;
-
 		DG::ITexture* result = nullptr;
 		device->CreateTexture(desc, nullptr, &result);
 
 		Convert(context, hdri, result);
-
-		if (bGenerateMips)
-			context->GenerateMips(result->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE));
 
 		return result;
 	}
