@@ -35,15 +35,47 @@ namespace Morpheus {
 	class IRenderer;
 	class Scene;
 
+	struct WindowParams {
+		std::string mWindowTitle = "Morpheus";
+	};
+
+	struct ThreadParams {
+		int mThreadCount = -1;
+	};
+
+	struct DisplayParams {
+		uint mWidth = 1024;
+		uint mHeight = 756;
+		bool bFullscreen = false;
+		bool bVSync = false;
+	};
+
+	struct RendererParams {
+		DG::RENDER_DEVICE_TYPE 	mBackendType		= DG::RENDER_DEVICE_TYPE_UNDEFINED;
+		DG::ADAPTER_TYPE 		mAdapterType 		= DG::ADAPTER_TYPE_UNKNOWN;
+		DG::Uint32      		mAdapterId 			= 0;
+		DG::Uint32 				mValidationLevel 	= -1;
+	};
+
+	struct EngineParams {
+		DisplayParams mDisplay;
+		ThreadParams mThreads;
+		WindowParams mWindow;
+		RendererParams mRenderer;
+	};
+
 	class Engine : public DG::NativeAppBase {
 	public:
 		Engine();
 		~Engine();
 
-		void ProcessCommandLine(const char* CmdLine) override final;
+		void ProcessCommandLine(const char* CmdLine) override final {
+		}
 		const char* GetAppTitle() const override final { 
 			return mAppTitle.c_str(); 
 		}
+
+		void ProcessConfigParams(const EngineParams& params);
 		void Update(Scene* activeScene);
 		void Update(const update_callback_t& callback);
 		void Update(double CurrTime, double ElapsedTime) override;
@@ -54,7 +86,10 @@ namespace Morpheus {
 		void Present() override;
 
 		void SelectDeviceType();
-		void Startup(int argc, char** argv);
+		void Startup(const EngineParams& params);
+		inline void Startup() {
+			Startup(EngineParams());
+		}
 		void Shutdown();
 		void CollectGarbage();
 		
@@ -105,11 +140,6 @@ namespace Morpheus {
 			mSwapChain->SetWindowedMode();
 		}
 
-		void CompareGoldenImage(const std::string& FileName, 
-			DG::ScreenCapture::CaptureInfo& Capture);
-		void SaveScreenCapture(const std::string& FileName, 
-			DG::ScreenCapture::CaptureInfo& Capture);
-
 		DG::RENDER_DEVICE_TYPE        		mDeviceType 		= DG::RENDER_DEVICE_TYPE_UNDEFINED;
 		DG::IEngineFactory*           		mEngineFactory 		= nullptr;
 		DG::IRenderDevice*              	mDevice 			= nullptr;
@@ -146,22 +176,6 @@ namespace Morpheus {
 		// We will need this when we have to recreate the swap chain (on Android)
 		DG::SwapChainDesc mSwapChainInitDesc;
 
-		struct ScreenCaptureInfo
-		{
-			bool              		AllowCapture 	= false;
-			std::string       		Directory;
-			std::string       		FileName        = "frame";
-			double            		CaptureFPS      = 30;
-			double            		LastCaptureTime = -1e+10;
-			DG::Uint32            	FramesToCapture = 0;
-			DG::Uint32            	CurrentFrame    = 0;
-			DG::IMAGE_FILE_FORMAT 	FileFormat      = DG::IMAGE_FILE_FORMAT_PNG;
-			int               		JpegQuality     = 95;
-			bool              		KeepAlpha       = false;
-
-		} mScreenCaptureInfo;
-
-		std::unique_ptr<DG::ScreenCapture> mScreenCapture;
 		std::unique_ptr<DG::ImGuiImplDiligent> mImGui;
 
 		GoldenImageMode mGoldenImgMode           = GoldenImageMode::None;

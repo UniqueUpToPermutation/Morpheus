@@ -35,7 +35,7 @@ void CreateSphere(btSphereShape* sphere,
 
 int main(int argc, char** argv) {
 	Engine en;
-	en.Startup(argc, argv);
+	en.Startup();
 
 	btSphereShape* sphere = new btSphereShape(1.0f);
 	btBoxShape* box = new btBoxShape(btVector3(10.0f, 0.1f, 10.0f));

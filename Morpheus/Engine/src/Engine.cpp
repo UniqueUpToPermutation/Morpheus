@@ -57,22 +57,19 @@ namespace Morpheus
 		mGlobalInstance = this;
 	}
 
-	void Engine::Startup(int argc, char** argv) {
-
-		std::stringstream ss;
-		for (auto i = 1; i < argc; ++i) {
-			ss << argv[i];
-			ss << " ";
-		}
-		std::string cmdLine = ss.str();
-		ProcessCommandLine(cmdLine.c_str());
+	void Engine::Startup(const EngineParams& params) {
+		ProcessConfigParams(params);
 
 		// Start up thread pool
-		mThreadPool.Startup();
+		int threadCount = params.mThreads.mThreadCount;
+		if (threadCount <= 0) {
+			threadCount = std::thread::hardware_concurrency();
+		}
+		mThreadPool.Startup(threadCount);
 
 		// Create platform
 		mPlatform = CreatePlatform();
-		mPlatform->Initialize(this, argc, argv);
+		mPlatform->Initialize(this, params);
 
 		mResourceManager = new ResourceManager(this, &mThreadPool);
 		mRenderer = new DefaultRenderer(this);
@@ -305,9 +302,6 @@ namespace Morpheus
 
 	void Engine::InitializeDiligentEngine(const NativeWindow* pWindow)
 	{
-		if (mScreenCaptureInfo.AllowCapture)
-			mSwapChainInitDesc.Usage |= SWAP_CHAIN_USAGE_COPY_SOURCE;
-
 	#if PLATFORM_MACOS
 		// We need at least 3 buffers on Metal to avoid massive
 		// peformance degradation in full screen mode.
@@ -620,17 +614,6 @@ namespace Morpheus
 		mDeferredContexts.resize(NumDeferredCtx);
 		for (Uint32 ctx = 0; ctx < NumDeferredCtx; ++ctx)
 			mDeferredContexts[ctx] = ppContexts[1 + ctx];
-
-		if (mScreenCaptureInfo.AllowCapture)
-		{
-			if (mGoldenImgMode != GoldenImageMode::None)
-			{
-				// Capture only one frame
-				mScreenCaptureInfo.FramesToCapture = 1;
-			}
-
-			mScreenCapture.reset(new ScreenCapture(mDevice));
-		}
 	}
 
 	void Engine::UpdateAdaptersDialog()
@@ -765,193 +748,57 @@ namespace Morpheus
 	//
 	//     magick convert  -delay 6  -loop 0 -layers Optimize -compress LZW -strip -resize 240x180   frame*.png   Animation.gif
 	//
-	void Engine::ProcessCommandLine(const char* CmdLine)
+	void Engine::ProcessConfigParams(const EngineParams& params)
 	{
-		const auto* pos = strchr(CmdLine, '-');
-		while (pos != nullptr)
-		{
-			++pos;
-			std::string Arg;
-			if (!(Arg = GetArgument(pos, "mode")).empty())
-			{
-				if (StrCmpNoCase(Arg.c_str(), "D3D11", Arg.length()) == 0)
-				{
-	#if D3D11_SUPPORTED
-					m_DeviceType = RENDER_DEVICE_TYPE_D3D11;
-	#else
-					LOG_ERROR_MESSAGE("Direct3D11 is not supported. Please select another device type");
-	#endif
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "D3D12", Arg.length()) == 0)
-				{
-	#if D3D12_SUPPORTED
-					m_DeviceType = RENDER_DEVICE_TYPE_D3D12;
-	#else
-					LOG_ERROR_MESSAGE("Direct3D12 is not supported. Please select another device type");
-	#endif
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "GL", Arg.length()) == 0)
-				{
-	#if GL_SUPPORTED
-					mDeviceType = RENDER_DEVICE_TYPE_GL;
-	#else
-					LOG_ERROR_MESSAGE("OpenGL is not supported. Please select another device type");
-	#endif
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "GLES", Arg.length()) == 0)
-				{
-	#if GLES_SUPPORTED
-					m_DeviceType = RENDER_DEVICE_TYPE_GLES;
-	#else
-					LOG_ERROR_MESSAGE("OpenGLES is not supported. Please select another device type");
-	#endif
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "VK", Arg.length()) == 0)
-				{
-	#if VULKAN_SUPPORTED
-					mDeviceType = RENDER_DEVICE_TYPE_VULKAN;
-	#else
-					LOG_ERROR_MESSAGE("Vulkan is not supported. Please select another device type");
-	#endif
-				}
-				else
-				{
-					LOG_ERROR_MESSAGE("Unknown device type: '", pos, "'. Only the following types are supported: D3D11, D3D12, GL, GLES, VK");
-				}
-			}
-			else if (!(Arg = GetArgument(pos, "capture_path")).empty())
-			{
-				mScreenCaptureInfo.Directory    = std::move(Arg);
-				mScreenCaptureInfo.AllowCapture = true;
-			}
-			else if (!(Arg = GetArgument(pos, "capture_name")).empty())
-			{
-				mScreenCaptureInfo.FileName     = std::move(Arg);
-				mScreenCaptureInfo.AllowCapture = true;
-			}
-			else if (!(Arg = GetArgument(pos, "capture_fps")).empty())
-			{
-				mScreenCaptureInfo.CaptureFPS = atof(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "capture_frames")).empty())
-			{
-				mScreenCaptureInfo.FramesToCapture = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "capture_format")).empty())
-			{
-				if (StrCmpNoCase(Arg.c_str(), "jpeg", Arg.length()) == 0 || StrCmpNoCase(Arg.c_str(), "jpg", Arg.length()) == 0)
-				{
-					mScreenCaptureInfo.FileFormat = IMAGE_FILE_FORMAT_JPEG;
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "png", Arg.length()) == 0)
-				{
-					mScreenCaptureInfo.FileFormat = IMAGE_FILE_FORMAT_PNG;
-				}
-				else
-				{
-					LOG_ERROR_MESSAGE("Unknown capture format. The following are allowed values: 'jpeg', 'jpg', 'png'");
-				}
-			}
-			else if (!(Arg = GetArgument(pos, "capture_quality")).empty())
-			{
-				mScreenCaptureInfo.JpegQuality = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "capture_alpha")).empty())
-			{
-				mScreenCaptureInfo.KeepAlpha = (StrCmpNoCase(Arg.c_str(), "true", Arg.length()) == 0) || Arg == "1";
-			}
-			else if (!(Arg = GetArgument(pos, "width")).empty())
-			{
-				mInitialWindowWidth = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "height")).empty())
-			{
-				mInitialWindowHeight = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "validation")).empty())
-			{
-				mValidationLevel = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "adapter")).empty())
-			{
-				if (StrCmpNoCase(Arg.c_str(), "sw", Arg.length()) == 0)
-				{
-					mAdapterType = ADAPTER_TYPE_SOFTWARE;
-				}
-				else
-				{
-					auto AdapterId = atoi(Arg.c_str());
-					VERIFY_EXPR(AdapterId >= 0);
-					mAdapterId = static_cast<Uint32>(AdapterId >= 0 ? AdapterId : 0);
-				}
-			}
-			else if (!(Arg = GetArgument(pos, "adapters_dialog")).empty())
-			{
-				bShowAdaptersDialog = (StrCmpNoCase(Arg.c_str(), "true", Arg.length()) == 0) || Arg == "1";
-			}
-			else if (!(Arg = GetArgument(pos, "show_ui")).empty())
-			{
-				bShowUI = (StrCmpNoCase(Arg.c_str(), "true", Arg.length()) == 0) || Arg == "1";
-			}
-			else if (!(Arg = GetArgument(pos, "golden_image_mode")).empty())
-			{
-				if (StrCmpNoCase(Arg.c_str(), "none", Arg.length()) == 0)
-				{
-					mGoldenImgMode = GoldenImageMode::None;
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "capture", Arg.length()) == 0)
-				{
-					mGoldenImgMode = GoldenImageMode::Capture;
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "compare", Arg.length()) == 0)
-				{
-					mGoldenImgMode = GoldenImageMode::Compare;
-				}
-				else if (StrCmpNoCase(Arg.c_str(), "compare_update", Arg.length()) == 0)
-				{
-					mGoldenImgMode = GoldenImageMode::CompareUpdate;
-				}
-				else
-				{
-					LOG_ERROR_MESSAGE("Unknown golden image mode. The following are allowed values: 'none', 'capture', 'compare', 'compare_update'");
-				}
-			}
-			else if (!(Arg = GetArgument(pos, "golden_image_tolerance")).empty())
-			{
-				mGoldenImgPixelTolerance = atoi(Arg.c_str());
-			}
-			else if (!(Arg = GetArgument(pos, "vsync")).empty())
-			{
-				bVSync = (StrCmpNoCase(Arg.c_str(), "true", Arg.length()) == 0) || (StrCmpNoCase(Arg.c_str(), "on", Arg.length()) == 0) || Arg == "1";
-			}
-			else if (!(Arg = GetArgument(pos, "non_separable_progs")).empty())
-			{
-				bForceNonSeprblProgs = (StrCmpNoCase(Arg.c_str(), "true", Arg.length()) == 0) || (StrCmpNoCase(Arg.c_str(), "on", Arg.length()) == 0) || Arg == "1";
-			}
+		mDeviceType = 			params.mRenderer.mBackendType;
+		mValidationLevel = 		params.mRenderer.mValidationLevel;
+		mInitialWindowWidth = 	params.mDisplay.mWidth;
+		mInitialWindowHeight = 	params.mDisplay.mHeight;
+		bVSync = 				params.mDisplay.bVSync;
+		bFullScreenMode	=		params.mDisplay.bFullscreen;
 
-			pos = strchr(pos, '-');
-		}
+		switch (mDeviceType) {
+		#if D3D11_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_D3D11:
+				break;
+		#endif
+		#if D3D12_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_D3D12:
+				break;
+		#endif
+		#if GL_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_GL:
+				break;
+		#endif
+		#if GLES_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_GLES:
+				break;
+		#endif
+		#if METAL_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_METAL:
+				break;
+		#endif
+		#if VULKAN_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_VULKAN:
+				break;
+		#endif
 
-		if (mDeviceType == RENDER_DEVICE_TYPE_UNDEFINED)
-		{
-			SelectDeviceType();
-			if (mDeviceType == RENDER_DEVICE_TYPE_UNDEFINED)
-			{
-	#if D3D12_SUPPORTED
-				m_DeviceType = RENDER_DEVICE_TYPE_D3D12;
-	#elif VULKAN_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_UNDEFINED:
+		#if D3D12_SUPPORTED
+				mDeviceType = RENDER_DEVICE_TYPE_D3D12;
+		#elif VULKAN_SUPPORTED
 				mDeviceType = RENDER_DEVICE_TYPE_VULKAN;
-	#elif D3D11_SUPPORTED
-				m_DeviceType = RENDER_DEVICE_TYPE_D3D11;
-	#elif GL_SUPPORTED || GLES_SUPPORTED
-				m_DeviceType = RENDER_DEVICE_TYPE_GL;
-	#endif
-			}
+		#elif D3D11_SUPPORTED
+				mDeviceType = RENDER_DEVICE_TYPE_D3D11;
+		#elif GL_SUPPORTED || GLES_SUPPORTED
+				mDeviceType = RENDER_DEVICE_TYPE_GL;
+		#endif
+				break;
+
+			default:
+				throw std::runtime_error("Unsupported device type!");
+				break;
 		}
-	}
-
-	void Engine::SelectDeviceType() {
-
 	}
 
 	void Engine::OnPreWindowResized() {
@@ -1041,162 +888,12 @@ namespace Morpheus
 		}
 	}
 
-	void Engine::CompareGoldenImage(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)
-	{
-		RefCntAutoPtr<Image> pGoldenImg;
-		CreateImageFromFile(FileName.c_str(), &pGoldenImg, nullptr);
-		if (!pGoldenImg)
-		{
-			LOG_ERROR_MESSAGE("Failed to load golden image from file ", FileName);
-			mExitCode = -2;
-			return;
-		}
-
-		const auto& TexDesc       = Capture.pTexture->GetDesc();
-		const auto& GoldenImgDesc = pGoldenImg->GetDesc();
-		if (GoldenImgDesc.Width != TexDesc.Width)
-		{
-			LOG_ERROR_MESSAGE("Golden image width (", GoldenImgDesc.Width, ") does not match the captured image width (", TexDesc.Width, ")");
-			mExitCode = -3;
-			return;
-		}
-		if (GoldenImgDesc.Height != TexDesc.Height)
-		{
-			LOG_ERROR_MESSAGE("Golden image height (", GoldenImgDesc.Height, ") does not match the captured image height (", TexDesc.Height, ")");
-			mExitCode = -4;
-			return;
-		}
-
-		MappedTextureSubresource TexData;
-		mImmediateContext->MapTextureSubresource(Capture.pTexture, 0, 0, MAP_READ, MAP_FLAG_DO_NOT_WAIT, nullptr, TexData);
-		auto CapturedPixels = Image::ConvertImageData(TexDesc.Width, TexDesc.Height,
-													reinterpret_cast<const Uint8*>(TexData.pData), TexData.Stride,
-													TexDesc.Format, TEX_FORMAT_RGBA8_UNORM, false /*Keep alpha*/);
-		mImmediateContext->UnmapTextureSubresource(Capture.pTexture, 0, 0);
-
-		auto* pGoldenImgPixels = reinterpret_cast<const Uint8*>(pGoldenImg->GetData()->GetDataPtr());
-
-		mExitCode = 0;
-		for (Uint32 row = 0; row < TexDesc.Height; ++row)
-		{
-			for (Uint32 col = 0; col < TexDesc.Width; ++col)
-			{
-				const auto* SrcPixel = &CapturedPixels[(col + row * TexDesc.Width) * 3];
-				const auto* DstPixel = pGoldenImgPixels + row * GoldenImgDesc.RowStride + col * GoldenImgDesc.NumComponents;
-				if (std::abs(int{SrcPixel[0]} - int{DstPixel[0]}) > mGoldenImgPixelTolerance ||
-					std::abs(int{SrcPixel[1]} - int{DstPixel[1]}) > mGoldenImgPixelTolerance ||
-					std::abs(int{SrcPixel[2]} - int{DstPixel[2]}) > mGoldenImgPixelTolerance)
-					++mExitCode;
-			}
-		}
-	}
-
-	void Engine::SaveScreenCapture(const std::string& FileName, ScreenCapture::CaptureInfo& Capture)
-	{
-		MappedTextureSubresource TexData;
-		mImmediateContext->MapTextureSubresource(Capture.pTexture, 0, 0, MAP_READ, MAP_FLAG_DO_NOT_WAIT, nullptr, TexData);
-		const auto& TexDesc = Capture.pTexture->GetDesc();
-
-		Image::EncodeInfo Info;
-		Info.Width       = TexDesc.Width;
-		Info.Height      = TexDesc.Height;
-		Info.TexFormat   = TexDesc.Format;
-		Info.KeepAlpha   = mScreenCaptureInfo.KeepAlpha;
-		Info.pData       = TexData.pData;
-		Info.Stride      = TexData.Stride;
-		Info.FileFormat  = mScreenCaptureInfo.FileFormat;
-		Info.JpegQuality = mScreenCaptureInfo.JpegQuality;
-
-		RefCntAutoPtr<IDataBlob> pEncodedImage;
-		Image::Encode(Info, &pEncodedImage);
-		mImmediateContext->UnmapTextureSubresource(Capture.pTexture, 0, 0);
-
-		FileWrapper pFile(FileName.c_str(), EFileAccessMode::Overwrite);
-		if (pFile)
-		{
-			auto res = pFile->Write(pEncodedImage->GetDataPtr(), pEncodedImage->GetSize());
-			if (!res)
-			{
-				LOG_ERROR_MESSAGE("Failed to write screen capture file '", FileName, "'.");
-				mExitCode = -5;
-			}
-			pFile.Close();
-		}
-		else
-		{
-			LOG_ERROR_MESSAGE("Failed to create screen capture file '", FileName, "'. Verify that the directory exists and the app has sufficient rights to write to this directory.");
-			mExitCode = -6;
-		}
-	}
-
 	void Engine::Present()
 	{
 		if (!mSwapChain)
 			return;
 
-		if (mScreenCapture && mScreenCaptureInfo.FramesToCapture > 0)
-		{
-			if (mCurrentTime - mScreenCaptureInfo.LastCaptureTime >= 1.0 / mScreenCaptureInfo.CaptureFPS)
-			{
-				mImmediateContext->SetRenderTargets(0, nullptr, nullptr, RESOURCE_STATE_TRANSITION_MODE_NONE);
-				mScreenCapture->Capture(mSwapChain, mImmediateContext, mScreenCaptureInfo.CurrentFrame);
-
-				mScreenCaptureInfo.LastCaptureTime = mCurrentTime;
-
-				--mScreenCaptureInfo.FramesToCapture;
-				++mScreenCaptureInfo.CurrentFrame;
-
-				if (mGoldenImgMode != GoldenImageMode::None)
-				{
-					VERIFY(mScreenCaptureInfo.FramesToCapture == 0, "Only single frame is expected to be captured in golden image capture/comparison modes");
-					// Idle the context to make the capture available
-					mImmediateContext->WaitForIdle();
-					if (!mScreenCapture->HasCapture())
-					{
-						LOG_ERROR_MESSAGE("Screen capture is not available after idling the context");
-						mExitCode = -1;
-					}
-				}
-			}
-		}
-
 		mSwapChain->Present(bVSync ? 1 : 0);
-
-		if (mScreenCapture)
-		{
-			while (auto Capture = mScreenCapture->GetCapture())
-			{
-				std::string FileName;
-				{
-					std::stringstream FileNameSS;
-					if (!mScreenCaptureInfo.Directory.empty())
-					{
-						FileNameSS << mScreenCaptureInfo.Directory;
-						if (mScreenCaptureInfo.Directory.back() != '/')
-							FileNameSS << '/';
-					}
-					FileNameSS << mScreenCaptureInfo.FileName;
-					if (mGoldenImgMode == GoldenImageMode::None)
-					{
-						FileNameSS << std::setw(3) << std::setfill('0') << Capture.Id;
-					}
-					FileNameSS << (mScreenCaptureInfo.FileFormat == IMAGE_FILE_FORMAT_JPEG ? ".jpg" : ".png");
-					FileName = FileNameSS.str();
-				}
-
-				if (mGoldenImgMode == GoldenImageMode::Compare || mGoldenImgMode == GoldenImageMode::CompareUpdate)
-				{
-					CompareGoldenImage(FileName, Capture);
-				}
-
-				if (mGoldenImgMode == GoldenImageMode::Capture || mGoldenImgMode == GoldenImageMode::CompareUpdate)
-				{
-					SaveScreenCapture(FileName, Capture);
-				}
-
-				mScreenCapture->RecycleStagingTexture(std::move(Capture.pTexture));
-			}
-		}
 
 		mInputController.NewFrame();
 	}

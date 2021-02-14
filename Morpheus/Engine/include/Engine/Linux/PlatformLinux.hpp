@@ -30,13 +30,14 @@ namespace Morpheus {
 		Engine* mEngine;
 		bool bQuit;
 
-		int InitializeGL();
-		int InitializeVulkan();
+		int InitializeGL(const EngineParams& params);
+		int InitializeVulkan(const EngineParams& params);
 
 	public:
 		PlatformLinux();
 
-		int Initialize(Engine* engine, int argc, char** argv) override;
+		int Initialize(Engine* engine, 
+			const EngineParams& params) override;
 		void Shutdown() override;
 		bool IsValid() const override;
 		void MessageLoop(const update_callback_t& callback) override;

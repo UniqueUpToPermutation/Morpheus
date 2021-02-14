@@ -49,8 +49,6 @@ namespace Morpheus
 
 	static constexpr int None = 0;
 
-	static constexpr uint16_t WindowWidth     = 1024;
-	static constexpr uint16_t WindowHeight    = 768;
 	static constexpr uint16_t MinWindowWidth  = 320;
 	static constexpr uint16_t MinWindowHeight = 240;
 
@@ -58,7 +56,7 @@ namespace Morpheus
 		bQuit(false) {
 	}
 
-	int PlatformLinux::InitializeVulkan() {
+	int PlatformLinux::InitializeVulkan(const EngineParams& params) {
 
 		int scr         = 0;
 		mXCBInfo.connection = xcb_connect(nullptr, &scr);
@@ -75,8 +73,8 @@ namespace Morpheus
 
 		auto screen = iter.data;
 
-		mXCBInfo.width  = WindowWidth;
-		mXCBInfo.height = WindowHeight;
+		mXCBInfo.width  = params.mDisplay.mWidth;
+		mXCBInfo.height = params.mDisplay.mHeight;
 
 		uint32_t value_mask, value_list[32];
 
@@ -145,7 +143,7 @@ namespace Morpheus
 		return 1;
 	}
 
-	int PlatformLinux::InitializeGL() {
+	int PlatformLinux::InitializeGL(const EngineParams& params) {
 		mDisplay = XOpenDisplay(0);
 
 		// clang-format off
@@ -200,7 +198,7 @@ namespace Morpheus
 			PointerMotionMask;
 
 		Window mWindow = XCreateWindow(mDisplay, RootWindow(mDisplay, vi->screen), 0, 0, 
-			WindowWidth, WindowHeight, 0, vi->depth, InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, &swa);
+			params.mDisplay.mWidth, params.mDisplay.mHeight, 0, vi->depth, InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, &swa);
 		if (!mWindow)
 		{
 			LOG_ERROR_MESSAGE("Failed to create window.");
@@ -363,40 +361,39 @@ namespace Morpheus
 #endif
 	}
 
-	int PlatformLinux::Initialize(Engine* engine, int argc, char** argv) {
+	int PlatformLinux::Initialize(Engine* engine, 
+			const EngineParams& params) {
 		bool UseVulkan = false;
 
 		mEngine = engine;
 
-#if VULKAN_SUPPORTED
 		UseVulkan = true;
-		if (argc > 1)
-		{
-			const auto* Key = "-mode ";
-			const auto* pos = strstr(argv[1], Key);
-			if (pos != nullptr)
-			{
-				pos += strlen(Key);
-				while (*pos != 0 && *pos == ' ') ++pos;
-				if (strcasecmp(pos, "GL") == 0)
-				{
-					UseVulkan = false;
-				}
-				else if (strcasecmp(pos, "VK") == 0)
-				{
-					UseVulkan = true;
-				}
-				else
-				{
-					std::cerr << "Unknown device type. Only the following types are supported: GL, VK";
-					return 0;
-				}
-			}
+
+		switch (params.mRenderer.mBackendType) {
+			case DG::RENDER_DEVICE_TYPE_GL:
+				UseVulkan = false;
+				break;
+#if VULKAN_SUPPORTED
+			case DG::RENDER_DEVICE_TYPE_VULKAN:
+				UseVulkan = true;
+				break;
+			case DG::RENDER_DEVICE_TYPE_UNDEFINED:
+				UseVulkan = true;
+				break;
+#else 
+			case DG::RENDER_DEVICE_TYPE_UNDEFINED:
+				UseVulkan = false;
+				break;
+#endif
+			default:
+				throw std::runtime_error("Linux does not support specified renderer backend!");
+				break;
 		}
 
+#if VULKAN_SUPPORTED
 		if (UseVulkan)
 		{
-			auto ret = InitializeVulkan();
+			auto ret = InitializeVulkan(params);
 			if (ret)
 			{
 				return ret;
@@ -408,7 +405,7 @@ namespace Morpheus
 		}
 	#endif
 
-		return InitializeGL();
+		return InitializeGL(params);
 	}
 
 	void PlatformLinux::Shutdown() {

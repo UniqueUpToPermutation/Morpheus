@@ -4,17 +4,21 @@
 namespace Morpheus {
 	class Engine;
 	class EngineApp;
+
 	class PlatformLinux;
 	class PlatformWindows;
 
 	typedef std::function<void(double, double)> update_callback_t;
+
+	struct EngineParams;
 
 	class IPlatform {
 	public:
 		virtual ~IPlatform() {
 		}
 
-		virtual int Initialize(Engine* engine, int argc, char** argv) = 0;
+		virtual int Initialize(Engine* engine, 
+			const EngineParams& params) = 0;
 		virtual void Shutdown() = 0;
 		virtual bool IsValid() const = 0;
 		virtual void MessageLoop(const update_callback_t& callback) = 0;

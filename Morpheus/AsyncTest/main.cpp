@@ -21,7 +21,7 @@ std::mutex mOutput;
 int main(int argc, char** argv) {
 	Engine en;
 
-	en.Startup(argc, argv);
+	en.Startup();
 
 	Scene* scene = new Scene();
 

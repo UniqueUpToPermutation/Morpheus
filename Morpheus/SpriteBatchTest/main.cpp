@@ -1,16 +1,16 @@
 #include <Engine/Core.hpp>
 
+#include "imgui.h"
+
 using namespace Morpheus;
 
 int main(int argc, char** argv) {
-	Engine en;
 
-	en.Startup(argc, argv);
+	Engine en;
+	en.Startup();
 
 	Scene* scene = new Scene();
-
 	auto camera = scene->GetCamera();
-
 	camera->SetType(CameraType::ORTHOGRAPHIC);
 	camera->SetClipPlanes(-1.0, 1.0);
 
@@ -58,7 +58,6 @@ int main(int argc, char** argv) {
 		en.Update(scene);
 
 		auto SCD = en.GetSwapChain()->GetDesc();
-		int width, height;
 		camera->SetOrthoSize(SCD.Width, SCD.Height);
 
 		en.Render(scene);
