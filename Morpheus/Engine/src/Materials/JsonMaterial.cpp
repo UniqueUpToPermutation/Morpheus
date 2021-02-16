@@ -62,18 +62,18 @@ namespace Morpheus {
 			for (const auto& item : config["Textures"]) {
 
 				std::string binding_loc;
-				config["Binding"].get_to(binding_loc);
+				item["Binding"].get_to(binding_loc);
 
-				DG::SHADER_TYPE shader_type = ReadShaderType(config["ShaderType"]);
+				DG::SHADER_TYPE shader_type = ReadShaderType(item["ShaderType"]);
 
-				std::string source;
-				config["Source"].get_to(source);
+				std::string tex_source;
+				item["Source"].get_to(tex_source);
 
 				TextureResource* texture = nullptr;
 				if (asyncParams.bUseAsync) {
-					asyncTasks.emplace_back(manager->AsyncLoadDeferred<TextureResource>(source, &texture));
+					asyncTasks.emplace_back(manager->AsyncLoadDeferred<TextureResource>(tex_source, &texture));
 				} else {
-					texture = manager->Load<TextureResource>(source);
+					texture = manager->Load<TextureResource>(tex_source);
 				}
 				mTextures.emplace_back(texture);
 

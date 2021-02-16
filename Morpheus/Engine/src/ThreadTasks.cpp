@@ -25,7 +25,7 @@ namespace Morpheus {
 
 				if (stream.is_open()) {
 					std::streamsize size = stream.tellg();
-					data_size = size + 1;
+					data_size = (size_t)(size + 1);
 					stream.seekg(0, std::ios::beg);
 
 					buffer = new char[data_size];

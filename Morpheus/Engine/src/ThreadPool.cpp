@@ -180,7 +180,7 @@ namespace Morpheus {
 
 				// Need to update pipes
 				{
-					std::lock_guard<std::mutex> lock(mMutex);
+					std::lock_guard<std::mutex> pipeLock(mMutex);
 					RepoIncomming(params.mTaskId);
 					TriggerOutgoing(params.mTaskId);
 					DestroyNode(params.mTaskId);
@@ -198,7 +198,7 @@ namespace Morpheus {
 		}
 	}
 
-	void ThreadPool::Yield() {
+	void ThreadPool::YieldUntilFinished() {
 		ThreadProc(true, 0, nullptr, nullptr);
 	}
 

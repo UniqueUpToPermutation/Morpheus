@@ -205,7 +205,7 @@ namespace Morpheus {
 		auto src = params_cast->mSource;
 		
 		{
-			std::shared_lock<std::shared_mutex>(mResourceMapMutex);
+			std::shared_lock<std::shared_mutex> lock(mResourceMapMutex);
 			auto it = mResourceMap.find(src);
 			if (it != mResourceMap.end()) {
 				return it->second;
@@ -216,7 +216,7 @@ namespace Morpheus {
 		mLoader.Load(src, mPrototypeFactory, resource);
 
 		{
-			std::unique_lock<std::shared_mutex>(mResourceMapMutex);
+			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);
 			resource->SetSource(mResourceMap.emplace(src, resource).first);
 		}
 
@@ -232,7 +232,7 @@ namespace Morpheus {
 		auto src = params_cast->mSource;
 
 		{
-			std::shared_lock<std::shared_mutex>(mResourceMapMutex);
+			std::shared_lock<std::shared_mutex> lock(mResourceMapMutex);
 			auto it = mResourceMap.find(src);
 			if (it != mResourceMap.end()) {
 				*output = it->second;
@@ -244,7 +244,7 @@ namespace Morpheus {
 		TaskId task = mLoader.AsyncLoad(src, mPrototypeFactory, threadPool, callback, resource);
 
 		{
-			std::unique_lock<std::shared_mutex>(mResourceMapMutex);
+			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);
 			resource->SetSource(mResourceMap.emplace(src, resource).first);
 		}
 

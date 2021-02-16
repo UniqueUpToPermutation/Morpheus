@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Engine.hpp>
+
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/CollisionShapeResource.hpp>
@@ -8,7 +10,6 @@
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
 
-#include <Engine/Engine.hpp>
 #include <Engine/Renderer.hpp>
 #include <Engine/Scene.hpp>
 #include <Engine/SpriteBatch.hpp>

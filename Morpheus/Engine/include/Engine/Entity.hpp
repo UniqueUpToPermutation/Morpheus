@@ -169,8 +169,6 @@ namespace Morpheus {
 		}
 
 		void DestroyInternal() {
-			HierarchyData& data = mRegistry->get<HierarchyData>(mEntity);
-
 			for (EntityNode child = GetFirstChild(); child.IsValid(); child = child.GetNext()) {
 				child.DestroyInternal();
 			}

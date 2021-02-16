@@ -212,8 +212,8 @@ namespace Morpheus {
 		data.mCamera.fFarPlaneZ = camera->GetFarZ();
 		data.mCamera.f4Position = DG::float4(eye, 1.0f);
 		data.mCamera.f4ViewportSize = DG::float4(
-			swapChainDesc.Width,
-			swapChainDesc.Height,
+			(float)swapChainDesc.Width,
+			(float)swapChainDesc.Height,
 			1.0f / (float)swapChainDesc.Width,
 			1.0f / (float)swapChainDesc.Height);
 		data.mCamera.mViewT = view.Transpose();
@@ -265,17 +265,17 @@ namespace Morpheus {
 		device->CreateTexture(desc, nullptr, &mFrameBuffer);
 
 		if (desc.SampleCount > 1) {
-			DG::TextureDesc desc;
-			desc.Width = width;
-			desc.Height = height;
-			desc.BindFlags = DG::BIND_SHADER_RESOURCE;
-			desc.Name = "Resolve Buffer";
-			desc.Type = DG::RESOURCE_DIM_TEX_2D;
-			desc.Usage = DG::USAGE_DEFAULT;
-			desc.Format = GetIntermediateFramebufferFormat();
-			desc.MipLevels = 1;
+			DG::TextureDesc resolveDesc;
+			resolveDesc.Width = width;
+			resolveDesc.Height = height;
+			resolveDesc.BindFlags = DG::BIND_SHADER_RESOURCE;
+			resolveDesc.Name = "Resolve Buffer";
+			resolveDesc.Type = DG::RESOURCE_DIM_TEX_2D;
+			resolveDesc.Usage = DG::USAGE_DEFAULT;
+			resolveDesc.Format = GetIntermediateFramebufferFormat();
+			resolveDesc.MipLevels = 1;
 
-			device->CreateTexture(desc, nullptr, &mResolveBuffer);
+			device->CreateTexture(resolveDesc, nullptr, &mResolveBuffer);
 
 			desc.BindFlags = DG::BIND_DEPTH_STENCIL;
 			desc.Name = "Intermediate Depth Buffer";
@@ -340,8 +340,6 @@ namespace Morpheus {
 
 		PipelineResource* currentPipeline = nullptr;
 		MaterialResource* currentMaterial = nullptr;
-
-		int currentIdx = 0;
 
 		auto context = mEngine->GetImmediateContext();
 		auto& meshGroup = renderBridge->GetRenderableGroup();
@@ -514,8 +512,6 @@ namespace Morpheus {
 			} else {
 				std::cout << "Warning: Render cache is null!" << std::endl;
 			}
-
-			float rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 			context->SetRenderTargets(1, &pRTV, pDSV, 
 				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);

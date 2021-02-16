@@ -78,7 +78,7 @@ namespace Morpheus {
 			GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
 
 			// Number of MSAA samples
-			GraphicsPipeline.SmplDesc.Count = renderer->GetMSAASamples();
+			GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
 
 			GraphicsPipeline.InputLayout.NumElements = 0;
 

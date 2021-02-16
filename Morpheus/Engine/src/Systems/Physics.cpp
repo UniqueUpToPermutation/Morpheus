@@ -139,15 +139,15 @@ namespace Morpheus {
 		mPhysicsComponentTransformGroupObs.clear();
 		mPhysicsComponentTransformUpdateObs.clear();
 
-		mWorld->stepSimulation(1.0 / 60.0f);
+		mWorld->stepSimulation(1.0f / 60.0f);
 
 		auto view = registry->view<RigidBodyComponent>();
 
-		for (auto e : view) {
-			auto& rb = view.get<RigidBodyComponent>(e);
+		for (auto ent : view) {
+			auto& rb = view.get<RigidBodyComponent>(ent);
 
 			if (rb->isActive()) {
-				CopyBulletTransformToCache(rb, *registry, e);
+				CopyBulletTransformToCache(rb, *registry, ent);
 			}
 		}
 	}

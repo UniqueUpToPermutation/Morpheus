@@ -9,6 +9,17 @@ function(add_third_party_libraries APP_NAME)
 		${CMAKE_SOURCE_DIR}/mio/single_include})
 endfunction()
 
+function(add_msvc_ignores TARGET_NAME)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd4127)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd4458)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd4244)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd4267)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd26819)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd26812)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd26495)
+    target_compile_options(${TARGET_NAME} PRIVATE /wd4201)
+endfunction()
+
 function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 
 	INCLUDE_DIRECTORIES(
@@ -37,7 +48,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
             VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets"
         )
         copy_required_dlls(${APP_NAME})
-        append_sample_base_win32_source(${APP_NAME})
+        #append_sample_base_win32_source(${APP_NAME})
     elseif(PLATFORM_UNIVERSAL_WINDOWS)
         append_sample_base_uwp_source(${APP_NAME})
 		package_required_dlls(${APP_NAME})
@@ -56,7 +67,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
     PRIVATE
         # On Linux we must have Diligent-NativeAppBase go first, otherwise the linker 
         # will fail to resolve Diligent::CreateApplication() function.
-        Diligent-NativeAppBase
+        #Diligent-NativeAppBase
         Diligent-BuildSettings
 		Morpheus-Engine
 		${ASSIMP_LIBRARIES}
@@ -65,8 +76,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 
     if(MSVC)
         # Disable MSVC-specific warnings
-        # - w4201: nonstandard extension used: nameless struct/union
-        target_compile_options(${APP_NAME} PRIVATE /wd4201)
+        add_msvc_ignores(${APP_NAME})
     endif()
 
     source_group("src" FILES ${SOURCE} ${INCLUDE})
@@ -79,6 +89,10 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
                 "${CMAKE_CURRENT_SOURCE_DIR}/assets"
                 "\"$<TARGET_FILE_DIR:${APP_NAME}>\"")
 	endif()
+
+    set_target_properties(${APP_NAME} PROPERTIES
+        FOLDER Morpheus
+    )
 	
 	target_compile_features(${APP_NAME} PRIVATE cxx_std_17)
 endfunction()

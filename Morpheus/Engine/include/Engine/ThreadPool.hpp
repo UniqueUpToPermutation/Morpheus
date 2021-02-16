@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <future>
 
+#include <Engine/Defines.hpp>
 #include <Engine/Graph.hpp>
 #include <Engine/Entity.hpp>
 
@@ -197,7 +198,7 @@ namespace Morpheus {
 			mFuture = mPromise.get_future();
 		}
 
-		inline ThreadPipe(ThreadPipe&& other) :
+		inline ThreadPipe(ThreadPipe&& other) noexcept :
 			mId(other.mId),
 			mPromise(std::move(other.mPromise)),
 			mFuture(std::move(other.mFuture)) {
@@ -207,7 +208,7 @@ namespace Morpheus {
 			mPromise.set_value(std::move(any));
 		}
 
-		inline void WriteException(std::__exception_ptr::exception_ptr ex) {
+		inline void WriteException(std::exception_ptr ex) {
 			mPromise.set_exception(ex);
 		}
 
@@ -236,7 +237,7 @@ namespace Morpheus {
 
 		TaskQueueInterface(const TaskQueueInterface& other) = delete;
 
-		inline TaskQueueInterface(TaskQueueInterface&& other) {
+		inline TaskQueueInterface(TaskQueueInterface&& other) noexcept {
 			std::swap(mLock, other.mLock);
 			std::swap(mPool, other.mPool);
 			std::swap(mIOLock, other.mIOLock);
@@ -371,7 +372,7 @@ namespace Morpheus {
 			pipe->second.Write(std::move(data));
 		}
 
-		inline void WritePipeException(PipeId pipeId, std::__exception_ptr::exception_ptr ex) {
+		inline void WritePipeException(PipeId pipeId, std::exception_ptr ex) {
 			auto pipe = mPipes.find(pipeId.mId);
 			pipe->second.WriteException(ex);
 		}
@@ -381,12 +382,13 @@ namespace Morpheus {
 		void IOThreadProc(uint ioThreadNumber);
 
 		inline TaskQueueInterface GetQueue() {
-			return TaskQueueInterface(std::unique_lock<std::mutex>(mMutex),
-				std::unique_lock<std::mutex>(mIOQueueMutex),
-				this);
+			std::unique_lock<std::mutex> mutexLock(mMutex);
+			std::unique_lock<std::mutex> ioMutexLock(mIOQueueMutex);
+
+			return TaskQueueInterface(std::move(mutexLock), std::move(ioMutexLock), this);
 		}
 
-		void Yield();
+		void YieldUntilFinished();
 		void YieldUntil(TaskBarrier* barrier);
 		void YieldFor(const std::chrono::high_resolution_clock::duration& duration);
 		void YieldUntil(const std::chrono::high_resolution_clock::time_point& time);

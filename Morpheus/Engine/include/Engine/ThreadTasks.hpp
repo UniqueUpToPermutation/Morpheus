@@ -28,7 +28,7 @@ namespace Morpheus {
 
 		ReadFileToMemoryResult(const ReadFileToMemoryResult& other) = delete;
 		
-		inline ReadFileToMemoryResult(ReadFileToMemoryResult&& other) {
+		inline ReadFileToMemoryResult(ReadFileToMemoryResult&& other) noexcept {
 			std::swap(mData, other.mData);
 			std::swap(mSize, other.mSize);
 		}

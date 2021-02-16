@@ -17,11 +17,11 @@ namespace DG = Diligent;
 namespace Morpheus {
 
 	inline uint MipCount(const uint width, const uint height) {
-		return 1 + std::floor(std::log2(std::max(width, height)));
+		return (uint)(1 + std::floor(std::log2(std::max(width, height))));
 	}
 
 	inline uint MipCount(const uint width, const uint height, const uint depth) {
-		return 1 + std::floor(std::log2(std::max(width, std::max(height, depth))));
+		return (uint)(1 + std::floor(std::log2(std::max(width, std::max(height, depth)))));
 	}
 
 	struct TextureSubResDataDesc {
@@ -105,12 +105,12 @@ namespace Morpheus {
 
 		inline DG::float2 GetDimensions2D() const {
 			auto& desc = mTexture->GetDesc();
-			return DG::float2(desc.Width, desc.Height);
+			return DG::float2((float)desc.Width, (float)desc.Height);
 		}
 
 		inline DG::float3 GetDimensions3D() const {
 			auto& desc = mTexture->GetDesc();
-			return DG::float3(desc.Width, desc.Height, desc.Depth);
+			return DG::float3((float)desc.Width, (float)desc.Height, (float)desc.Depth);
 		}
 
 		inline uint GetWidth() const {

@@ -281,7 +281,7 @@ namespace Morpheus {
 		}
 
 		if (bitangentOffset >= 0) {
-			if (bHasTangents) {
+			if (bHasBitangents) {
 				for (uint32_t i = 0, bufindx = tangentOffset; i < nVerts; ++i, bufindx += stride) {
 					float* bitangent_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
 

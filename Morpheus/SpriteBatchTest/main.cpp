@@ -1,10 +1,18 @@
 #include <Engine/Core.hpp>
 
-#include "imgui.h"
-
 using namespace Morpheus;
 
+#if PLATFORM_WIN32
+int __stdcall WinMain(
+	HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPSTR     lpCmdLine,
+	int       nShowCmd) {
+#endif
+
+#if PLATFORM_LINUX
 int main(int argc, char** argv) {
+#endif
 
 	EngineParams params;
 
@@ -54,12 +62,10 @@ int main(int argc, char** argv) {
 		obj.mOscillatorX = distribution1(generator) * DG::PI;
 	}
 
-	float t = 0.0;
-
 	while (en.IsReady()) {
 		en.Update(scene);
 
-		auto SCD = en.GetSwapChain()->GetDesc();
+		const auto& SCD = en.GetSwapChain()->GetDesc();
 		camera->SetOrthoSize(SCD.Width, SCD.Height);
 
 		en.Render(scene);

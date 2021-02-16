@@ -434,7 +434,7 @@ namespace Morpheus
 		return this;
 	}
 
-	PlatformWindows* PlatformLinux::ToWindows() {
+	PlatformWin32* PlatformLinux::ToWindows() {
 		return nullptr;
 	}
 

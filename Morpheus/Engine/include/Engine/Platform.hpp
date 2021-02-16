@@ -6,7 +6,7 @@ namespace Morpheus {
 	class EngineApp;
 
 	class PlatformLinux;
-	class PlatformWindows;
+	class PlatformWin32;
 
 	typedef std::function<void(double, double)> update_callback_t;
 
@@ -25,7 +25,7 @@ namespace Morpheus {
 		virtual void Flush() = 0;
 
 		virtual PlatformLinux* ToLinux() = 0;
-		virtual PlatformWindows* ToWindows() = 0;
+		virtual PlatformWin32* ToWindows() = 0;
 	};
 
 	IPlatform* CreatePlatform();

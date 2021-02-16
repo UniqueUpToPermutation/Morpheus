@@ -15,6 +15,7 @@
 #include "ScreenCapture.hpp"
 #include "Image.h"
 
+#include <Engine/Defines.hpp>
 #include <Engine/Platform.hpp>
 #include <Engine/InputController.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
@@ -54,7 +55,7 @@ namespace Morpheus {
 		DG::RENDER_DEVICE_TYPE 	mBackendType		= DG::RENDER_DEVICE_TYPE_UNDEFINED;
 		DG::ADAPTER_TYPE 		mAdapterType 		= DG::ADAPTER_TYPE_UNKNOWN;
 		DG::Uint32      		mAdapterId 			= 0;
-		DG::Uint32 				mValidationLevel 	= -1;
+		DG::Int32 				mValidationLevel 	= -1;
 	};
 
 	struct EngineParams {
@@ -117,6 +118,11 @@ namespace Morpheus {
 		bool InitVulkan(xcb_connection_t* connection, uint32_t window) override final;
 		void HandleXCBEvent(xcb_generic_event_t* event) override final;
 #endif
+#endif
+
+#if PLATFORM_WIN32
+		void OnWindowCreated(HWND hWnd, LONG WindowWidth, LONG WindowHeight) override final;
+		LRESULT HandleWin32Message(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) override final;
 #endif
 
 	private:
@@ -186,8 +192,8 @@ namespace Morpheus {
 
 	public:
 
-		inline void Yield() {
-			mThreadPool.Yield();
+		inline void YieldUntilFinished() {
+			mThreadPool.YieldUntilFinished();
 		}
 		inline void YieldUntil(TaskBarrier* barrier) {
 			mThreadPool.YieldUntil(barrier);

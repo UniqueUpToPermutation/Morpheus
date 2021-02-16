@@ -155,7 +155,7 @@ namespace Morpheus {
 				std::string val;
 				count_json.get_to(val);
 				if (val == "RENDERER_DEFAULT") {
-					desc->Count = resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
+					desc->Count = (DG::Uint8)resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
 				}
 			}
 			else 
@@ -668,7 +668,7 @@ namespace Morpheus {
 			ReadSampleDesc(resourceManager, json["SampleDesc"], &info.GraphicsPipeline.SmplDesc);
 		} else {
 			// By default use the number of MSAA samples used by the renderer
-			info.GraphicsPipeline.SmplDesc.Count = resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
+			info.GraphicsPipeline.SmplDesc.Count = (DG::Uint8)resourceManager->GetParent()->GetRenderer()->GetMSAASamples();
 		}
 
 		if (json.contains("InputLayout")) {
@@ -728,7 +728,6 @@ namespace Morpheus {
 
 		auto params_cast = &params;
 		auto src = params_cast->mSource;
-		auto overrides = &params_cast->mOverrides;
 
 		{
 			std::shared_lock<std::shared_mutex> lock(mMutex);
@@ -796,7 +795,6 @@ namespace Morpheus {
 		// Spawn from factory
 		auto params_cast = &params;
 		auto src = params_cast->mSource;
-		auto overrides = &params_cast->mOverrides;
 
 		{
 			std::shared_lock<std::shared_mutex> lock(mMutex);

@@ -10,8 +10,7 @@ namespace Morpheus {
 
 	std::string ShaderPreprocessorConfig::Stringify(const ShaderPreprocessorConfig* overrides) const {
 		std::stringstream ss;
-		bool bVersionOverriden = false;
-		
+	
 		for (auto& it : mDefines) {
 			ss << "#define " << it.first << " " << it.second << std::endl;
 		}

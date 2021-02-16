@@ -73,7 +73,7 @@ namespace Morpheus {
 			GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
 
 			// Number of MSAA samples
-			GraphicsPipeline.SmplDesc.Count = renderer->GetMSAASamples();
+			GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
 
 			std::vector<DG::LayoutElement> layoutElements = {
 				DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),

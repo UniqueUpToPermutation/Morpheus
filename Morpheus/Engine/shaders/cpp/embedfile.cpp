@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <set>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -19,15 +20,22 @@ set<string> important_ext = {
 	".gsh"
 };
 
-void write_into_lookup(const fs::__cxx11::directory_entry& path,
+void write_into_lookup(const fs::directory_entry& path,
 	unordered_map<string, string>* map, ofstream& out) {
-	string name = string("g_") + path.path().filename().c_str() + "_data";
+	
+	stringstream ss;
+
+	ss << "g_" << path.path().filename().string() << "_data";
+
+	string name = ss.str();
 	std::replace(name.begin(), name.end(), '.', '_');
 	std::replace(name.begin(), name.end(), '/', '_');
 	out << "const char* " << name << " = R\"(";
-	ifstream f(path.path().c_str());
+	ifstream f(path.path().string());
 	if (!f.is_open()) {
-		throw std::runtime_error(string("Failed to open file: ") + path.path().c_str());
+		stringstream err_ss;
+		err_ss << "Failed to open file: " << path.path().string();
+		throw std::runtime_error(err_ss.str());
 	}
 
 	std::string str((std::istreambuf_iterator<char>(f)),
@@ -36,14 +44,14 @@ void write_into_lookup(const fs::__cxx11::directory_entry& path,
 	out << str << ")\";";
 	out << endl << endl;
 
-	(*map)[path.path().filename().c_str()] = name;
+	(*map)[path.path().filename().string()] = name;
 }
 
 void do_search(const fs::directory_iterator& it,
 	unordered_map<string, string>* map, ofstream& out) {
 	for (const auto& entry : it) {
 		if (entry.is_regular_file()) {
-			if (important_ext.find(entry.path().extension()) != important_ext.end()) {
+			if (important_ext.find(entry.path().extension().string()) != important_ext.end()) {
 				write_into_lookup(entry, map, out);
 			}
 		} else if (entry.is_directory()) {

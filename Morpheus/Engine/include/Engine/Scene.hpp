@@ -20,6 +20,9 @@ namespace Morpheus {
 	public:
 		virtual void Startup(Scene* scene) = 0;
 		virtual void Shutdown(Scene* scene) = 0;
+
+		virtual ~ISystem() {
+		}
 	};
 
 	struct UpdateEvent {

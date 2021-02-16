@@ -17,16 +17,17 @@ add_custom_command(
 	OUTPUT shader_rc.cpp
 	COMMAND embedfile ${CMAKE_CURRENT_SOURCE_DIR}/shaders shader_rc.cpp
 	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*)
+message("embedfile ${CMAKE_CURRENT_SOURCE_DIR}/shaders shader_rc.cpp")
 
 find_package(assimp REQUIRED)
 
 if(PLATFORM_WIN32)
     set(SOURCE 
-        src/Win32/SampleAppWin32.cpp
+        src/Win32/PlatformWin32.cpp
         src/Win32/InputControllerWin32.cpp
     )
     set(INCLUDE 
-        include/Engine/EngineApp.hpp
+        include/Engine/Win32/PlatformWin32.hpp
         include/Engine/Win32/InputControllerWin32.hpp
     )
     set(WIN32_RESOURCES
@@ -162,10 +163,51 @@ list(APPEND SOURCE
 )
 
 list(APPEND INCLUDE
+    include/Engine/Brdf.hpp
+    include/Engine/Camera.hpp
+    include/Engine/Core.hpp
+    include/Engine/DefaultRenderer.hpp
+    include/Engine/Defines.hpp
+    include/Engine/EditorCameraController.hpp
+    include/Engine/Engine.hpp
+    include/Engine/Entity.hpp
+    include/Engine/Geometry.hpp
+    include/Engine/Graph.hpp
+    include/Engine/HdriToCubemap.hpp
+    include/Engine/ImGuiObject.hpp
+    include/Engine/InputController.hpp
+    include/Engine/LightProbe.hpp
+    include/Engine/Platform.hpp
+    include/Engine/PostProcessor.hpp
+    include/Engine/Renderer.hpp
+    include/Engine/Scene.hpp
+    include/Engine/SpriteBatch.hpp
+    include/Engine/ThreadPool.hpp
+    include/Engine/ThreadTasks.hpp
+
+    include/Engine/Materials/BasicTexturedMaterial.hpp
+    include/Engine/Materials/ImageBasedLightingView.hpp
+    include/Engine/Materials/JsonMaterial.hpp
+    include/Engine/Materials/MaterialPrototypes.hpp
+    include/Engine/Materials/MaterialView.hpp
+    include/Engine/Materials/StaticMeshPBRMaterial.hpp
+    include/Engine/Materials/WhiteMaterial.hpp
+
+    include/Engine/Pipelines/PipelineFactory.hpp
+
+    include/Engine/Resources/CollisionShapeResource.hpp
+    include/Engine/Resources/EmbeddedFileLoader.hpp
+    include/Engine/Resources/GeometryResource.hpp
+    include/Engine/Resources/MaterialResource.hpp
+    include/Engine/Resources/PipelineResource.hpp
+    include/Engine/Resources/Resource.hpp
+    include/Engine/Resources/ResourceManager.hpp
+    include/Engine/Resources/ShaderLoader.hpp
+    include/Engine/Resources/TextureResource.hpp
+    
+    include/Engine/Systems/Physics.hpp
+    include/Engine/Systems/RendererBridge.hpp
 )
-
-message("SOURCES:")
-
 
 add_library(Morpheus-Engine STATIC ${SOURCE} ${INCLUDE})
 set_common_target_properties(Morpheus-Engine)
@@ -181,7 +223,8 @@ PUBLIC
 
 if(MSVC)
     target_compile_options(Morpheus-Engine PRIVATE -DUNICODE)
-    
+    add_msvc_ignores(Morpheus-Engine)
+
     if(PLATFORM_UNIVERSAL_WINDOWS)
         # Disable w4189: local variable is initialized but not referenced
         # Disable w4063: case is not a valid value for switch of enum
@@ -225,7 +268,7 @@ if(PLATFORM_WIN32)
 endif()
 
 set_target_properties(Morpheus-Engine PROPERTIES
-    FOLDER DiligentSamples
+    FOLDER Morpheus
 )
 
 # Add all third party libraries to the engine

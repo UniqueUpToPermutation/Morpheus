@@ -33,7 +33,17 @@ void CreateSphere(btSphereShape* sphere,
 	meshNode.Add<RigidBodyComponent>(rb);
 }
 
+#if PLATFORM_WIN32
+int __stdcall WinMain(
+	HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPSTR     lpCmdLine,
+	int       nShowCmd) {
+#endif
+
+#if PLATFORM_LINUX
 int main(int argc, char** argv) {
+#endif
 	Engine en;
 	en.Startup();
 

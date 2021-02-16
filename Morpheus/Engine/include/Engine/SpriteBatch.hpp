@@ -64,7 +64,7 @@ namespace Morpheus {
 			CopyFrom(other);
 		}
 
-		SpriteBatchState(SpriteBatchState&& other) {
+		SpriteBatchState(SpriteBatchState&& other) noexcept {
 			Swap(std::move(other));
 		}
 
@@ -73,7 +73,7 @@ namespace Morpheus {
 			return *this;
 		}
 
-		SpriteBatchState& operator=(SpriteBatchState&& other) {
+		SpriteBatchState& operator=(SpriteBatchState&& other) noexcept {
 			Swap(std::move(other));
 			return *this;
 		}

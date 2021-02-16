@@ -44,6 +44,6 @@ namespace Morpheus {
 		void Flush() override;
 
 		PlatformLinux* ToLinux() override;
-		PlatformWindows* ToWindows() override;
+		PlatformWin32* ToWindows() override;
 	};
 }

@@ -170,7 +170,7 @@ namespace Morpheus {
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
 		auto dim2d = texture->GetDimensions2D();
 		
-		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5, rect.mPosition.y - 0.5);
+		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
 		auto uvbottom_unscaled = uvtop_unscaled + rect.mSize;
 
 		instance->mPos.x = pos.x;
@@ -202,7 +202,7 @@ namespace Morpheus {
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
 		auto dim2d = texture->GetDimensions2D();
 		
-		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5, rect.mPosition.y - 0.5);
+		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
 		auto uvbottom_unscaled = uvtop_unscaled + rect.mSize;
 
 		instance->mPos.x = pos.x;

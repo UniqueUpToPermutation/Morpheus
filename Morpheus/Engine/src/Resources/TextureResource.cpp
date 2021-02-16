@@ -265,8 +265,8 @@ namespace Morpheus {
 		resource->mSource = params.mSource;
 		resource->mTexture = out_texture;
 
-		for (auto& data : expanded_datas) {
-			delete[] data;
+		for (auto& data_to_delete : expanded_datas) {
+			delete[] data_to_delete;
 		}
 
 		return TASK_NONE;
@@ -429,7 +429,7 @@ namespace Morpheus {
 			throw std::runtime_error("Failed to load image file: " + params.mSource);
         }
 
-		DG::TEXTURE_FORMAT format;
+		DG::TEXTURE_FORMAT format = DG::TEX_FORMAT_UNKNOWN;
 		bool bExpand = false;
 		uint new_comp = comp;
 
@@ -560,12 +560,10 @@ namespace Morpheus {
 
 		if (!asyncParams.bUseAsync) {
 			unsigned char* pixel_data = nullptr;
-			bool b_hdr;
+			bool b_hdr = false;
 			int comp;
 			int x;
 			int y;
-
-			size_t currentIndx = 0;
 
 			if (stbi_is_hdr(params.mSource.c_str())) {
 				float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
@@ -617,7 +615,7 @@ namespace Morpheus {
 				unsigned char* pixel_data = nullptr;
 				std::unique_ptr<unsigned char[]> pixels_uc = nullptr;
 				std::unique_ptr<float[]> pixels_f = nullptr;
-				bool b_hdr;
+				bool b_hdr = false;
 				int comp;
 				int x;
 				int y;
@@ -764,8 +762,6 @@ namespace Morpheus {
 		rawData.resize(image.size() * 2);
 
 		size_t currentIndx = 0;
-
-		GLuint TextureName = 0;
 
 		DG::TEXTURE_FORMAT format;
 		if (params.bIsSRGB) {
@@ -1333,7 +1329,7 @@ namespace Morpheus {
 			ex.x = desc.Width;
 			ex.y = desc.Height;
 			size_t faces = 6;
-			size_t array_size = desc.ArraySize / 6;
+			size_t array_size = desc.ArraySize / faces;
 			tex.reset(new gli::texture_cube_array(format, ex, array_size, desc.MipLevels));
 			break;
 		}
