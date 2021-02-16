@@ -239,3 +239,6 @@ for (auto& obj : insts) {
 spriteBatch->End();
 ```
 
+This example uses the sprite batch to draw a bunch of different colored sprites to the screen:
+
+![SpriteBatchImg](images/vid2.gif)
