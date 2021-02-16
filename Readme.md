@@ -2,6 +2,8 @@
 
 ![Gun1](images/gun1.png)
 
+![Gun2](images/gun2.png)
+
 Morpheus is a realtime graphics engine built ontop of the [DiligentEngine](https://github.com/DiligentGraphics/DiligentEngine) API. Morpheus comes with physically based renderer with spherical harmonics based irradiance. It is currently under development and intended mostly as an educational hobby project.
 
 The [original version](https://github.com/UniqueUpToPermutation/Morpheus) of this engine was written in OpenGL, but I have migrated to DiligentEngine because I run into a number of limitations with OpenGL, and Vulkan is too verbose for my liking. DiligentEngine is a thin abstraction layer on top of Direct3D12/11, Vulkan, Metal and OpenGL, and I've quite enjoyed working with it and recommend it for other who are interested.
