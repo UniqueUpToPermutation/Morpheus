@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 
 	GeometryResource* groundMesh;
 	MaterialResource* groundMaterial;
-	content->LoadMesh("ground.obj", "brick.json", &groundMesh, &groundMaterial);
+	content->LoadMesh("ground.obj", "wood1/material.json", &groundMesh, &groundMaterial);
 	
 	auto groundNode = root.CreateChild();
 	groundNode.Add<GeometryComponent>(groundMesh);
