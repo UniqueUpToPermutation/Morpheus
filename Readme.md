@@ -1,18 +1,18 @@
 # Morpheus Graphics Engine
 
+Morpheus is a realtime graphics engine built ontop of the low-level [DiligentEngine](https://github.com/DiligentGraphics/DiligentEngine) graphics API. Morpheus comes with a physically based renderer with spherical harmonics based irradiance. Morpheus is currently under development and is intended mostly as an educational hobby project.
+
 ![Gun1](images/gun1.png)
 
 ![Gun2](images/gun2.png)
 
-Morpheus is a realtime graphics engine built ontop of the [DiligentEngine](https://github.com/DiligentGraphics/DiligentEngine) API. Morpheus comes with physically based renderer with spherical harmonics based irradiance. It is currently under development and intended mostly as an educational hobby project.
-
-The [original version](https://github.com/UniqueUpToPermutation/Morpheus) of this engine was written in OpenGL, but I have migrated to DiligentEngine because I run into a number of limitations with OpenGL, and Vulkan is too verbose for my liking. DiligentEngine is a thin abstraction layer on top of Direct3D12/11, Vulkan, Metal and OpenGL, and I've quite enjoyed working with it and recommend it for other who are interested.
+The [original version](https://github.com/UniqueUpToPermutation/Morpheus) of this engine was written in OpenGL, but I have migrated to DiligentEngine because I've run into a number of limitations with OpenGL, and Vulkan is too verbose for my liking. DiligentEngine is a thin abstraction layer on top of Direct3D12/11, Vulkan, Metal and OpenGL, and I've quite enjoyed working with it and recommend it for other who are interested.
 
 ## Features
 
 Everything in my graphics engine is currently a work in progress. However, there are a number of features that are currently in the engine:
 
-- **Physically-Based Forward Renderer** (see **DefaultRenderer** class): the shading model underlying the renderer is based off the one used in [Unreal Engine 4](https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf). For an efficient representation of the irradiance field, I compute and transform spherical harmonics coefficients via the technique in [Ramamoorthi et al.](https://cseweb.ucsd.edu/~ravir/papers/envmap/envmap.pdf)
+- **Physically-Based Forward Renderer** (see **DefaultRenderer** class): the shading model underlying the renderer is based off the one used in [Unreal Engine 4](https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf). For efficiently representing the irradiance field, I compute and transform spherical harmonics coefficients via the technique in [Ramamoorthi et al.](https://cseweb.ucsd.edu/~ravir/papers/envmap/envmap.pdf)
 - **Thread Pool/Task Scheduler**: The engine includes a thread pool and task scheduler for asyncronous and parallel computation. The design was inspired by [Naughty Dog's GDC Talk](https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine), but I don't use fibers.
 - **Resource Manager** (see **ResourceManager** class): The engine includes a resource manager that allows the user to load the following classes of content:
   - *Shaders*: Shader programs can be loaded from embedded HLSL code. I have built a shader preprocessor that resolves #include directives appropriately and emplaces proper #line directives.
