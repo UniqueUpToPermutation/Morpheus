@@ -4,7 +4,7 @@
 #include <Engine/Components/SkyboxComponent.hpp>
 #include <Engine/Brdf.hpp>
 #include <Engine/PostProcessor.hpp>
-
+#include <Engine/DynamicGlobalsBuffer.hpp>
 #include <Engine/Systems/RendererBridge.hpp>
 
 namespace DG = Diligent;
@@ -21,38 +21,6 @@ using float4x4 = DG::float4x4;
 #include "MapHelper.hpp"
 
 namespace Morpheus {
-
-	template <typename T>
-	class DynamicGlobalsBuffer {
-	private:
-		DG::IBuffer* mBuffer;
-
-	public:
-		inline DynamicGlobalsBuffer(DG::IRenderDevice* device) {
-			DG::BufferDesc CBDesc;
-			CBDesc.Name           = "VS constants CB";
-			CBDesc.uiSizeInBytes  = sizeof(T);
-			CBDesc.Usage          = DG::USAGE_DYNAMIC;
-			CBDesc.BindFlags      = DG::BIND_UNIFORM_BUFFER;
-			CBDesc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-
-			mBuffer = nullptr;
-			device->CreateBuffer(CBDesc, nullptr, &mBuffer);
-		}
-
-		inline ~DynamicGlobalsBuffer() {
-			mBuffer->Release();
-		}
-
-		inline DG::IBuffer* Get() {
-			return mBuffer;
-		}
-
-		inline void Write(DG::IDeviceContext* context, const T& t) {
-			DG::MapHelper<T> data(context, mBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
-			*data = t;
-		}
-	};
 
 	class DefaultRenderer : public IRenderer {
 	private:

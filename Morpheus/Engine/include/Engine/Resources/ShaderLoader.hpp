@@ -29,7 +29,7 @@ namespace Morpheus {
 	class ShaderPreprocessor {
 	private:
 		void Load(const std::string& source,
-			EmbeddedFileLoader* fileLoader,
+			IVirtualFileSystem* fileLoader,
 			const std::string& path,
 			const ShaderPreprocessorConfig* defaults,
 			const ShaderPreprocessorConfig* overrides,
@@ -39,7 +39,7 @@ namespace Morpheus {
 
 	public:
 		void Load(const std::string& source,
-			EmbeddedFileLoader* fileLoader,
+			IVirtualFileSystem* fileLoader,
 			ShaderPreprocessorOutput* output, 
 			const ShaderPreprocessorConfig* defaults, 
 			const ShaderPreprocessorConfig* overrides = nullptr);
@@ -54,7 +54,7 @@ namespace Morpheus {
 		ShaderLoader(ResourceManager* manager);
 
 		void Load(const std::string& source,
-			EmbeddedFileLoader* fileLoader,
+			IVirtualFileSystem* fileLoader,
 			ShaderPreprocessorOutput* output,
 			const ShaderPreprocessorConfig* overrides = nullptr);
 	};

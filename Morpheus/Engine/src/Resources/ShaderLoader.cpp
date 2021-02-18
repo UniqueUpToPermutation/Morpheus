@@ -24,7 +24,7 @@ namespace Morpheus {
 	}
 
 	void ShaderPreprocessor::Load(const std::string& source,
-		EmbeddedFileLoader* fileLoader,
+		IVirtualFileSystem* fileLoader,
 		const std::string& path,
 		const ShaderPreprocessorConfig* defaults,
 		const ShaderPreprocessorConfig* overrides,
@@ -122,7 +122,7 @@ namespace Morpheus {
 	}
 
 	void ShaderPreprocessor::Load(const std::string& source,
-		EmbeddedFileLoader* fileLoader,
+		IVirtualFileSystem* fileLoader,
 		ShaderPreprocessorOutput* output,
 		const ShaderPreprocessorConfig* defaults, 
 		const ShaderPreprocessorConfig* overrides) {
@@ -147,7 +147,7 @@ namespace Morpheus {
 	}
 
 	void ShaderLoader::Load(const std::string& source,
-		EmbeddedFileLoader* fileLoader,
+		IVirtualFileSystem* fileLoader,
 		ShaderPreprocessorOutput* output,
 		const ShaderPreprocessorConfig* overrides) {
 

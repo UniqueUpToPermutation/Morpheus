@@ -33,9 +33,8 @@ namespace Morpheus {
 		mLut->Release();
 	}
 
-	void CookTorranceLUT::Compute(ResourceManager* resourceManager,
+	void CookTorranceLUT::Compute(DG::IRenderDevice* device,
 		DG::IDeviceContext* context, 
-		DG::IRenderDevice* device,
 		uint Samples) {
 
 		ShaderPreprocessorConfig overrides;
@@ -57,8 +56,8 @@ namespace Morpheus {
 			"main"
 		);
 
-		ShaderResource* vsResource = resourceManager->Load<ShaderResource>(vsParams);
-		ShaderResource* psResource = resourceManager->Load<ShaderResource>(psParams);
+		auto vsResource = CompileEmbeddedShader(device, vsParams);
+		auto psResource = CompileEmbeddedShader(device, psParams);
 
 		DG::GraphicsPipelineStateCreateInfo psoInfo;
 		psoInfo.PSODesc.Name = "Precompute BRDF PSO";
@@ -71,8 +70,8 @@ namespace Morpheus {
 		psoInfo.GraphicsPipeline.SmplDesc.Count = 1;
 		psoInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
 		
-		psoInfo.pVS = vsResource->GetShader();
-		psoInfo.pPS = psResource->GetShader();
+		psoInfo.pVS = vsResource;
+		psoInfo.pPS = psResource;
 
 		DG::IPipelineState* pipelineState = nullptr;
 		device->CreateGraphicsPipelineState(psoInfo, &pipelineState);
@@ -142,7 +141,7 @@ namespace Morpheus {
 	}
 
 	void LightProbeProcessor::Initialize(
-		ResourceManager* resourceManager,
+		DG::IRenderDevice* device,
 		DG::TEXTURE_FORMAT irradianceFormat,
 		DG::TEXTURE_FORMAT prefilterEnvFormat,
 		const LightProbeProcessorConfig& config) {
@@ -152,8 +151,6 @@ namespace Morpheus {
 
 		mEnvironmentMapSamples = config.mEnvMapSamples;
 		
-		auto device = resourceManager->GetParent()->GetDevice();
-
 		ShaderPreprocessorConfig irradianceConfig;
 		ShaderPreprocessorConfig prefilterEnvConfig;
 		ShaderPreprocessorConfig irradianceSHConfig;
@@ -187,15 +184,10 @@ namespace Morpheus {
 			&irradianceSHConfig,
 			"main");
 
-		auto cubemapFaceVSResource = resourceManager->Load<ShaderResource>(vsParams);
-		auto irradiancePSResource = resourceManager->Load<ShaderResource>(irrPsParams);
-		auto environmentPSResource = resourceManager->Load<ShaderResource>(envPsParams);
-		auto irradianceSHCSResource = resourceManager->Load<ShaderResource>(irrSHParams);
-
-		auto cubemapFaceVS = cubemapFaceVSResource->GetShader();
-		auto irradiancePS = irradiancePSResource->GetShader();
-		auto environmentPS = environmentPSResource->GetShader();
-		auto irradianceSHCS = irradianceSHCSResource->GetShader();
+		auto cubemapFaceVS = CompileEmbeddedShader(device, vsParams);
+		auto irradiancePS = CompileEmbeddedShader(device, irrPsParams);
+		auto environmentPS = CompileEmbeddedShader(device, envPsParams);
+		auto irradianceSHCS = CompileEmbeddedShader(device, irrSHParams);
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -325,10 +317,10 @@ namespace Morpheus {
 			mSHIrradiancePipeline->CreateShaderResourceBinding(&mSHIrradianceSRB, true);
 		}
 
-		cubemapFaceVSResource->Release();
-		irradiancePSResource->Release();
-		environmentPSResource->Release();
-		irradianceSHCSResource->Release();
+		cubemapFaceVS->Release();
+		irradiancePS->Release();
+		environmentPS->Release();
+		irradianceSHCS->Release();
 	}
 
 	void LightProbeProcessor::ComputeIrradiance(DG::IDeviceContext* context, 

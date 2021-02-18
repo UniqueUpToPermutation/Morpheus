@@ -28,13 +28,11 @@ namespace Morpheus {
 			mPipelineState->Release();
 	}
 
-	void HDRIToCubemapConverter::Initialize(ResourceManager* resourceManager, 
+	void HDRIToCubemapConverter::Initialize(DG::IRenderDevice* device,
 		DG::TEXTURE_FORMAT cubemapFormat,
 		bool bConvertSRGBToLinear) {
 
 		mCubemapFormat = cubemapFormat;
-
-		auto device = resourceManager->GetParent()->GetDevice();
 
 		ShaderPreprocessorConfig config;
 		if (bConvertSRGBToLinear)
@@ -54,11 +52,8 @@ namespace Morpheus {
 			&config,
 			"main");
 
-		auto cubemapFaceVSResource = resourceManager->Load<ShaderResource>(vsParams);
-		auto cubemapFacePSResource = resourceManager->Load<ShaderResource>(psParams);
-
-		auto cubemapFaceVS = cubemapFaceVSResource->GetShader();
-		auto cubemapFacePS = cubemapFacePSResource->GetShader();
+		auto cubemapFaceVS = CompileEmbeddedShader(device, vsParams);
+		auto cubemapFacePS = CompileEmbeddedShader(device, psParams);
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -108,8 +103,8 @@ namespace Morpheus {
 			mPipelineState->CreateShaderResourceBinding(&mSRB, true);
 		}
 
-		cubemapFaceVSResource->Release();
-		cubemapFacePSResource->Release();
+		cubemapFaceVS->Release();
+		cubemapFacePS->Release();
 	}
 
 	void HDRIToCubemapConverter::Convert(DG::IDeviceContext* context, 

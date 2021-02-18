@@ -4,7 +4,6 @@ project(Engine-PBR CXX)
 
 set(SOURCE
 	main.cpp
-	${CMAKE_SOURCE_DIR}/ImGuizmo/ImGuizmo.cpp
 )
 
 set(SHADERS

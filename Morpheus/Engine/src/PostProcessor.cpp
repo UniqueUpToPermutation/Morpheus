@@ -36,11 +36,9 @@ namespace Morpheus {
 		*helper = params;
 	}
 
-	void PostProcessor::Initialize(ResourceManager* resourceManager,
+	void PostProcessor::Initialize(DG::IRenderDevice* device,
 		DG::TEXTURE_FORMAT renderTargetColorFormat,
 		DG::TEXTURE_FORMAT depthStencilFormat) {
-
-		auto device = resourceManager->GetParent()->GetDevice();
 
 		LoadParams<ShaderResource> vsParams("internal/FullscreenTriangle.vsh",
 			DG::SHADER_TYPE_VERTEX,
@@ -54,11 +52,8 @@ namespace Morpheus {
 			nullptr,
 			"main");
 
-		auto fullscreenTriangleVSResource = resourceManager->Load<ShaderResource>(vsParams);
-		auto postProcessorPSResource = resourceManager->Load<ShaderResource>(psParams);
-
-		auto fullscreenTriangleVS = fullscreenTriangleVSResource->GetShader();
-		auto postProcessorPS = postProcessorPSResource->GetShader();
+		auto fullscreenTriangleVS = CompileEmbeddedShader(device, vsParams);
+		auto postProcessorPS = CompileEmbeddedShader(device, psParams);
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -113,8 +108,8 @@ namespace Morpheus {
 			mPipeline->CreateShaderResourceBinding(&mShaderResources, true);
 		}
 
-		postProcessorPSResource->Release();
-		fullscreenTriangleVSResource->Release();
+		postProcessorPS->Release();
+		fullscreenTriangleVS->Release();
 
 		mInputFramebuffer = mShaderResources->GetVariableByName(DG::SHADER_TYPE_PIXEL, 
 			"mInputFramebuffer");

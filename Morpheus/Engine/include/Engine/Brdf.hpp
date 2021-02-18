@@ -21,9 +21,8 @@ namespace Morpheus {
 
 		~CookTorranceLUT();
 
-		void Compute(ResourceManager* resourceManager,
+		void Compute(DG::IRenderDevice* device,
 			DG::IDeviceContext* context, 
-			DG::IRenderDevice* device,
 			uint Samples=512);
 
 		inline DG::ITexture* GetLUT() {
@@ -76,7 +75,7 @@ namespace Morpheus {
 		~LightProbeProcessor();
 
 		void Initialize(
-			ResourceManager* resourceManager,
+			DG::IRenderDevice* device,
 			DG::TEXTURE_FORMAT irradianceFormat,
 			DG::TEXTURE_FORMAT prefilterEnvFormat,
 			const LightProbeProcessorConfig& config = LightProbeProcessorConfig());

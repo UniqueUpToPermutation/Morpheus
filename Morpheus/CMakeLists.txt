@@ -59,8 +59,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 		src
 		${CMAKE_SOURCE_DIR}/entt/src
 		${CMAKE_SOURCE_DIR}/json/single_include
-		${CMAKE_SOURCE_DIR}/mio/single_include
-		${CMAKE_SOURCE_DIR}/ImGuizmo
+		${CMAKE_SOURCE_DIR}/im3d
     )
 
     target_link_libraries(${APP_NAME}

@@ -61,7 +61,7 @@ namespace Morpheus {
 				std::cout << "Warning: skybox detected without light probe! Running light probe processor..." << std::endl;
 
 				LightProbeProcessor processor(device);
-				processor.Initialize(mResourceManager, 
+				processor.Initialize(device,
 					DG::TEX_FORMAT_RGBA16_FLOAT,
 					DG::TEX_FORMAT_RGBA16_FLOAT);
 

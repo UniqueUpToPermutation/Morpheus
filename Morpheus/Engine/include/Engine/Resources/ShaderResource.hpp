@@ -55,7 +55,6 @@ namespace Morpheus {
 
 		DG::IShader* SpawnOnGPU(DG::IRenderDevice* device);
 	};
-
 	template <>
 	struct LoadParams<ShaderResource> {
 		std::string mSource;
@@ -83,6 +82,31 @@ namespace Morpheus {
 			bCache(cache) {
 		}
 	};
+
+	DG::IShader* CompileShader(DG::IRenderDevice* device, 
+		const ShaderPreprocessorOutput& preprocessorOutput,
+		DG::SHADER_TYPE type, 
+		const std::string& name, 
+		const std::string& entryPoint);
+
+	DG::IShader* CompileEmbeddedShader(DG::IRenderDevice* device,
+		const std::string& source,
+		DG::SHADER_TYPE type, 
+		const std::string& name, 
+		const std::string& entryPoint,
+		const ShaderPreprocessorConfig* config = nullptr,
+		IVirtualFileSystem* fileLoader = EmbeddedFileLoader::GetGlobalInstance());
+
+	inline DG::IShader* CompileEmbeddedShader(DG::IRenderDevice* device,
+		const LoadParams<ShaderResource>& params,
+		IVirtualFileSystem* fileLoader = EmbeddedFileLoader::GetGlobalInstance()) {
+		return CompileEmbeddedShader(device, params.mSource,
+			params.mShaderType,
+			params.mName,
+			params.mEntryPoint,
+			params.mOverrides,
+			fileLoader);
+	}
 
 	template <>
 	class ResourceCache<ShaderResource> : public IResourceCache {

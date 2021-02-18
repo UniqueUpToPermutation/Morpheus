@@ -20,6 +20,31 @@ namespace Morpheus {
 		return shader;
 	}
 
+	DG::IShader* CompileShader(DG::IRenderDevice* device, 
+		const ShaderPreprocessorOutput& preprocessorOutput,
+		DG::SHADER_TYPE type, 
+		const std::string& name, 
+		const std::string& entryPoint) {
+		RawShader raw(preprocessorOutput, type, name, entryPoint);
+		return raw.SpawnOnGPU(device);
+	}
+
+	DG::IShader* CompileEmbeddedShader(DG::IRenderDevice* device,
+		const std::string& source,
+		DG::SHADER_TYPE type, 
+		const std::string& name, 
+		const std::string& entryPoint,
+		const ShaderPreprocessorConfig* config,
+		IVirtualFileSystem* fileLoader) {
+
+		ShaderPreprocessor preprocessor;
+		ShaderPreprocessorOutput output;
+		ShaderPreprocessorConfig defaultConfig;
+		preprocessor.Load(source, fileLoader, &output, &defaultConfig, config);
+		RawShader raw(output, type, name, entryPoint);
+		return raw.SpawnOnGPU(device);
+	}
+
 	// Loads resource and blocks until the resource is loaded
 	IResource* ResourceCache<ShaderResource>::Load(const void* params) {
 		auto params_cast = reinterpret_cast<const LoadParams<ShaderResource>*>(params);

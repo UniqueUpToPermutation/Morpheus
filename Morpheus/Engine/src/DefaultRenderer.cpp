@@ -296,9 +296,7 @@ namespace Morpheus {
 
 		auto context = mEngine->GetImmediateContext();
 
-		mCookTorranceLut.Compute(mEngine->GetResourceManager(),
-			context, 
-			mEngine->GetDevice());
+		mCookTorranceLut.Compute(mEngine->GetDevice(), context);
 
 		context->SetRenderTargets(0, nullptr, nullptr,
 			RESOURCE_STATE_TRANSITION_MODE_NONE);
@@ -306,7 +304,7 @@ namespace Morpheus {
 		auto swapDesc = mEngine->GetSwapChain()->GetDesc();
 		ReallocateIntermediateFramebuffer(swapDesc.Width, swapDesc.Height);
 
-		mPostProcessor.Initialize(mEngine->GetResourceManager(),
+		mPostProcessor.Initialize(mEngine->GetDevice(),
 			swapDesc.ColorBufferFormat,
 			swapDesc.DepthBufferFormat);
 	}

@@ -7,7 +7,7 @@ INCLUDE_DIRECTORIES(
 ${BULLET_PHYSICS_SOURCE_DIR}/src
 )
 LINK_LIBRARIES(
- BulletDynamics BulletCollision LinearMath
+	BulletDynamics BulletCollision LinearMath
 )
 
 # Include package for embedding shaders in source code
@@ -129,6 +129,7 @@ list(APPEND SOURCE
 	src/ThreadPool.cpp
 	src/ThreadTasks.cpp
 	src/SpriteBatch.cpp
+	src/Im3d.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -138,6 +139,7 @@ list(APPEND SOURCE
 	src/Resources/MaterialResource.cpp
 	src/Resources/GeometryResource.cpp
 	src/Resources/ShaderLoader.cpp
+	src/Resources/EmbeddedFileLoader.cpp
 
 	src/Components/Transform.cpp
 	src/Components/SkyboxComponent.cpp
@@ -158,7 +160,8 @@ list(APPEND SOURCE
 	src/Systems/RendererBridge.cpp
 	src/Systems/Physics.cpp
 
-	../../lodepng/lodepng.cpp
+	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
+	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp
 	shader_rc.cpp
 )
 
@@ -184,6 +187,8 @@ list(APPEND INCLUDE
     include/Engine/SpriteBatch.hpp
     include/Engine/ThreadPool.hpp
     include/Engine/ThreadTasks.hpp
+	include/Engine/Im3d.hpp
+	include/Engine/DynamicGlobalsBuffer.hpp
 
     include/Engine/Materials/BasicTexturedMaterial.hpp
     include/Engine/Materials/ImageBasedLightingView.hpp
@@ -215,9 +220,10 @@ set_common_target_properties(Morpheus-Engine)
 target_include_directories(Morpheus-Engine
 PUBLIC
 	include
-	../../gli
-	../../gli/external
-	../../lodepng
+	${CMAKE_SOURCE_DIR}/gli
+	${CMAKE_SOURCE_DIR}/gli/external
+	${CMAKE_SOURCE_DIR}/lodepng
+	${CMAKE_SOURCE_DIR}/im3d
 	.
 )
 

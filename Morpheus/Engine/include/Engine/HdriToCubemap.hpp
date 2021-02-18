@@ -19,7 +19,7 @@ namespace Morpheus {
 		HDRIToCubemapConverter(DG::IRenderDevice* device);
 		~HDRIToCubemapConverter();
 
-		void Initialize(ResourceManager* resourceManager, 
+		void Initialize(DG::IRenderDevice* device, 
 			DG::TEXTURE_FORMAT cubemapFormat,
 			bool bConvertSRGBToLinear = false);
 

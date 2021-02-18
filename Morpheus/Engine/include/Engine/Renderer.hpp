@@ -9,7 +9,7 @@ namespace Morpheus {
 
 	class Scene;
 	class Camera;
-
+	
 	class IRenderer {
 	public:
 		virtual ~IRenderer() {

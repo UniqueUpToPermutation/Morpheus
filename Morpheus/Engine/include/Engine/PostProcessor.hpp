@@ -29,7 +29,7 @@ namespace Morpheus {
 		void SetAttributes(DG::IDeviceContext* context,
 			const PostProcessorParams& params);
 
-		void Initialize(ResourceManager* resourceManager, 
+		void Initialize(DG::IRenderDevice* device, 
 			DG::TEXTURE_FORMAT renderTargetColorFormat,
 			DG::TEXTURE_FORMAT depthStencilFormat);
 
