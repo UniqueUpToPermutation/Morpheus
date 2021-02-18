@@ -65,26 +65,21 @@ namespace Morpheus {
 		RendererParams mRenderer;
 	};
 
-	class Engine : public DG::NativeAppBase {
+	class Engine {
 	public:
 		Engine();
 		~Engine();
 
-		void ProcessCommandLine(const char* CmdLine) override final {
-		}
-		const char* GetAppTitle() const override final { 
+		const char* GetAppTitle() const { 
 			return mAppTitle.c_str(); 
 		}
 
-		void ProcessConfigParams(const EngineParams& params);
 		void Update(Scene* activeScene);
 		void Update(const update_callback_t& callback);
-		void Update(double CurrTime, double ElapsedTime) override;
-		void WindowResize(int width, int height) override;
-		void Render() override;
+		void WindowResize(int width, int height);
 		void Render(Scene* activeScene);
 		void RenderUI();
-		void Present() override;
+		void Present();
 
 		void SelectDeviceType();
 		void Startup(const EngineParams& params);
@@ -94,38 +89,30 @@ namespace Morpheus {
 		void Shutdown();
 		void CollectGarbage();
 		
-		void GetDesiredInitialWindowSize(int& width, int& height) override final
+		inline void GetDesiredInitialWindowSize(int& width, int& height) const
 		{
 			width  = mInitialWindowWidth;
 			height = mInitialWindowHeight;
 		}
 
-		GoldenImageMode GetGoldenImageMode() const override final
-		{
-			return mGoldenImgMode;
-		}
-
-		int GetExitCode() const override final
-		{
-			return mExitCode;
-		}
-
 #if PLATFORM_LINUX
-		bool OnGLContextCreated(Display* display, Window window) override final;
-		int HandleXEvent(XEvent* xev) override final;
+		bool OnGLContextCreated(Display* display, Window window);
+		int HandleXEvent(XEvent* xev);
 
 #if VULKAN_SUPPORTED
-		bool InitVulkan(xcb_connection_t* connection, uint32_t window) override final;
-		void HandleXCBEvent(xcb_generic_event_t* event) override final;
+		bool InitVulkan(xcb_connection_t* connection, uint32_t window);
+		void HandleXCBEvent(xcb_generic_event_t* event);
 #endif
 #endif
 
 #if PLATFORM_WIN32
-		void OnWindowCreated(HWND hWnd, LONG WindowWidth, LONG WindowHeight) override final;
-		LRESULT HandleWin32Message(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) override final;
+		void OnWindowCreated(HWND hWnd, LONG WindowWidth, LONG WindowHeight);
+		LRESULT HandleWin32Message(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 #endif
 
 	private:
+		void ProcessConfigParams(const EngineParams& params);
+		void Update(double CurrTime, double ElapsedTime);
 		void OnPreWindowResized();
 		void OnWindowResized(uint width, uint height);
 
@@ -184,10 +171,6 @@ namespace Morpheus {
 
 		std::unique_ptr<DG::ImGuiImplDiligent> mImGui;
 
-		GoldenImageMode mGoldenImgMode           = GoldenImageMode::None;
-		int             mGoldenImgPixelTolerance = 0;
-		int             mExitCode                = 0;
-
 		static Engine* mGlobalInstance;
 
 	public:
@@ -209,7 +192,7 @@ namespace Morpheus {
 		DG::float4x4 GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const;
 		DG::float4x4 GetAdjustedOrthoMatrix(const DG::float2& fCameraSize, float NearPlane, float FarPlane) const;
 
-		virtual bool IsReady() const override final
+		inline bool IsReady() const
 		{
 			return mPlatform && 
 				mPlatform->IsValid() && 

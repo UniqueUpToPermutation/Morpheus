@@ -856,11 +856,6 @@ namespace Morpheus
 		}
 	}
 
-	void Engine::Render()
-	{
-		throw std::runtime_error("Please pass a scene to as a parameter to Engine::Render!");
-	}
-
 	void Engine::Render(Scene* activeScene) {
 		EntityNode camera = EntityNode::Invalid();
 
