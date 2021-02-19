@@ -40,7 +40,7 @@ namespace Morpheus {
 			return mBuffer;
 		}
 
-		void Write(DG::IDeviceContext* context, const T& t) {
+		inline void Write(DG::IDeviceContext* context, const T& t) {
 			DG::MapHelper<T> data(context, mBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
 			*data = t;
 		}

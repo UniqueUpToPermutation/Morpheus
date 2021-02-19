@@ -25,8 +25,8 @@ struct VS_OUTPUT
 	
 	struct VS_INPUT
 	{
-		float4 m_positionSize : POSITION_SIZE;
-		float4 m_color        : COLOR;
+		float4 m_positionSize : ATTRIB0;
+		float4 m_color        : ATTRIB1;
 	};
 	
 	VS_OUTPUT main(VS_INPUT _in) 
@@ -124,7 +124,7 @@ struct VS_OUTPUT
 	float4 main(VS_OUTPUT _in): SV_Target
 	{
 		float4 ret = _in.m_color;
-		
+
 		#if   defined(LINES)
 			float d = abs(_in.m_edgeDistance) / _in.m_size;
 			d = smoothstep(1.0, 1.0 - (kAntialiasing / _in.m_size), d);

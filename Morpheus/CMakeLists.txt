@@ -115,3 +115,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(SpriteBatchTest)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(Im3dTest)
+endif()

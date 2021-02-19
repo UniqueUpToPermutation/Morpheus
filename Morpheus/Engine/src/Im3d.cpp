@@ -1,23 +1,43 @@
 #include <Engine/Im3d.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/Camera.hpp>
 
 #include "MapHelper.hpp"
 
 namespace Morpheus {
 
+	void Im3dGlobalsBuffer::Write(DG::IDeviceContext* context,
+			Camera* camera,
+			Engine* engine) {
+
+		auto& scDesc = engine->GetSwapChain()->GetDesc();
+
+		DG::float4x4 view = camera->GetView();
+		DG::float4x4 proj = camera->GetProjection(engine);
+		DG::float4x4 viewProj = view * proj;
+		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
+			Im3dGlobals{viewProj, DG::float2(scDesc.Width, scDesc.Height)});
+	}
+
 	Im3dRenderer::Im3dRenderer(DG::IRenderDevice* device, 
 			Im3dRendererFactory* factory,
 			uint bufferSize) :
-		mGlobals(device),
 		mGeometryBuffer(nullptr),
 		mPipelineStateVertices(factory->mPipelineStateVertices),
 		mPipelineStateLines(factory->mPipelineStateLines),
 		mPipelineStateTriangles(factory->mPipelineStateTriangles),
+		mVertexSRB(factory->mVertexSRB),
+		mLinesSRB(factory->mLinesSRB),
+		mTriangleSRB(factory->mTriangleSRB),
 		mBufferSize(bufferSize) {
 
 		mPipelineStateVertices->AddRef();
 		mPipelineStateTriangles->AddRef();
 		mPipelineStateLines->AddRef();
+
+		mVertexSRB->AddRef();
+		mLinesSRB->AddRef();
+		mTriangleSRB->AddRef();
 
 		DG::BufferDesc CBDesc;
 		CBDesc.Name 			= "Im3d Geometry Buffer";
@@ -30,41 +50,30 @@ namespace Morpheus {
 	}
 
 	void Im3dRendererFactory::Initialize(DG::IRenderDevice* device,
+		Im3dGlobalsBuffer* globals,
 		DG::TEXTURE_FORMAT backbufferColorFormat,
 		DG::TEXTURE_FORMAT backbufferDepthFormat,
 		uint backbufferMSAASamples) {
 
-		ShaderPreprocessorConfig vsPtConfig;
-		vsPtConfig.mDefines["POINTS"] = "1";
-		vsPtConfig.mDefines["VERTEX_SHADER"] = "1";
+		ShaderPreprocessorConfig vsTrianglesConfig;
+		vsTrianglesConfig.mDefines["TRIANGLES"] = "1";
+		vsTrianglesConfig.mDefines["VERTEX_SHADER"] = "1";
 
-		LoadParams<ShaderResource> vsPointsParams(
+		LoadParams<ShaderResource> vsTrianglesParams(
 			"internal/Im3d.hlsl",
 			DG::SHADER_TYPE_VERTEX,
-			"Im3d Point VS",
-			&vsPtConfig);
+			"Im3d Triangle VS",
+			&vsTrianglesConfig);
 
-		ShaderPreprocessorConfig vsLinesConfig;
-		vsLinesConfig.mDefines["LINES"] = "1";
-		vsLinesConfig.mDefines["VERTEX_SHADER"] = "1";
+		ShaderPreprocessorConfig vsOtherConfig;
+		vsOtherConfig.mDefines["POINTS"] = "1";
+		vsOtherConfig.mDefines["VERTEX_SHADER"] = "1";
 
-		LoadParams<ShaderResource> vsLinesParams(
+		LoadParams<ShaderResource> vsOtherParams(
 			"internal/Im3d.hlsl",
 			DG::SHADER_TYPE_VERTEX,
-			"Im3d Line VS",
-			&vsLinesConfig
-		);
-
-		ShaderPreprocessorConfig vsTriConfig;
-		vsTriConfig.mDefines["TRIANGLES"] = "1";
-		vsTriConfig.mDefines["VERTEX_SHADER"] = "1";
-
-		LoadParams<ShaderResource> vsTrisParams(
-			"internal/Im3d.hlsl",
-			DG::SHADER_TYPE_VERTEX,
-			"Im3d Tri VS",
-			&vsTriConfig
-		);
+			"Im3d Other VS",
+			&vsOtherConfig);
 
 		ShaderPreprocessorConfig gsPtConfig;
 		gsPtConfig.mDefines["POINTS"] = "1";
@@ -88,32 +97,59 @@ namespace Morpheus {
 			&gsLineConfig
 		);
 
-		ShaderPreprocessorConfig psConfig;
-		psConfig.mDefines["TRIANGLES"] = "1";
-		psConfig.mDefines["PIXEL_SHADER"] = "1";
+		ShaderPreprocessorConfig psTriangleConfig;
+		psTriangleConfig.mDefines["TRIANGLES"] = "1";
+		psTriangleConfig.mDefines["PIXEL_SHADER"] = "1";
 
-		LoadParams<ShaderResource> psParams(
+		LoadParams<ShaderResource> psTriangleParams(
 			"internal/Im3d.hlsl",
 			DG::SHADER_TYPE_PIXEL,
-			"Im3d PS",
-			&psConfig
+			"Im3d Triangle PS",
+			&psTriangleConfig
 		);
 
-		DG::IShader* vsPoints = CompileEmbeddedShader(device, vsPointsParams);
-		DG::IShader* vsLines = CompileEmbeddedShader(device, vsLinesParams);
-		DG::IShader* vsTriangles = CompileEmbeddedShader(device, vsTrisParams);
+		ShaderPreprocessorConfig psLinesConfig;
+		psLinesConfig.mDefines["LINES"] = "1";
+		psLinesConfig.mDefines["PIXEL_SHADER"] = "1";
+
+		LoadParams<ShaderResource> psLinesParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_PIXEL,
+			"Im3d Lines PS",
+			&psLinesConfig
+		);
+
+		ShaderPreprocessorConfig psPointConfig;
+		psPointConfig.mDefines["POINTS"] = "1";
+		psPointConfig.mDefines["PIXEL_SHADER"] = "1";
+
+		LoadParams<ShaderResource> psPointParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_PIXEL,
+			"Im3d Point PS",
+			&psPointConfig
+		);
+
+		DG::IShader* vsTriangles = CompileEmbeddedShader(device, vsTrianglesParams);
 		DG::IShader* gsPoints = CompileEmbeddedShader(device, gsPointsParams);
 		DG::IShader* gsLines = CompileEmbeddedShader(device, gsLinesParams);
-		DG::IShader* ps = CompileEmbeddedShader(device, psParams);
+		DG::IShader* psPoints = CompileEmbeddedShader(device, psPointParams);
+		DG::IShader* psLines = CompileEmbeddedShader(device, psLinesParams);
+		DG::IShader* psTriangles = CompileEmbeddedShader(device, psTriangleParams);
+		DG::IShader* vsOther = CompileEmbeddedShader(device, vsOtherParams);
+
+		size_t stride = sizeof(Im3d::VertexData);
+		size_t position_offset = offsetof(Im3d::VertexData, m_positionSize);
+		size_t color_offset = offsetof(Im3d::VertexData, m_color);
 
 		std::vector<DG::LayoutElement> layoutElements = {
 			// Position
 			DG::LayoutElement(0, 0, 4, DG::VT_FLOAT32, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, DG::LAYOUT_ELEMENT_AUTO_STRIDE, 
+				position_offset, stride, 
 				DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
 			// Color
-			DG::LayoutElement(1, 0, 4, DG::VT_UINT8, false, 
-				DG::LAYOUT_ELEMENT_AUTO_OFFSET, DG::LAYOUT_ELEMENT_AUTO_STRIDE, 
+			DG::LayoutElement(1, 0, 4, DG::VT_UINT8, true, 
+				color_offset, stride, 
 				DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
 		};
 
@@ -150,47 +186,56 @@ namespace Morpheus {
 		GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
 
 		PSOCreateInfo.pVS = vsTriangles;
-		PSOCreateInfo.pPS = ps;
+		PSOCreateInfo.pPS = psTriangles;
 
 		PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipelineStateTriangles);
-
+		mPipelineStateTriangles->GetStaticVariableByName(
+			DG::SHADER_TYPE_VERTEX, "cbContextData")->Set(globals->Get());
 
 		// Line Pipeline
 		GraphicsPipeline.PrimitiveTopology = DG::PRIMITIVE_TOPOLOGY_LINE_LIST;
-		PSOCreateInfo.pVS = vsLines;
+		PSOCreateInfo.pVS = vsOther;
 		PSOCreateInfo.pGS = gsLines;
-		PSOCreateInfo.pPS = ps;
+		PSOCreateInfo.pPS = psLines;
 
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipelineStateLines);
-
+		mPipelineStateLines->GetStaticVariableByName(
+			DG::SHADER_TYPE_VERTEX, "cbContextData")->Set(globals->Get());
+		mPipelineStateLines->GetStaticVariableByName(
+			DG::SHADER_TYPE_GEOMETRY, "cbContextData")->Set(globals->Get());				
 
 		// Point Pipeline
 		GraphicsPipeline.PrimitiveTopology = DG::PRIMITIVE_TOPOLOGY_POINT_LIST;
-		PSOCreateInfo.pVS = vsPoints;
+		PSOCreateInfo.pVS = vsOther;
 		PSOCreateInfo.pGS = gsPoints;
-		PSOCreateInfo.pPS = ps;
+		PSOCreateInfo.pPS = psLines;
 
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipelineStateVertices);
+		mPipelineStateVertices->GetStaticVariableByName(
+			DG::SHADER_TYPE_VERTEX, "cbContextData")->Set(globals->Get());
+		mPipelineStateVertices->GetStaticVariableByName(
+			DG::SHADER_TYPE_GEOMETRY, "cbContextData")->Set(globals->Get());				
 
+		mPipelineStateVertices->CreateShaderResourceBinding(&mVertexSRB, true);
+		mPipelineStateLines->CreateShaderResourceBinding(&mLinesSRB, true);
+		mPipelineStateTriangles->CreateShaderResourceBinding(&mTriangleSRB, true);
 
-		vsPoints->Release();
-		vsLines->Release();
 		vsTriangles->Release();
+		vsOther->Release();
 		gsPoints->Release();
 		gsLines->Release();
-		ps->Release();
+		psPoints->Release();
+		psLines->Release();
+		psTriangles->Release();
 	}
 
 	void Im3dRenderer::Draw(DG::IDeviceContext* deviceContext,
-		const Im3dGlobals& globals, 
 		Im3d::Context* im3dContext) {
 		uint drawListCount = im3dContext->getDrawListCount();
 
 		DG::IPipelineState* currentPipelineState = nullptr;
-
-		mGlobals.Write(deviceContext, globals);
 
 		uint offsets[] = {0};
 		deviceContext->SetVertexBuffers(0, 1, 
@@ -206,25 +251,31 @@ namespace Morpheus {
 					if (currentPipelineState != mPipelineStateTriangles) {
 						currentPipelineState = mPipelineStateTriangles;
 						deviceContext->SetPipelineState(currentPipelineState);
+						deviceContext->CommitShaderResources(mTriangleSRB, 
+							DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 					}
 					break;
 				case Im3d::DrawPrimitive_Lines:
 					if (currentPipelineState != mPipelineStateLines) {
 						currentPipelineState = mPipelineStateLines;
 						deviceContext->SetPipelineState(currentPipelineState);
+						deviceContext->CommitShaderResources(mLinesSRB, 
+							DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 					}
 					break;
 				case Im3d::DrawPrimitive_Points:
 					if (currentPipelineState != mPipelineStateVertices) {
 						currentPipelineState = mPipelineStateVertices;
 						deviceContext->SetPipelineState(currentPipelineState);
+						deviceContext->CommitShaderResources(mVertexSRB, 
+							DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 					}
 					break;
 			}
 
 			uint currentIndx = 0;
 			while (currentIndx < drawList->m_vertexCount) {
-				uint vertsToRender = std::min(mBufferSize, drawListCount - currentIndx);
+				uint vertsToRender = std::min(mBufferSize, drawList->m_vertexCount - currentIndx);
 
 				{
 					DG::MapHelper<Im3d::VertexData> vertexMap(deviceContext, mGeometryBuffer, 
@@ -235,6 +286,8 @@ namespace Morpheus {
 
 				DG::DrawAttribs drawAttribs;
 				drawAttribs.NumVertices = vertsToRender;
+				drawAttribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
+
 				deviceContext->Draw(drawAttribs);
 
 				currentIndx += vertsToRender;
