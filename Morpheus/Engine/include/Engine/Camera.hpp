@@ -29,8 +29,12 @@ namespace Morpheus {
 		Camera(CameraType type = CameraType::PERSPECTIVE);
 		Camera(const Camera& other);
 
+		// Does not take into account the transform of this node
 		DG::float4x4 GetView() const;
+		// Does not take into account the transform of this node
 		DG::float4x4 GetProjection(Engine* engine) const;
+		// Does not take into account the transform of this node
+		DG::float4x4 GetViewToWorld(EntityNode selfNode) const;
 		DG::float3 GetEye() const;
 
 		inline void SetEye(const DG::float3& eye) {
@@ -48,9 +52,9 @@ namespace Morpheus {
 		}
 
 		inline void LookAt(float x, float y, float z) {
-			mEye.x = x;
-			mEye.y = y;
-			mEye.z = z;
+			mLookAt.x = x;
+			mLookAt.y = y;
+			mLookAt.z = z;
 		}
 
 		inline float GetFieldOfView() const {
@@ -102,5 +106,14 @@ namespace Morpheus {
 		inline void SetNearPlane(const float z) {
 			mNearPlane = z;
 		}
+
+		static void ComputeTransformations(
+			EntityNode cameraNode,
+			Engine* engine,
+			DG::float3* eye,
+			DG::float3* lookAt,
+			DG::float4x4* view,
+			DG::float4x4* proj,
+			DG::float4x4* viewProj);
 	};
 }

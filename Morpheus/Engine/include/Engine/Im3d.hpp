@@ -25,15 +25,11 @@ namespace Morpheus {
 			DynamicGlobalsBuffer<Im3dGlobals>(device) {
 		}
 
-		inline void Write(DG::IDeviceContext* context, 
+		void Write(DG::IDeviceContext* context, 
 			const DG::float4x4& viewProjection,
-			const DG::float2& screenSize) {
-			DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
-				Im3dGlobals{viewProjection, screenSize});
-		}
-
+			const DG::float2& screenSize);
 		void Write(DG::IDeviceContext* context,
-			Camera* camera,
+			EntityNode camera,
 			Engine* engine);
 	};
 

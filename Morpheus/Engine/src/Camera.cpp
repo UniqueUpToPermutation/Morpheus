@@ -1,6 +1,35 @@
 #include <Engine/Camera.hpp>
+#include <Engine/Components/Transform.hpp>
 
 namespace Morpheus {
+	void Camera::ComputeTransformations(
+		EntityNode cameraNode,
+		Engine* engine,
+		DG::float3* eye,
+		DG::float3* lookAt,
+		DG::float4x4* view,
+		DG::float4x4* proj,
+		DG::float4x4* viewProj) {
+
+		auto& camera = cameraNode.Get<Camera>();
+		auto transform = cameraNode.TryGet<MatrixTransformCache>();
+
+		*eye = camera.GetEye();
+		*lookAt = camera.GetLookAt();
+		*view = camera.GetView();
+		*proj = camera.GetProjection(engine);
+
+		if (transform) {
+			auto camera_transform_mat = transform->mCache;
+			auto camera_transform_inv = camera_transform_mat.Inverse();
+			(*view) = camera_transform_inv * (*view);
+			(*eye) = (*eye) * camera_transform_mat;
+			(*lookAt) = (*lookAt) * camera_transform_mat;
+		}
+
+		*viewProj = (*view) * (*proj);
+	}
+
 	Camera::Camera(CameraType type) :
 		mType(type) {	
 	}
@@ -49,5 +78,9 @@ namespace Morpheus {
 
 	DG::float3 Camera::GetEye() const {
 		return mEye;
+	}
+
+	DG::float4x4 Camera::GetViewToWorld(EntityNode selfNode) const {
+
 	}
 }

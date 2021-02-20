@@ -119,3 +119,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(Im3dTest)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(Im3dGizmo)
+endif()

@@ -67,17 +67,21 @@ int main(int argc, char** argv) {
 		Im3d::Vertex(-0.25f, -0.75f, 0.0f, Im3d::Color_Red);
 		Im3d::End();
 
-		Im3d::BeginLineStrip();
-		Im3d::Vertex(-0.75f, 0.25f, 0.0f, Im3d::Color_Blue);
-		Im3d::Vertex(-0.5f, 0.75f, 0.0f, Im3d::Color_Green);
-		Im3d::Vertex(-0.25f, 0.25f, 0.0f, Im3d::Color_Red);
+		Im3d::BeginLineLoop();
+		Im3d::Vertex(-0.75f, 0.25f, 0.0f, 4.0f, Im3d::Color_Blue);
+		Im3d::Vertex(-0.5f, 0.75f, 0.0f, 4.0f, Im3d::Color_Green);
+		Im3d::Vertex(-0.25f, 0.25f, 0.0f, 4.0f, Im3d::Color_Red);
 		Im3d::End();
 
-		Im3d::DrawPoint(Im3d::Vec3(0.0f, 0.0f, 0.0f), 50.0f, Im3d::Color_White);
+		Im3d::DrawPoint(Im3d::Vec3(0.5f, 0.5f, 0.0f), 
+			50.0f, Im3d::Color_Black);
+
+		Im3d::DrawCircleFilled(Im3d::Vec3(0.5f, -0.5f, 0.0f), 
+			Im3d::Vec3(0.0f, 0.0f, -1.0f), 0.25f);
 
 		Im3d::EndFrame();
 
-		im3dglobals->Write(context, scene->GetCamera(), &en);
+		im3dglobals->Write(context, scene->GetCameraNode(), &en);
 		im3drenderer->Draw(context);
 
 		en.RenderUI();
@@ -87,5 +91,6 @@ int main(int argc, char** argv) {
 	im3drenderer.reset();
 	im3dglobals.reset();
 	scene.reset();
+
 	en.Shutdown();
 }

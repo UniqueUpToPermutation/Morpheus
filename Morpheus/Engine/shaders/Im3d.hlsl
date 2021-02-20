@@ -65,12 +65,12 @@ struct VS_OUTPUT
 			ret.m_uv = float2(0.0, 0.0);
 			out_.Append(ret);
 			
-			ret.m_position = float4(_in[0].m_position.xy + float2( 1.0, -1.0) * scale * _in[0].m_position.w, _in[0].m_position.zw);
-			ret.m_uv = float2(1.0, 0.0);
-			out_.Append(ret);
-			
 			ret.m_position = float4(_in[0].m_position.xy + float2(-1.0,  1.0) * scale * _in[0].m_position.w, _in[0].m_position.zw);
 			ret.m_uv = float2(0.0, 1.0);
+			out_.Append(ret);
+
+			ret.m_position = float4(_in[0].m_position.xy + float2( 1.0, -1.0) * scale * _in[0].m_position.w, _in[0].m_position.zw);
+			ret.m_uv = float2(1.0, 0.0);
 			out_.Append(ret);
 			
 			ret.m_position = float4(_in[0].m_position.xy + float2( 1.0,  1.0) * scale * _in[0].m_position.w, _in[0].m_position.zw);
@@ -92,29 +92,32 @@ struct VS_OUTPUT
 			float2 tng1 = tng0 * _in[1].m_size / uViewport;
 			tng0 = tng0 * _in[0].m_size / uViewport;
 		
-			VS_OUTPUT ret;
+			VS_OUTPUT ret_start;
+			VS_OUTPUT ret_end;
 			
-		 // line start
-			ret.m_size = _in[0].m_size;
-			ret.m_color = _in[0].m_color;
-			ret.m_uv = float2(0.0, 0.0);
-			ret.m_position = float4((pos0 - tng0) * _in[0].m_position.w, _in[0].m_position.zw); 
-			ret.m_edgeDistance = -_in[0].m_size;
-			out_.Append(ret);
-			ret.m_position = float4((pos0 + tng0) * _in[0].m_position.w, _in[0].m_position.zw);
-			ret.m_edgeDistance = _in[0].m_size;
-			out_.Append(ret);
+			ret_start.m_size = _in[0].m_size;
+			ret_start.m_color = _in[0].m_color;
+			ret_start.m_uv = float2(0.0, 0.0);
+
+			ret_end.m_size = _in[1].m_size;
+			ret_end.m_color = _in[1].m_color;
+			ret_end.m_uv = float2(1.0, 1.0);
+
+			ret_start.m_position = float4((pos0 - tng0) * _in[0].m_position.w, _in[0].m_position.zw); 
+			ret_start.m_edgeDistance = -_in[0].m_size;
+			out_.Append(ret_start);
 			
-		 // line end
-			ret.m_size = _in[1].m_size;
-			ret.m_color = _in[1].m_color;
-			ret.m_uv = float2(1.0, 1.0);
-			ret.m_position = float4((pos1 - tng1) * _in[1].m_position.w, _in[1].m_position.zw);
-			ret.m_edgeDistance = -_in[1].m_size;
-			out_.Append(ret);
-			ret.m_position = float4((pos1 + tng1) * _in[1].m_position.w, _in[1].m_position.zw);
-			ret.m_edgeDistance = _in[1].m_size;
-			out_.Append(ret);
+			ret_end.m_position = float4((pos1 - tng1) * _in[1].m_position.w, _in[1].m_position.zw);
+			ret_end.m_edgeDistance = -_in[1].m_size;
+			out_.Append(ret_end);
+
+			ret_start.m_position = float4((pos0 + tng0) * _in[0].m_position.w, _in[0].m_position.zw);
+			ret_start.m_edgeDistance = _in[0].m_size;
+			out_.Append(ret_start);
+
+			ret_end.m_position = float4((pos1 + tng1) * _in[1].m_position.w, _in[1].m_position.zw);
+			ret_end.m_edgeDistance = _in[1].m_size;
+			out_.Append(ret_end);
 		}
 	
 	#endif

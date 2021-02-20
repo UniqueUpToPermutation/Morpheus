@@ -7,16 +7,29 @@
 namespace Morpheus {
 
 	void Im3dGlobalsBuffer::Write(DG::IDeviceContext* context,
-			Camera* camera,
+			EntityNode camera,
 			Engine* engine) {
 
 		auto& scDesc = engine->GetSwapChain()->GetDesc();
 
-		DG::float4x4 view = camera->GetView();
-		DG::float4x4 proj = camera->GetProjection(engine);
-		DG::float4x4 viewProj = view * proj;
+		DG::float3 eye;
+		DG::float3 lookAt;
+		DG::float4x4 view;
+		DG::float4x4 proj;
+		DG::float4x4 viewProj;
+
+		Camera::ComputeTransformations(camera, engine,
+			&eye, &lookAt, &view, &proj, &viewProj);
+
 		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
 			Im3dGlobals{viewProj, DG::float2(scDesc.Width, scDesc.Height)});
+	}
+
+	void Im3dGlobalsBuffer::Write(DG::IDeviceContext* context, 
+		const DG::float4x4& viewProjection,
+		const DG::float2& screenSize) {
+		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
+			Im3dGlobals{viewProjection, screenSize});
 	}
 
 	Im3dRenderer::Im3dRenderer(DG::IRenderDevice* device, 
@@ -210,7 +223,7 @@ namespace Morpheus {
 		GraphicsPipeline.PrimitiveTopology = DG::PRIMITIVE_TOPOLOGY_POINT_LIST;
 		PSOCreateInfo.pVS = vsOther;
 		PSOCreateInfo.pGS = gsPoints;
-		PSOCreateInfo.pPS = psLines;
+		PSOCreateInfo.pPS = psPoints;
 
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipelineStateVertices);
 		mPipelineStateVertices->GetStaticVariableByName(
