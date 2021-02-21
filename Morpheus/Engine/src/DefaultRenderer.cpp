@@ -158,9 +158,12 @@ namespace Morpheus {
         defaultNormalSRV->SetSampler(mDefaultSampler);
 
 		auto textureCache = mEngine->GetResourceManager()->GetCache<TextureResource>();
-		mWhiteTexture = textureCache->MakeResource(whiteTex, "WHITE_TEXTURE");
-		mBlackTexture = textureCache->MakeResource(blackTex, "BLACK_TEXTURE");
-		mDefaultNormalTexture = textureCache->MakeResource(defaultNormalTex, "DEFAULT_NORMAL_TEXTURE");
+		mWhiteTexture = textureCache->MakeResource(
+			whiteTex, "WHITE_TEXTURE");
+		mBlackTexture = textureCache->MakeResource(
+			blackTex, "BLACK_TEXTURE");
+		mDefaultNormalTexture = textureCache->MakeResource(
+			defaultNormalTex, "DEFAULT_NORMAL_TEXTURE");
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
