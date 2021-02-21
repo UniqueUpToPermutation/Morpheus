@@ -33,8 +33,7 @@ namespace Morpheus {
 		DG::float4x4 GetView() const;
 		// Does not take into account the transform of this node
 		DG::float4x4 GetProjection(Engine* engine) const;
-		// Does not take into account the transform of this node
-		DG::float4x4 GetViewToWorld(EntityNode selfNode) const;
+		
 		DG::float3 GetEye() const;
 
 		inline void SetEye(const DG::float3& eye) {

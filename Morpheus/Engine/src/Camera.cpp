@@ -79,8 +79,4 @@ namespace Morpheus {
 	DG::float3 Camera::GetEye() const {
 		return mEye;
 	}
-
-	DG::float4x4 Camera::GetViewToWorld(EntityNode selfNode) const {
-
-	}
 }

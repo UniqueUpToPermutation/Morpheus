@@ -20,7 +20,6 @@
 #include <Engine/InputController.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Scene.hpp>
-#include <Engine/Renderer.hpp>
 #include <Engine/Entity.hpp>
 #include <Engine/ThreadPool.hpp>
 
@@ -63,6 +62,18 @@ namespace Morpheus {
 		ThreadParams mThreads;
 		WindowParams mWindow;
 		RendererParams mRenderer;
+	};
+
+	class IEngineComponent {
+	public:
+		virtual void Initialize(Engine* engine) = 0;
+		virtual void InitializeSystems(Scene* scene) = 0;
+
+		virtual IRenderer* ToRenderer();
+		virtual const IRenderer* ToRenderer() const;
+
+		virtual ~IEngineComponent() {
+		}
 	};
 
 	class Engine {

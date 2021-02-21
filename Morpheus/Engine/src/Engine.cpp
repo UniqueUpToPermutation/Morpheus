@@ -53,6 +53,14 @@ using namespace Diligent;
 
 namespace Morpheus
 {
+	IRenderer* IEngineComponent::ToRenderer() {
+		return nullptr;
+	}
+
+	const IRenderer* IEngineComponent::ToRenderer() const {
+		return nullptr;
+	}
+
 	Engine* Engine::mGlobalInstance = nullptr;
 
 	Engine::Engine()
@@ -76,9 +84,9 @@ namespace Morpheus
 		mPlatform->Initialize(this, params);
 
 		mResourceManager = new ResourceManager(this, &mThreadPool);
-		mRenderer = new DefaultRenderer(this);
+		mRenderer = new DefaultRenderer();
 
-		mRenderer->Initialize();
+		mRenderer->Initialize(this);
 	}
 
 	DG::float4x4 Engine::GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const

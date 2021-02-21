@@ -2,6 +2,7 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
 #include <Engine/SpriteBatch.hpp>
 #include <Engine/Engine.hpp>
+#include <Engine/Renderer.hpp>
 
 using namespace DG;
 

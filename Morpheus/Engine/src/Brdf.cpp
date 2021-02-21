@@ -9,16 +9,17 @@
 #include "MapHelper.hpp"
 
 namespace Morpheus {
-	CookTorranceLUT::CookTorranceLUT(DG::IRenderDevice* device, 
-		uint NdotVSamples, 
-		uint RoughnessSamples) {
 
-		mLut = nullptr;
+	void CookTorranceLUT::Compute(DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		uint surfaceAngleSamples, 
+		uint roughnessSamples,
+		uint integrationSamples) {
 
 		DG::TextureDesc desc;
 		desc.BindFlags = DG::BIND_SHADER_RESOURCE | DG::BIND_RENDER_TARGET;
-		desc.Width = NdotVSamples;
-		desc.Height = RoughnessSamples;
+		desc.Width = surfaceAngleSamples;
+		desc.Height = roughnessSamples;
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.Format = DG::TEX_FORMAT_RG16_FLOAT;
 		desc.MipLevels = 1;
@@ -27,18 +28,9 @@ namespace Morpheus {
     	desc.Usage     = DG::USAGE_DEFAULT;
 
 		device->CreateTexture(desc, nullptr, &mLut);
-	}
-
-	CookTorranceLUT::~CookTorranceLUT() {
-		mLut->Release();
-	}
-
-	void CookTorranceLUT::Compute(DG::IRenderDevice* device,
-		DG::IDeviceContext* context, 
-		uint Samples) {
 
 		ShaderPreprocessorConfig overrides;
-		overrides.mDefines["NUM_SAMPLES"] = std::to_string(Samples);
+		overrides.mDefines["NUM_SAMPLES"] = std::to_string(integrationSamples);
 
 		LoadParams<ShaderResource> vsParams(
 			"internal/FullscreenTriangle.vsh",

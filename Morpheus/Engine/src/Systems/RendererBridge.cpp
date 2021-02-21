@@ -4,6 +4,7 @@
 #include <Engine/Components/ResourceComponents.hpp>
 #include <Engine/LightProbe.hpp>
 #include <Engine/Brdf.hpp>
+#include <Engine/Renderer.hpp>
 
 #include <Engine/Resources/MaterialResource.hpp>
 #include <Engine/Resources/GeometryResource.hpp>

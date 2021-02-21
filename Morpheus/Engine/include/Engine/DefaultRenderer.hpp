@@ -41,6 +41,7 @@ namespace Morpheus {
 		TextureResource* mDefaultNormalTexture;
 
 		DG::ISampler* mDefaultSampler;
+		uint mInstanceBatchSize;
 
 		bool bUseSHIrradiance;
 
@@ -52,8 +53,7 @@ namespace Morpheus {
 		void WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe);
 
 	public:
-		DefaultRenderer(Engine* engine, 
-			uint instanceBatchSize = DEFAULT_INSTANCE_BATCH_SIZE);
+		DefaultRenderer(uint instanceBatchSize = DEFAULT_INSTANCE_BATCH_SIZE);
 		~DefaultRenderer();
 
 		void OnWindowResized(uint width, uint height) override;
@@ -65,13 +65,14 @@ namespace Morpheus {
 		void RequestConfiguration(DG::EngineMtlCreateInfo* info) override;
 		
 		void InitializeSystems(Scene* scene) override;
-		void Initialize();
+		void Initialize(Engine* engine) override;
 		void Render(Scene* scene, EntityNode cameraNode) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() const override;
 		uint GetMaxAnisotropy() const override;
 		uint GetMSAASamples() const override;
+		uint GetMaxRenderThreadCount() const override;
 
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const override;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const override;

@@ -10,18 +10,18 @@ namespace Morpheus {
 	class Scene;
 	class Camera;
 	
-	class IRenderer {
+	class IRenderer : public IEngineComponent {
 	public:
-		virtual ~IRenderer() {
-		}
 		virtual void RequestConfiguration(DG::EngineD3D11CreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineD3D12CreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineGLCreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineVkCreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineMtlCreateInfo* info) = 0;
-		virtual void Initialize() = 0;
-		virtual void Render(Scene* scene, EntityNode cameraNode) = 0;
+
+		virtual void Initialize(Engine* engine) = 0;
 		virtual void InitializeSystems(Scene* scene) = 0;
+
+		virtual void Render(Scene* scene, EntityNode cameraNode) = 0;
 
 		virtual DG::IRenderDevice* GetDevice() = 0;
 		virtual DG::IDeviceContext* GetImmediateContext() = 0;
@@ -31,6 +31,7 @@ namespace Morpheus {
 		virtual DG::FILTER_TYPE GetDefaultFilter() const = 0;
 		virtual uint GetMaxAnisotropy() const = 0;
 		virtual uint GetMSAASamples() const = 0;
+		virtual uint GetMaxRenderThreadCount() const = 0;
 
 		virtual void OnWindowResized(uint width, uint height) = 0;
 
@@ -41,5 +42,13 @@ namespace Morpheus {
 		virtual DG::ITextureView* GetLUTShaderResourceView() = 0;
 		virtual bool GetUseSHIrradiance() const = 0;
 		virtual bool GetUseIBL() const = 0;
+
+		IRenderer* ToRenderer() override {
+			return this;
+		}
+
+		const IRenderer* ToRenderer() const override {
+			return this;
+		}
 	};
 }

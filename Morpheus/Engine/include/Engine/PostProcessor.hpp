@@ -23,7 +23,7 @@ namespace Morpheus {
 		DG::IShaderResourceVariable* mInputFramebuffer;
 
 	public:
-		PostProcessor(DG::IRenderDevice* device);
+		PostProcessor();
 		~PostProcessor();
 
 		void SetAttributes(DG::IDeviceContext* context,

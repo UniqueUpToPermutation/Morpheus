@@ -8,19 +8,15 @@
 
 namespace Morpheus {
 
-	PostProcessor::PostProcessor(DG::IRenderDevice* device) :
+	PostProcessor::PostProcessor() :
 		mPipeline(nullptr),
 		mShaderResources(nullptr),
 		mParameterBuffer(nullptr) {
-
-		DG::CreateUniformBuffer(device, sizeof(PostProcessorParams),
-			"Post Processor Uniform Buffer", 
-			&mParameterBuffer);
 	}
 
 	PostProcessor::~PostProcessor() {
-		mParameterBuffer->Release();
-
+		if (mParameterBuffer)
+			mParameterBuffer->Release();
 		if (mPipeline)
 			mPipeline->Release();
 		if (mShaderResources)
@@ -39,6 +35,10 @@ namespace Morpheus {
 	void PostProcessor::Initialize(DG::IRenderDevice* device,
 		DG::TEXTURE_FORMAT renderTargetColorFormat,
 		DG::TEXTURE_FORMAT depthStencilFormat) {
+
+		DG::CreateUniformBuffer(device, sizeof(PostProcessorParams),
+			"Post Processor Uniform Buffer", 
+			&mParameterBuffer);
 
 		LoadParams<ShaderResource> vsParams("internal/FullscreenTriangle.vsh",
 			DG::SHADER_TYPE_VERTEX,

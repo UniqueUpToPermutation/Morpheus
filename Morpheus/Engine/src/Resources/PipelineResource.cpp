@@ -4,6 +4,7 @@
 #include <Engine/Resources/ShaderLoader.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
 #include <Engine/ThreadTasks.hpp>
+#include <Engine/Renderer.hpp>
 
 #include <fstream>
 

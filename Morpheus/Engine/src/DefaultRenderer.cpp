@@ -55,6 +55,7 @@
 using namespace Diligent;
 
 namespace Morpheus {
+
 	// Common sampler states
 	static const SamplerDesc Sam_LinearClamp
 	{
@@ -81,18 +82,21 @@ namespace Morpheus {
 	void DefaultRenderer::RequestConfiguration(DG::EngineMtlCreateInfo* info) {
 	}
 
-	DefaultRenderer::DefaultRenderer(Engine* engine,
-		uint instanceBatchSize) :
-		mCookTorranceLut(engine->GetDevice()),
+	DefaultRenderer::DefaultRenderer(uint instanceBatchSize) :
 		mInstanceBuffer(nullptr),
-		mEngine(engine), 
-		mPostProcessor(engine->GetDevice()),
 		mFrameBuffer(nullptr),
 		mResolveBuffer(nullptr),
 		mMSAADepthBuffer(nullptr),
-		mGlobals(engine->GetDevice()),
+		mInstanceBatchSize(instanceBatchSize),
 		bUseSHIrradiance(true) {
+	}
 
+	
+	void DefaultRenderer::Initialize(Engine* engine) {
+
+		mEngine = engine;
+		mGlobals.Initialize(engine->GetDevice());
+		
 		auto device = mEngine->GetDevice();
 		auto context = mEngine->GetImmediateContext();
 
@@ -101,7 +105,7 @@ namespace Morpheus {
 		desc.Usage = DG::USAGE_DYNAMIC;
 		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
 		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-		desc.uiSizeInBytes = sizeof(DG::float4x4) * instanceBatchSize;
+		desc.uiSizeInBytes = sizeof(DG::float4x4) * mInstanceBatchSize;
 
 		device->CreateBuffer(desc, nullptr, &mInstanceBuffer);
 
@@ -164,6 +168,20 @@ namespace Morpheus {
 			blackTex, "BLACK_TEXTURE");
 		mDefaultNormalTexture = textureCache->MakeResource(
 			defaultNormalTex, "DEFAULT_NORMAL_TEXTURE");
+
+		std::cout << "Precomputing Cook-Torrance BRDF..." << std::endl;
+
+		mCookTorranceLut.Compute(mEngine->GetDevice(), context);
+
+		context->SetRenderTargets(0, nullptr, nullptr,
+			RESOURCE_STATE_TRANSITION_MODE_NONE);
+
+		auto swapDesc = mEngine->GetSwapChain()->GetDesc();
+		ReallocateIntermediateFramebuffer(swapDesc.Width, swapDesc.Height);
+
+		mPostProcessor.Initialize(mEngine->GetDevice(),
+			swapDesc.ColorBufferFormat,
+			swapDesc.DepthBufferFormat);
 	}
 
 	DefaultRenderer::~DefaultRenderer() {
@@ -293,24 +311,6 @@ namespace Morpheus {
 	
 	void DefaultRenderer::OnWindowResized(uint width, uint height) {
 		ReallocateIntermediateFramebuffer(width, height);
-	}
-
-	void DefaultRenderer::Initialize() {
-		std::cout << "Precomputing Cook-Torrance BRDF..." << std::endl;
-
-		auto context = mEngine->GetImmediateContext();
-
-		mCookTorranceLut.Compute(mEngine->GetDevice(), context);
-
-		context->SetRenderTargets(0, nullptr, nullptr,
-			RESOURCE_STATE_TRANSITION_MODE_NONE);
-
-		auto swapDesc = mEngine->GetSwapChain()->GetDesc();
-		ReallocateIntermediateFramebuffer(swapDesc.Width, swapDesc.Height);
-
-		mPostProcessor.Initialize(mEngine->GetDevice(),
-			swapDesc.ColorBufferFormat,
-			swapDesc.DepthBufferFormat);
 	}
 
 	void DefaultRenderer::InitializeSystems(Scene* scene) {
@@ -538,6 +538,10 @@ namespace Morpheus {
 
 	uint DefaultRenderer::GetMSAASamples() const {
 		return 8;
+	}
+
+	uint DefaultRenderer::GetMaxRenderThreadCount() const {
+		return 1;
 	}
 
 	DG::TEXTURE_FORMAT DefaultRenderer::GetBackbufferColorFormat() const {

@@ -9,21 +9,29 @@
 
 namespace DG = Diligent;
 
+#define DEFAULT_LUT_SURFACE_ANGLE_SAMPLES 512
+#define DEFAULT_LUT_ROUGHNESS_SAMPLES 512
+#define DEFAULT_LUT_INTEGRATION_SAMPLES 512
+
 namespace Morpheus {
 	class CookTorranceLUT {
 	private:
 		DG::ITexture* mLut;
 
 	public:
-		CookTorranceLUT(DG::IRenderDevice* device, 
-			uint SamplesPerPixel=512, 
-			uint NdotVSamples=512);
-
-		~CookTorranceLUT();
+		inline CookTorranceLUT() : 
+			mLut(nullptr) {
+		}
+		~CookTorranceLUT() {
+			if (mLut)
+				mLut->Release();
+		}
 
 		void Compute(DG::IRenderDevice* device,
-			DG::IDeviceContext* context, 
-			uint Samples=512);
+			DG::IDeviceContext* context,
+			uint surfaceAngleSamples = DEFAULT_LUT_SURFACE_ANGLE_SAMPLES, 
+			uint roughnessSamples = DEFAULT_LUT_ROUGHNESS_SAMPLES,
+			uint integrationSamples = DEFAULT_LUT_INTEGRATION_SAMPLES);
 
 		inline DG::ITexture* GetLUT() {
 			return mLut;
