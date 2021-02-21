@@ -32,7 +32,6 @@ int main(int argc, char** argv) {
 #endif
 
 	Engine en;
-
 	en.Startup();
 
 	std::unique_ptr<Im3dRenderer> im3drenderer;
@@ -43,8 +42,8 @@ int main(int argc, char** argv) {
 		Im3dRendererFactory factory;
 		factory.Initialize(en.GetDevice(),
 			im3dglobals.get(),
-			en.GetRenderer()->GetBackbufferColorFormat(),
-			en.GetRenderer()->GetBackbufferDepthFormat());
+			en.GetSwapChain()->GetDesc().ColorBufferFormat,
+			en.GetSwapChain()->GetDesc().DepthBufferFormat);
 		im3drenderer.reset(new Im3dRenderer(en.GetDevice(), &factory));
 	}	
 	

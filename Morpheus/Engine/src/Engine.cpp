@@ -84,9 +84,10 @@ namespace Morpheus
 		mPlatform->Initialize(this, params);
 
 		mResourceManager = new ResourceManager(this, &mThreadPool);
-		mRenderer = new DefaultRenderer();
 
-		mRenderer->Initialize(this);
+		for (auto component : mComponents) {
+			component->Initialize(this);
+		}
 	}
 
 	DG::float4x4 Engine::GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const
@@ -189,10 +190,12 @@ namespace Morpheus
 
 		mThreadPool.Shutdown();
 
-		if (mRenderer) {
-			delete mRenderer;
-			mRenderer = nullptr;
+		for (auto component : mComponents) {
+			delete component;
 		}
+
+		mComponents.clear();
+		mRenderer = nullptr;
 
 		mImGui.reset();
 
@@ -871,7 +874,11 @@ namespace Morpheus
 			camera = activeScene->GetCameraNode();
 		}
 
-		mRenderer->Render(activeScene, camera);
+		if (mRenderer) {
+			mRenderer->Render(activeScene, camera);
+		} else {
+			throw std::runtime_error("Engine does not have renderer!");
+		}
 	}
 
 	void Engine::RenderUI() {
@@ -904,8 +911,8 @@ namespace Morpheus
 	void Engine::InitializeDefaultSystems(Scene* scene) {
 		std::cout << "Initializing default systems for new scene..." << std::endl;
 
-		if (mRenderer) {
-			mRenderer->InitializeSystems(scene);
+		for (auto& component : mComponents) {
+			component->InitializeSystems(scene);
 		}
 
 		scene->bInitializedByEngine = true;

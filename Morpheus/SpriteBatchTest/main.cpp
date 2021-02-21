@@ -1,4 +1,5 @@
 #include <Engine/Core.hpp>
+#include <Engine/DefaultRenderer.hpp>
 
 using namespace Morpheus;
 
@@ -17,6 +18,8 @@ int main(int argc, char** argv) {
 	EngineParams params;
 
 	Engine en;
+
+	en.AddComponent<DefaultRenderer>();
 	en.Startup(params);
 
 	Scene* scene = new Scene();

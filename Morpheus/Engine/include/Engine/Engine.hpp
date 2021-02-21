@@ -152,30 +152,31 @@ namespace Morpheus {
 		DG::ISwapChain*                  	mSwapChain 			= nullptr;
 		DG::GraphicsAdapterInfo            	mAdapterAttribs;
 		std::vector<DG::DisplayModeAttribs>	mDisplayModes;
+		std::vector<IEngineComponent*> 		mComponents;
 
 		InputController		mInputController;
-		IPlatform*			mPlatform			= nullptr;
-		ResourceManager* 	mResourceManager 	= nullptr;
-		IRenderer*			mRenderer 			= nullptr;
+		IPlatform*			mPlatform				= nullptr;
+		ResourceManager* 	mResourceManager 		= nullptr;
+		IRenderer*			mRenderer 				= nullptr;
 		ThreadPool			mThreadPool;
 
-		int          mInitialWindowWidth  	= 0;
-		int          mInitialWindowHeight 	= 0;
-		int          mValidationLevel     	= -1;
-		std::string  mAppTitle    			= "Morpheus";
-		DG::Uint32       mAdapterId   		= 0;
-		DG::ADAPTER_TYPE mAdapterType 		= DG::ADAPTER_TYPE_UNKNOWN;
-		std::string  mAdapterDetailsString;
-		int          mSelectedDisplayMode  	= 0;
-		bool         bVSync               	= false;
-		bool         bFullScreenMode      	= false;
-		bool         bUseSRGBSwapChain		= false;
-		bool         bShowAdaptersDialog  	= true;
-		bool         bShowUI              	= true;
-		bool         bForceNonSeprblProgs 	= true;
-		bool 		 bValid 				= true;
-		double       mCurrentTime          	= 0;
-		DG::Uint32   mMaxFrameLatency      	= DG::SwapChainDesc{}.BufferCount;
+		int          		mInitialWindowWidth  	= 0;
+		int          		mInitialWindowHeight 	= 0;
+		int         		mValidationLevel     	= -1;
+		std::string  		mAppTitle    			= "Morpheus";
+		DG::Uint32      	mAdapterId   			= 0;
+		DG::ADAPTER_TYPE 	mAdapterType 			= DG::ADAPTER_TYPE_UNKNOWN;
+		std::string  		mAdapterDetailsString;
+		int          		mSelectedDisplayMode  	= 0;
+		bool         		bVSync               	= false;
+		bool         		bFullScreenMode      	= false;
+		bool         		bUseSRGBSwapChain		= false;
+		bool         		bShowAdaptersDialog  	= true;
+		bool         		bShowUI              	= true;
+		bool         		bForceNonSeprblProgs 	= true;
+		bool 		 		bValid 					= true;
+		double       		mCurrentTime          	= 0;
+		DG::Uint32   		mMaxFrameLatency      	= DG::SwapChainDesc{}.BufferCount;
 
 		// We will need this when we have to recreate the swap chain (on Android)
 		DG::SwapChainDesc mSwapChainInitDesc;
@@ -185,6 +186,25 @@ namespace Morpheus {
 		static Engine* mGlobalInstance;
 
 	public:
+
+		// Creates a component on this engine, should be called before startup.
+		// The engine assumes ownership of the component.
+		template <typename T, typename... Args>
+		T* AddComponent(Args &&... args) {
+			T* result = new T(std::forward(args)...);
+			mComponents.emplace_back(result);
+
+			IRenderer* rendererInterface = result->ToRenderer();
+
+			if (rendererInterface) {
+				if (mRenderer) {
+					throw std::runtime_error("Engine already has renderer!");
+				}
+				mRenderer = rendererInterface;
+			}
+
+			return result;
+		}
 
 		inline void YieldUntilFinished() {
 			mThreadPool.YieldUntilFinished();

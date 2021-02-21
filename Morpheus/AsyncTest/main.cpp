@@ -69,7 +69,20 @@ int main(int argc, char** argv) {
 	while (en.IsReady()) {
 		en.YieldFor(std::chrono::milliseconds(10));
 		en.Update(scene);
-		en.Render(scene);
+		
+		auto context = en.GetImmediateContext();
+		auto swapChain = en.GetSwapChain();
+		DG::ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
+		DG::ITextureView* pDSV = swapChain->GetDepthBufferDSV();
+
+		float rgba[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+		context->SetRenderTargets(1, &pRTV, pDSV,
+			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		context->ClearRenderTarget(pRTV, rgba, 
+			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		context->ClearDepthStencil(pDSV, DG::CLEAR_DEPTH_FLAG,
+			1.0f, 0, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
 		en.RenderUI();
 		en.Present();
 	}
