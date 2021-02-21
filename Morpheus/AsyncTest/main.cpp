@@ -53,6 +53,14 @@ int main(int argc, char** argv) {
 		std::cout << "Loaded HDR texture!" << std::endl;
 	});
 
+	LoadParams<GeometryResource> geoParams;
+	geoParams.mPipelineResource = pipeline;
+	geoParams.mSource = "matBall.obj";
+
+	GeometryResource* geometry = manager->AsyncLoad<GeometryResource>(geoParams, [](ThreadPool* pool) {
+		std::cout << "Loaded geometry!" << std::endl;
+	});
+
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
 
@@ -66,6 +74,7 @@ int main(int argc, char** argv) {
 		en.Present();
 	}
 
+	geometry->Release();
 	texture->Release();
 	pipeline->Release();
 	material->Release();

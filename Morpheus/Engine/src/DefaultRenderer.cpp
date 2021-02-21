@@ -250,6 +250,8 @@ namespace Morpheus {
 			mMSAADepthBuffer = nullptr;
 		}
 
+		auto device = mEngine->GetDevice();
+
 		DG::TextureDesc desc;
 		desc.Width = width;
 		desc.Height = height;
@@ -261,7 +263,6 @@ namespace Morpheus {
 		desc.MipLevels = 1;
 		desc.SampleCount = GetMSAASamples();
 		
-		auto device = mEngine->GetDevice();
 		device->CreateTexture(desc, nullptr, &mFrameBuffer);
 
 		if (desc.SampleCount > 1) {

@@ -1,5 +1,8 @@
 #include <Engine/Resources/GeometryResource.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/ResourceManager.hpp>
+
+#include <Engine/ThreadTasks.hpp>
 
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
@@ -10,23 +13,130 @@ using namespace std;
 
 namespace Morpheus {
 
-	void GeometryResource::Init(DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
-		uint vertexBufferOffset, PipelineResource* pipeline, 
+	void RawGeometry::Set(PipelineResource* pipeline,
+		const DG::BufferDesc& vertexBufferDesc, 
+		std::vector<uint8_t>&& vertexBufferData,
+		const DG::DrawAttribs& unindexedDrawAttribs,
+		const BoundingBox& aabb) {
+
+		if (mPipeline)
+			mPipeline->Release();
+			
+		mPipeline = pipeline;
+		mPipeline->AddRef();
+
+		mVertexBufferDesc = vertexBufferDesc;
+		mVertexBufferData = vertexBufferData;
+		mUnindexedDrawAttribs = unindexedDrawAttribs;
+		bHasIndexBuffer = false;
+		mAabb = aabb;
+	}
+
+	void RawGeometry::Set(PipelineResource* pipeline,
+		const DG::BufferDesc& vertexBufferDesc,
+		const DG::BufferDesc& indexBufferDesc,
+		std::vector<uint8_t>&& vertexBufferData,
+		std::vector<uint8_t>&& indexBufferData,
+		DG::DrawIndexedAttribs& indexedDrawAttribs,
+		const BoundingBox& aabb) {
+		if (mPipeline)
+			mPipeline->Release();
+
+		mPipeline = pipeline;
+		mPipeline->AddRef();
+
+		mVertexBufferDesc = vertexBufferDesc;
+		mIndexBufferDesc = indexBufferDesc;
+		mVertexBufferData = vertexBufferData;
+		mIndexBufferData = indexBufferData;
+		mIndexedDrawAttribs = indexedDrawAttribs;
+		mAabb = aabb;
+
+		bHasIndexBuffer = true;
+	}
+
+	RawGeometry::RawGeometry(RawGeometry&& other) :
+		mVertexBufferData(std::move(other.mVertexBufferData)),
+		mIndexBufferData(std::move(other.mIndexBufferData)),
+		mVertexBufferDesc(other.mVertexBufferDesc),
+		mIndexBufferDesc(other.mIndexBufferDesc),
+		mAabb(other.mAabb),
+		bHasIndexBuffer(other.bHasIndexBuffer),
+		mIndexedDrawAttribs(other.mIndexedDrawAttribs),
+		mUnindexedDrawAttribs(other.mUnindexedDrawAttribs) {
+
+		if (mPipeline)
+			mPipeline->Release();
+			
+		mPipeline = other.mPipeline;
+		mPipeline->AddRef();
+	}
+
+	RawGeometry::~RawGeometry() {
+		if (mPipeline)
+			mPipeline->Release();
+	}
+
+	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device, 
+		DG::IBuffer** vertexBufferOut, 
+		DG::IBuffer** indexBufferOut) {
+
+		DG::BufferData data;
+		data.pData = &mVertexBufferData[0];
+		data.DataSize = mVertexBufferData.size();
+		device->CreateBuffer(mVertexBufferDesc, &data, vertexBufferOut);
+
+		if (bHasIndexBuffer) {
+			data.pData = &mIndexBufferData[0];
+			data.DataSize = mIndexBufferData.size();
+			device->CreateBuffer(mIndexBufferDesc, &data, indexBufferOut);
+		}
+	}
+
+	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device,
+		GeometryResource* writeTo) {
+
+		DG::IBuffer* vertexBuffer = nullptr;
+		DG::IBuffer* indexBuffer = nullptr;
+
+		SpawnOnGPU(device, &vertexBuffer, &indexBuffer);
+
+		if (indexBuffer) {
+			writeTo->InitIndexed(vertexBuffer, indexBuffer, 0,
+				mIndexedDrawAttribs, mPipeline, mAabb);
+		} else {
+			writeTo->Init(vertexBuffer, 0, mUnindexedDrawAttribs, 
+				mPipeline, mAabb);
+		}
+	}
+
+	void GeometryResource::InitIndexed(DG::IBuffer* vertexBuffer, 
+		DG::IBuffer* indexBuffer,
+		uint vertexBufferOffset, 
+		const DG::DrawIndexedAttribs& attribs,
+		PipelineResource* pipeline, 
 		const BoundingBox& aabb) {
 		mVertexBuffer = vertexBuffer;
 		mIndexBuffer = indexBuffer;
 		mVertexBufferOffset = vertexBufferOffset;
 		mPipeline = pipeline;
 		mBoundingBox = aabb;
+		mIndexedAttribs = attribs;
 		pipeline->AddRef();
 	}
 
-	GeometryResource::GeometryResource(ResourceManager* manager, 
-		DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
-		uint vertexBufferOffset, PipelineResource* pipeline, 
-		const BoundingBox& aabb) : 
-		IResource(manager) {
-		Init(vertexBuffer, indexBuffer, vertexBufferOffset, pipeline, aabb);
+	void GeometryResource::Init(DG::IBuffer* vertexBuffer,
+		uint vertexBufferOffset,
+		const DG::DrawAttribs& attribs,
+		PipelineResource* pipeline, 
+		const BoundingBox& aabb) {
+		mVertexBuffer = vertexBuffer;
+		mIndexBuffer = nullptr;
+		mVertexBufferOffset = vertexBufferOffset;
+		mPipeline = pipeline;
+		mBoundingBox = aabb;
+		mUnindexedAttribs = attribs;
+		pipeline->AddRef();
 	}
 
 	GeometryResource::GeometryResource(ResourceManager* manager) :
@@ -46,13 +156,6 @@ namespace Morpheus {
 
 	GeometryResource* GeometryResource::ToGeometry() {
 		return this;
-	}
-
-	GeometryLoader::GeometryLoader(ResourceManager* manager) :
-		mManager(manager) {
-	}
-
-	GeometryLoader::~GeometryLoader() {
 	}
 
 	uint GetSize(DG::VALUE_TYPE v) {
@@ -78,10 +181,9 @@ namespace Morpheus {
 		}
 	}
 
-	void GeometryLoader::Load(const std::string& source, PipelineResource* pipeline, GeometryResource* resource) {
-		cout << "Loading geometry " << source << "..." << endl;
-
-		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
+	void GeometryLoader::Load(const aiScene* scene,
+		PipelineResource* pipeline,
+		RawGeometry* geometryOut) {
 
 		VertexAttributeLayout attributes = pipeline->GetAttributeLayout();
 		std::vector<DG::LayoutElement> layout = pipeline->GetVertexLayout();
@@ -149,32 +251,17 @@ namespace Morpheus {
 			bitangentOffset = offsets[attributes.mBitangent];	
 		}
 
-		const aiScene* pScene = importer->ReadFile(source.c_str(),
-			aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-			aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality);
-
-		if (!pScene) {
-			cout << "Error: failed to load " << source << endl;
-		}
-
 		uint nVerts;
 		uint nIndices;
 
-		if (!pScene->HasMeshes()) {
-			cout << "Error: " << source << " has no meshes!" << endl;
-		}
-
-		if (pScene->mNumMeshes > 1) {
-			cout << "Warning: " << source << " has more than one mesh, we will just load the first." << endl;
-		}
-
-		aiMesh* mesh = pScene->mMeshes[0];
+		aiMesh* mesh = scene->mMeshes[0];
 
 		nVerts = mesh->mNumVertices;
 		nIndices = mesh->mNumFaces * 3;
 
 		std::vector<uint8_t> vert_buffer(nVerts * stride);
-		std::vector<DG::Uint32> indx_buffer(nIndices);
+		std::vector<uint8_t> indx_buffer_raw(nIndices * sizeof(DG::Uint32));
+		DG::Uint32* indx_buffer = (DG::Uint32*)(&indx_buffer_raw[0]);
 
 		BoundingBox aabb;
 		aabb.mLower = DG::float3(
@@ -308,46 +395,115 @@ namespace Morpheus {
 		}
 
 		// Upload everything to the GPU
-		auto device = mManager->GetParent()->GetDevice();
-
-		std::string name("Geometry Vertex Buffer : ");
-		name += source;
-		
 		DG::BufferDesc vertexBufferDesc;
-		vertexBufferDesc.Name          = name.c_str();
 		vertexBufferDesc.Usage         = DG::USAGE_IMMUTABLE;
 		vertexBufferDesc.BindFlags     = DG::BIND_VERTEX_BUFFER;
 		vertexBufferDesc.uiSizeInBytes = vert_buffer.size();
 
-		DG::BufferData VBData;
-		VBData.pData    = vert_buffer.data();
-		VBData.DataSize = vert_buffer.size();
-
-		DG::IBuffer* vertexBuffer = nullptr;
-		device->CreateBuffer(vertexBufferDesc, &VBData, &vertexBuffer);
-
-		name = "Geometry Index Buffer : ";
-		name += source;
-
 		DG::BufferDesc indexBufferDesc;
-		indexBufferDesc.Name = name.c_str();
 		indexBufferDesc.Usage = DG::USAGE_IMMUTABLE;
 		indexBufferDesc.BindFlags = DG::BIND_INDEX_BUFFER;
-		indexBufferDesc.uiSizeInBytes = indx_buffer.size() * 
-			sizeof(decltype(indx_buffer[0]));
+		indexBufferDesc.uiSizeInBytes = indx_buffer_raw.size();
 
-		DG::BufferData IBData;
-		IBData.DataSize = indx_buffer.size() * 
-			sizeof(decltype(indx_buffer[0]));
-		IBData.pData = indx_buffer.data();
+		DG::DrawIndexedAttribs indexedAttribs;
+		indexedAttribs.IndexType = DG::VT_UINT32;
+		indexedAttribs.NumIndices = indx_buffer_raw.size();
 		
-		DG::IBuffer* indexBuffer = nullptr;
-		device->CreateBuffer(indexBufferDesc, &IBData, &indexBuffer);
+		// Write to output raw geometry
+		geometryOut->Set(pipeline, vertexBufferDesc, indexBufferDesc, 
+			std::move(vert_buffer), std::move(indx_buffer_raw),
+			indexedAttribs, aabb);
+	}
 
-		resource->Init(vertexBuffer, indexBuffer, 0, pipeline, aabb);
-		resource->mSource = source;
-		resource->mIndexedAttribs.IndexType = DG::VT_UINT32;
-		resource->mIndexedAttribs.NumIndices = indx_buffer.size();
+	void GeometryLoader::Load(DG::IRenderDevice* device, const std::string& source, 
+		PipelineResource* pipeline, GeometryResource* resource) {
+		
+		cout << "Loading geometry " << source << "..." << endl;
+		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
+		const aiScene* pScene = importer->ReadFile(source.c_str(),
+			aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+			aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality);
+
+		if (!pScene) {
+			cout << "Error: failed to load " << source << endl;
+			throw std::runtime_error("Failed to load geometry!");
+		}
+
+		if (!pScene->HasMeshes()) {
+			cout << "Error: " << source << " has no meshes!" << endl;
+			throw std::runtime_error("Geometry has no meshes!");
+		}
+
+		if (pScene->mNumMeshes > 1) {
+			cout << "Warning: " << source << " has more than one mesh, we will just load the first." << endl;
+		}
+
+		RawGeometry rawGeo;
+		Load(pScene, pipeline, &rawGeo);
+		rawGeo.SpawnOnGPU(device, resource);
+	}
+
+	TaskId GeometryLoader::LoadAsync(DG::IRenderDevice* device, 
+		ThreadPool* pool,
+		const std::string& source,
+		const TaskBarrierCallback& callback,
+		PipelineResource* pipeline, 
+		GeometryResource* loadinto) {
+
+		auto barrier = loadinto->GetLoadBarrier();
+
+		auto queue = pool->GetQueue();
+
+		PipeId filePipe;
+		TaskId readFile = ReadFileToMemoryJobDeferred(source, &queue, &filePipe);
+		PipeId rawGeoPipe = queue.MakePipe();
+
+		TaskId convertToRaw = queue.MakeTask([filePipe, source, pipeline, rawGeoPipe](const TaskParams& params) {
+			try {
+				auto& value = params.mPool->ReadPipe(filePipe);
+				std::unique_ptr<ReadFileToMemoryResult> contents(value.cast<ReadFileToMemoryResult*>());
+
+				std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
+
+				const aiScene* pScene = importer->ReadFileFromMemory(contents->GetData(), contents->GetSize(), 
+					aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+					aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
+					source.c_str());
+
+				if (!pScene) {
+					std::cout << importer->GetErrorString() << std::endl;
+					throw std::runtime_error("Failed to load geometry!");
+				}
+
+				if (!pScene->HasMeshes()) {
+					throw std::runtime_error("Geometry has no meshes!");
+				}
+
+				std::unique_ptr<RawGeometry> rawGeo(new RawGeometry());
+				Load(pScene, pipeline, rawGeo.get());
+
+				params.mPool->WritePipe(rawGeoPipe, rawGeo.release());
+			}
+			catch (...) {
+				params.mPool->WritePipeException(rawGeoPipe, std::current_exception());
+			}
+		});
+
+		barrier->SetCallback(callback);
+
+		TaskId rawToGpu = queue.MakeTask([device, rawGeoPipe, loadinto](const TaskParams& params) {
+			auto& value = params.mPool->ReadPipe(rawGeoPipe);
+			std::unique_ptr<RawGeometry> rawGeo(value.cast<RawGeometry*>());
+			rawGeo->SpawnOnGPU(device, loadinto);
+		}, barrier, ASSIGN_THREAD_MAIN);
+
+		// Schedule everything linearly, make sure to schedule after pipeline has been loaded!
+		queue.Dependencies(readFile).After(pipeline->GetLoadBarrier());
+		queue.Dependencies(convertToRaw).After(filePipe);
+		queue.Dependencies(rawGeoPipe).After(convertToRaw);
+		queue.Dependencies(rawToGpu).After(rawGeoPipe);
+
+		return readFile;
 	}
 
 	void ResourceCache<GeometryResource>::Clear() {
@@ -360,8 +516,7 @@ namespace Morpheus {
 	}
 
 	ResourceCache<GeometryResource>::ResourceCache(ResourceManager* manager) : 
-		mManager(manager), 
-		mLoader(manager) {
+		mManager(manager) {
 	}
 
 	ResourceCache<GeometryResource>::~ResourceCache() {
@@ -372,9 +527,14 @@ namespace Morpheus {
 
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
-		auto it = mResourceMap.find(params_cast->mSource);
-		if (it != mResourceMap.end()) 
-			return it->second;
+		decltype(mResourceMap.find(params_cast->mSource)) it;
+
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			it = mResourceMap.find(params_cast->mSource);
+			if (it != mResourceMap.end()) 
+				return it->second;
+		}
 
 		PipelineResource* pipeline = nullptr;
 		if (params_cast->mPipelineResource) {
@@ -384,31 +544,94 @@ namespace Morpheus {
 		}
 
 		auto resource = new GeometryResource(mManager);
-		mLoader.Load(params_cast->mSource, pipeline, resource);
+		mLoader.Load(mManager->GetParent()->GetDevice(), 
+			params_cast->mSource, pipeline, resource);
 
 		if (!params_cast->mPipelineResource) {
 			// If we loaded the pipeline, we should release it
 			pipeline->Release();
 		}
 
-		mResourceMap[params_cast->mSource] = resource;
-		
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			resource->mIterator = mResourceMap.emplace(params_cast->mSource, resource).first;
+		}
+	
 		return resource;
 	}
 
 	TaskId ResourceCache<GeometryResource>::AsyncLoadDeferred(const void* params,
-	ThreadPool* threadPool,
+		ThreadPool* threadPool,
 		IResource** output,
 		const TaskBarrierCallback& callback) {
-		throw std::runtime_error("Not implemented!");
+				auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
+		
+		decltype(mResourceMap.find(params_cast->mSource)) it;
+
+		{
+			std::shared_lock<std::shared_mutex> lock(mMutex);
+			it = mResourceMap.find(params_cast->mSource);
+			if (it != mResourceMap.end()) {
+				*output = it->second;
+				return TASK_NONE;
+			}
+		}
+
+		bool bLoadedPipeline = false;
+
+		PipelineResource* pipeline = nullptr;
+		TaskId loadPipelineTask = TASK_NONE;
+		if (params_cast->mPipelineResource) {
+			pipeline = params_cast->mPipelineResource;
+		} else {
+			loadPipelineTask = mManager->AsyncLoadDeferred<PipelineResource>(
+				params_cast->mPipelineSource, &pipeline);
+			bLoadedPipeline = true;
+		}
+
+		TaskBarrierCallback geometryCallback;
+		if (bLoadedPipeline) {
+			geometryCallback = [pipeline, callback](ThreadPool* pool) {
+				// Make sure to release the pipeline after the geometry has been loaded!
+				// Geometry now has reference to pipeline, so pipeline won't be unloaded
+				pipeline->Release();
+				callback(pool);
+			};
+ 		} else {
+			geometryCallback = callback;
+		}
+
+		auto resource = new GeometryResource(mManager);
+		TaskId loadGeoTask = mLoader.LoadAsync(mManager->GetParent()->GetDevice(),
+			threadPool, params_cast->mSource, geometryCallback, pipeline, resource);
+
+		if (!params_cast->mPipelineResource) {
+			// If we loaded the pipeline, we should release it
+			pipeline->Release();
+		}
+
+		{
+			std::unique_lock<std::shared_mutex> lock(mMutex);
+			resource->mIterator = mResourceMap.emplace(params_cast->mSource, resource).first;
+		}
+
+		*output = resource;
+
+		if (bLoadedPipeline) {
+			// Pipeline has already been or is in the process of being loaded,
+			// we should schedule the geometry load.
+			return loadGeoTask;
+		} else {
+			// Pipeline has not yet been loaded, we should schedule the pipeline load.
+			return loadPipelineTask;
+		}
 	}
 
 	void ResourceCache<GeometryResource>::Add(IResource* resource, const void* params) {
-		std::lock_guard<std::mutex> lock(mMutex);
-		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
-		
-		auto it = mResourceMap.find(params_cast->mSource);
+		std::lock_guard<std::shared_mutex> lock(mMutex);
 
+		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
+		auto it = mResourceMap.find(params_cast->mSource);
 		auto geometryResource = resource->ToGeometry();
 
 		if (it != mResourceMap.end()) {
@@ -418,17 +641,17 @@ namespace Morpheus {
 				return;
 		} 
 
-		mResourceMap[params_cast->mSource] = geometryResource;
+		geometryResource->mIterator = 
+			mResourceMap.emplace(params_cast->mSource, 
+			geometryResource).first;
 	}
 
 	void ResourceCache<GeometryResource>::Unload(IResource* resource) {
+		std::lock_guard<std::shared_mutex> lock(mMutex);
 		auto geo = resource->ToGeometry();
 
-		auto it = mResourceMap.find(geo->GetSource());
-		if (it != mResourceMap.end()) {
-			if (it->second == geo) {
-				mResourceMap.erase(it);
-			}
+		if (geo->mIterator != mResourceMap.end()) {
+			mResourceMap.erase(geo->mIterator);
 		}
 
 		delete resource;
