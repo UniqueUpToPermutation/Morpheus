@@ -1,18 +1,5 @@
-#include <Engine/Engine.hpp>
-#include <Engine/Resources/TextureResource.hpp>
-#include <Engine/Resources/PipelineResource.hpp>
-#include <Engine/Resources/MaterialResource.hpp>
-#include <Engine/Resources/GeometryResource.hpp>
-#include <Engine/Components/ResourceComponents.hpp>
-#include <Engine/Components/Transform.hpp>
-#include <Engine/HdriToCubemap.hpp>
-#include <Engine/Components/SkyboxComponent.hpp>
-#include <Engine/Brdf.hpp>
-#include <Engine/EditorCameraController.hpp>
-#include <Engine/Camera.hpp>
-#include <Engine/Resources/ShaderResource.hpp>
-#include <Engine/Systems/Physics.hpp>
-#include <Engine/ThreadTasks.hpp>
+#include <Engine/Core.hpp>
+#include <Engine/DefaultRenderer.hpp>
 
 using namespace Morpheus;
 
@@ -31,6 +18,7 @@ int main(int argc, char** argv) {
 #endif
 	Engine en;
 
+	en.AddComponent<DefaultRenderer>();
 	en.Startup();
 
 	Scene* scene = new Scene();
