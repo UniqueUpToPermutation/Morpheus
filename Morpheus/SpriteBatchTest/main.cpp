@@ -18,7 +18,6 @@ int main(int argc, char** argv) {
 	EngineParams params;
 
 	Engine en;
-
 	en.AddComponent<DefaultRenderer>();
 	en.Startup(params);
 

@@ -14,6 +14,9 @@ namespace Morpheus {
 	class ResourceManager;
 	class PipelineResource;
 	
+	std::vector<DG::IShaderResourceBinding*> GenerateSRBs(
+		DG::IPipelineState* pipelineState, IRenderer* renderer);
+
 	typedef std::function<TaskId(
 		DG::IRenderDevice*, 
 		ResourceManager*, 

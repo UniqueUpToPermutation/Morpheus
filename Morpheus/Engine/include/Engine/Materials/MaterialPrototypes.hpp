@@ -26,104 +26,36 @@ namespace Morpheus {
 		ThreadPool* mPool;
 	};
 
-	typedef std::function<MaterialPrototype*(
-		ResourceManager*,
-		const std::string&,
-		const std::string&,
-		const nlohmann::json&)> prototype_spawner_t;
-
-	typedef std::function<TaskId(
+	typedef std::function<void(
 		ResourceManager*,
 		const std::string&,
 		const std::string&,
 		const nlohmann::json&,
-		ThreadPool*,
-		MaterialPrototype**)> prototype_spawner_async_t;
+		const MaterialAsyncParams&,
+		MaterialResource*)> material_prototype_t;
 
-	class MaterialPrototype {
-	protected:
-		void InternalInitialize(MaterialResource* material,
-			DG::IShaderResourceBinding* binding, 
-			PipelineResource* pipeline,
-			const std::vector<TextureResource*>& textures,
-			const std::vector<DG::IBuffer*>& buffers);
-
-	public:
-		virtual ~MaterialPrototype() {}
-		virtual TaskId InitializePrototype(
-			ResourceManager* manager,
-			const std::string& source,
-			const std::string& path,
-			const nlohmann::json& config,
-			const MaterialAsyncParams& asyncParams) = 0;
-
-		virtual void InitializeMaterial(
-			DG::IRenderDevice* device,
-			MaterialResource* into) = 0;
-		virtual MaterialPrototype* DeepCopy() const = 0;
-
-		virtual void ScheduleLoadBefore(TaskNodeDependencies dependencies) = 0;
-	};
-
-	template <typename T>
-	MaterialPrototype* AbstractConstructor(
-		ResourceManager* manager,
-		const std::string& source, 
-		const std::string& path,
-		const nlohmann::json& config) {
-
-		auto prototype = new T();
-		MaterialAsyncParams params;
-		params.bUseAsync = false;
-		prototype->InitializePrototype(manager, source, path, config, params);
-		return prototype;
-	}
-
-	template <typename T>
-	TaskId AbstractAsyncConstructor(
-		ResourceManager* manager,
-		const std::string& source,
-		const std::string& path,
-		const nlohmann::json& config,
-		ThreadPool* pool,
-		MaterialPrototype** result) {
-
-		auto prototype = new T();
-		MaterialAsyncParams params;
-		params.bUseAsync = true;
-		params.mPool = pool;
-		*result = prototype;
-		return prototype->InitializePrototype(manager, source, path, config, params);
-	};
-
-	class MaterialPrototypeFactory {
+	class MaterialFactory {
 	private:
-		std::unordered_map<std::string, prototype_spawner_t> mMap;
-		std::unordered_map<std::string, prototype_spawner_async_t> mAsyncMap;
+		std::unordered_map<std::string, material_prototype_t> mMap;
 
 	public:
-		template <typename T>
-		void Add(const std::string& name) {
-			mMap[name] = &AbstractConstructor<T>;
-			mAsyncMap[name] = &AbstractAsyncConstructor<T>;
-		}
-
-		MaterialPrototypeFactory();
-		MaterialPrototype* Spawn(
+		MaterialFactory();
+		void Spawn(
 			const std::string& type,
 			ResourceManager* manager,
 			const std::string& source, 
 			const std::string& path,
-			const nlohmann::json& config) const;
+			const nlohmann::json& config,
+			MaterialResource* materialOut) const;
 
-		TaskId SpawnAsyncDeferred(
+		void SpawnAsync(
 			const std::string& type,
 			ResourceManager* mananager,
 			const std::string& source, 
 			const std::string& path,
 			const nlohmann::json& config,
 			ThreadPool* pool,
-			MaterialPrototype** out) const;
+			MaterialResource* materialOut) const;
 	};
 
 	DG::float4 ReadFloat4(

@@ -109,9 +109,13 @@ namespace Morpheus {
 			layout.mTangent = 3;
 			layout.mStride = 12 * sizeof(float);
 
+			// Create shader resource bindings (one per render thread)
+			renderer->GetMaxRenderThreadCount();
+
 			into->SetAll(
 				result,
 				layoutElements,
+				GenerateSRBs(result, renderer),
 				layout,
 				InstancingType::INSTANCED_STATIC_TRANSFORMS);
 		};

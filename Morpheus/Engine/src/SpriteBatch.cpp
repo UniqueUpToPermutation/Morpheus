@@ -391,9 +391,12 @@ namespace Morpheus {
 			layout.mPosition = 0;
 			layout.mStride = sizeof(SpriteBatchVSInput);
 
+			std::vector<DG::IShaderResourceBinding*> srbs;
+
 			into->SetAll(
 				result,
 				layoutElements,
+				srbs,
 				layout,
 				InstancingType::NONE);
 		};

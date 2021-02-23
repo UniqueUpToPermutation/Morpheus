@@ -5,8 +5,8 @@
 #include <Engine/Resources/GeometryResource.hpp>
 #include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Resources/MaterialResource.hpp>
-#include <Engine/Materials/MaterialView.hpp>
 #include <Engine/Systems/RendererBridge.hpp>
+#include <Engine/Pipelines/ImageBasedLightingView.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -378,16 +378,18 @@ namespace Morpheus {
 				if (pipeline != currentPipeline) {
 					context->SetPipelineState(pipeline->GetState());
 					currentPipeline = pipeline;
+
+					auto iblView = pipeline->TryGetView<ImageBasedLightingView>();
+					if (iblView && globalLightProbe) {
+						iblView->SetEnvironment(globalLightProbe, 0);
+					}
 				}
 
 				// Change material
 				if (material != currentMaterial) {
-					auto iblView = material->GetView<ImageBasedLightingView>();
-					if (iblView && globalLightProbe) {
-						iblView->SetEnvironment(globalLightProbe);
-					}
+					material->Apply(0);
 
-					context->CommitShaderResources(material->GetResourceBinding(), 
+					context->CommitShaderResources(pipeline->GetShaderResourceBindings()[0], 
 						RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 					currentMaterial = material;
 				}

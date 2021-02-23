@@ -1,15 +1,17 @@
 #include <Engine/Materials/WhiteMaterial.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
+#include <Engine/Resources/MaterialResource.hpp>
 
 namespace Morpheus {
 
-	TaskId WhiteMaterialPrototype::InitializePrototype(
-			ResourceManager* manager,
-			const std::string& source,
-			const std::string& path,
-			const nlohmann::json& config,
-			const MaterialAsyncParams& asyncParams) {
+	void WhiteMaterialPrototype(
+		ResourceManager* manager,
+		const std::string& path,
+		const std::string& source,
+		const nlohmann::json& config,
+		const MaterialAsyncParams& asyncParams,
+		MaterialResource* out) {
 
 		std::string pipeline_src = config.value("Pipeline", "White");
 
@@ -24,47 +26,30 @@ namespace Morpheus {
 				return true;
 		};
 
+		PipelineResource* pipeline;
+
 		if (asyncParams.bUseAsync) {
-			return manager->AsyncLoadDeferred<PipelineResource>(pipeline_src, &mPipeline);
+			pipeline = manager->AsyncLoad<PipelineResource>(pipeline_src);
+
+			auto queue = asyncParams.mPool->GetQueue();
+			auto triggerBarrier = queue.MakeTask([](const TaskParams&) { },
+				out->GetLoadBarrier());
+
+			queue.Dependencies(triggerBarrier)
+				.After(pipeline->GetLoadBarrier());
+
+			queue.Schedule(triggerBarrier);
 		} else {
-			mPipeline = manager->Load<PipelineResource>(pipeline_src);
-			return TASK_NONE;
+			pipeline = manager->Load<PipelineResource>(pipeline_src);
 		}
-	}
 
-	WhiteMaterialPrototype::WhiteMaterialPrototype(
-		PipelineResource* pipeline) {
-		mPipeline = pipeline;
-		mPipeline->AddRef();
-	}
-
-	WhiteMaterialPrototype::~WhiteMaterialPrototype() {
-		mPipeline->Release();
-	}
-
-	void WhiteMaterialPrototype::InitializeMaterial(
-		DG::IRenderDevice* device,
-		MaterialResource* into) {
-
-		DG::IShaderResourceBinding* srb = nullptr;
-		mPipeline->GetState()->CreateShaderResourceBinding(&srb, true);
-		
 		std::vector<TextureResource*> textures;
-		std::vector<DG::IBuffer*> bufs;
+		std::vector<DG::IBuffer*> buffers;
 
-		InternalInitialize(into, srb, mPipeline, textures, bufs);
-	}
+		out->Initialize(pipeline, textures, buffers, 
+			[](PipelineResource*, MaterialResource*, uint) {
+		});
 
-	WhiteMaterialPrototype::WhiteMaterialPrototype(const WhiteMaterialPrototype& other) : 
-		mPipeline(other.mPipeline) {
-		mPipeline->AddRef();
-	}
-
-	MaterialPrototype* WhiteMaterialPrototype::DeepCopy() const {
-		return new WhiteMaterialPrototype(*this);
-	}
-
-	void WhiteMaterialPrototype::ScheduleLoadBefore(TaskNodeDependencies dependencies) {
-		dependencies.After(mPipeline->GetLoadBarrier());
+		pipeline->Release();
 	}
 }

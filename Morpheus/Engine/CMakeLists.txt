@@ -149,12 +149,11 @@ list(APPEND SOURCE
 	src/Pipelines/Skybox.cpp
 	src/Pipelines/StaticMeshPBR.cpp
 	src/Pipelines/White.cpp
+	src/Pipelines/ImageBasedLightingView.cpp
 
 	src/Materials/MaterialPrototypes.cpp
 	src/Materials/BasicTexturedMaterial.cpp
 	src/Materials/WhiteMaterial.cpp
-	src/Materials/JsonMaterial.cpp
-	src/Materials/ImageBasedLightingView.cpp
 	src/Materials/StaticMeshPBRMaterial.cpp
 
 	src/Systems/RendererBridge.cpp
@@ -191,14 +190,12 @@ list(APPEND INCLUDE
 	include/Engine/DynamicGlobalsBuffer.hpp
 
     include/Engine/Materials/BasicTexturedMaterial.hpp
-    include/Engine/Materials/ImageBasedLightingView.hpp
-    include/Engine/Materials/JsonMaterial.hpp
     include/Engine/Materials/MaterialPrototypes.hpp
-    include/Engine/Materials/MaterialView.hpp
     include/Engine/Materials/StaticMeshPBRMaterial.hpp
     include/Engine/Materials/WhiteMaterial.hpp
 
     include/Engine/Pipelines/PipelineFactory.hpp
+	include/Engine/Pipelines/ImageBasedLightingView.hpp
 
     include/Engine/Resources/CollisionShapeResource.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp

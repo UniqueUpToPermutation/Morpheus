@@ -18,49 +18,46 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
+	
+	typedef std::function<void(PipelineResource*, 
+		MaterialResource*, uint)>
+		apply_material_func_t;
+
 	template <>
 	class ResourceCache<MaterialResource>;
 
 	class MaterialResource : public IResource {
 	private:
-		DG::IShaderResourceBinding* mResourceBinding;
 		PipelineResource* mPipeline;
 		std::vector<TextureResource*> mTextures;
 		std::vector<DG::IBuffer*> mUniformBuffers;
 		bool bSourced;
 		std::unordered_map<std::string, MaterialResource*>::iterator mSourceIterator;
-		ResourceCache<MaterialResource>* mCache;
 		entt::entity mEntity;
-		std::unique_ptr<MaterialPrototype> mPrototype;
-
-		void Init(DG::IShaderResourceBinding* binding, 
-			PipelineResource* pipeline,
-			const std::vector<TextureResource*>& textures,
-			const std::vector<DG::IBuffer*>& uniformBuffers);
+		apply_material_func_t mApplyFunc;
 		
 		void SetSource(const std::unordered_map<std::string, MaterialResource*>::iterator& it);
 
 	public:
 
+		void Initialize(PipelineResource* pipeline,
+			const std::vector<TextureResource*>& textures,
+			const std::vector<DG::IBuffer*>& uniformBuffers,
+			const apply_material_func_t& applyFunc);
+
+		MaterialResource(ResourceManager* manager);
 		MaterialResource(ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache);
-		MaterialResource(ResourceManager* manager,
-			DG::IShaderResourceBinding* binding, 
 			PipelineResource* pipeline,
 			const std::vector<TextureResource*>& textures,
 			const std::vector<DG::IBuffer*>& uniformBuffers,
-			ResourceCache<MaterialResource>* cache);
+			const apply_material_func_t& applyFunc);
 		~MaterialResource();
 
-		inline bool IsReady() const {
-			return mResourceBinding != nullptr;
+		inline void Apply(uint pipelineSRBId) {
+			mApplyFunc(mPipeline, this, pipelineSRBId);
 		}
 
 		MaterialResource* ToMaterial() override;
-
-		inline DG::IShaderResourceBinding* GetResourceBinding() {
-			return mResourceBinding;
-		}
 
 		inline PipelineResource* GetPipeline() {
 			return mPipeline;
@@ -82,12 +79,6 @@ namespace Morpheus {
 			return resource_type::type<MaterialResource>;
 		}
 
-		template <typename ViewType> 
-		inline ViewType* GetView();
-
-		template <typename T, typename... Args>
-		inline T* CreateView(MaterialResource* resource, Args &&... args);
-
 		friend class MaterialLoader;
 		friend class ResourceCache<MaterialResource>;
 		friend class MaterialPrototype;
@@ -106,26 +97,15 @@ namespace Morpheus {
 	};
 
 	class MaterialLoader {
-	private:
-		ResourceManager* mManager;
-		ResourceCache<MaterialResource>* mCache;
-
 	public:
-		MaterialLoader(ResourceManager* manager,
-			ResourceCache<MaterialResource>* cache);
-
-		void Load(const std::string& source,
-			const MaterialPrototypeFactory& prototypeFactory,
+		static void Load(ResourceManager* manager,
+			const std::string& source,
+			const MaterialFactory& prototypeFactory,
 			MaterialResource* loadinto);
 
-		void Load(const nlohmann::json& json, 
-			const std::string& source, 
-			const std::string& path,
-			const MaterialPrototypeFactory& prototypeFactory,
-			MaterialResource* loadInto);
-
-		TaskId AsyncLoad(const std::string& source,
-			const MaterialPrototypeFactory& prototypeFactory,
+		static TaskId AsyncLoad(ResourceManager* manager,
+			const std::string& source,
+			const MaterialFactory& prototypeFactory,
 			ThreadPool* pool,
 			TaskBarrierCallback barrierCallback,
 			MaterialResource* loadInto);
@@ -136,9 +116,8 @@ namespace Morpheus {
 	private:
 		std::unordered_map<std::string, MaterialResource*> mResourceMap;
 		ResourceManager* mManager;
-		MaterialLoader mLoader;
 		entt::registry mViewRegistry;
-		MaterialPrototypeFactory mPrototypeFactory;
+		MaterialFactory mPrototypeFactory;
 
 		std::shared_mutex mResourceMapMutex;
 
@@ -168,15 +147,4 @@ namespace Morpheus {
 
 		friend class MaterialResource;
 	};
-
-	template <typename ViewType> 
-	inline ViewType* MaterialResource::GetView() {
-		return mCache->GetView<ViewType>(this);
-	}
-
-	template <typename ViewType, typename... Args>
-	inline ViewType* MaterialResource::CreateView(MaterialResource* resource, Args &&... args) {
-		return mCache->template CreateView<ViewType, Args...>(
-			this, std::forward<Args>(args)...);
-	}
 }

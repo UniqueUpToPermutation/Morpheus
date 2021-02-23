@@ -9,33 +9,26 @@
 
 namespace Morpheus {
 
-	MaterialResource::MaterialResource(ResourceManager* manager,
-		ResourceCache<MaterialResource>* cache) :
+	MaterialResource::MaterialResource(ResourceManager* manager) :
 		IResource(manager),
-		mResourceBinding(nullptr),
 		mPipeline(nullptr),
-		mCache(cache),
 		bSourced(false) {
-		mEntity = cache->mViewRegistry.create();
 	}
 
 	MaterialResource::MaterialResource(ResourceManager* manager,
-		DG::IShaderResourceBinding* binding, 
 		PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
 		const std::vector<DG::IBuffer*>& buffers,
-		ResourceCache<MaterialResource>* cache) :
+		const apply_material_func_t& applyFunc) :
 		IResource(manager),
-		mCache(cache),
 		bSourced(false) {
-		mEntity = cache->mViewRegistry.create();
-		Init(binding, pipeline, textures, buffers);
+		Initialize(pipeline, textures, buffers, applyFunc);
 	}
 
-	void MaterialResource::Init(DG::IShaderResourceBinding* binding, 
-		PipelineResource* pipeline,
+	void MaterialResource::Initialize(PipelineResource* pipeline,
 		const std::vector<TextureResource*>& textures,
-		const std::vector<DG::IBuffer*>& buffers) {
+		const std::vector<DG::IBuffer*>& buffers,
+		const apply_material_func_t& applyFunc) {
 
 		pipeline->AddRef();
 		for (auto tex : textures) {
@@ -46,8 +39,6 @@ namespace Morpheus {
 			buf->Release();
 		}
 
-		if (mResourceBinding)
-			mResourceBinding->Release();
 		if (mPipeline)
 			mPipeline->Release();
 
@@ -56,9 +47,9 @@ namespace Morpheus {
 		}
 
 		mUniformBuffers = buffers;
-		mResourceBinding = binding;
 		mPipeline = pipeline;
 		mTextures = textures;
+		mApplyFunc = applyFunc;
 	}
 
 	void MaterialResource::SetSource(const std::unordered_map<std::string, MaterialResource*>::iterator& it) {
@@ -67,8 +58,6 @@ namespace Morpheus {
 	}
 
 	MaterialResource::~MaterialResource() {
-		if (mResourceBinding)
-			mResourceBinding->Release();
 		if (mPipeline)
 			mPipeline->Release();
 		for (auto item : mTextures) {
@@ -77,21 +66,15 @@ namespace Morpheus {
 		for (auto buf : mUniformBuffers) {
 			buf->Release();
 		}
-		mCache->mViewRegistry.destroy(mEntity);
 	}
 
 	MaterialResource* MaterialResource::ToMaterial() {
 		return this;
 	}
 
-	MaterialLoader::MaterialLoader(ResourceManager* manager,
-		ResourceCache<MaterialResource>* cache) :
-		mManager(manager),
-		mCache(cache) {
-	}
-
-	void MaterialLoader::Load(const std::string& source, 
-		const MaterialPrototypeFactory& prototypeFactory, 
+	void MaterialLoader::Load(ResourceManager* manager,
+		const std::string& source, 
+		const MaterialFactory& prototypeFactory, 
 		MaterialResource* loadinto) {
 		std::cout << "Loading " << source << "..." << std::endl;
 
@@ -110,50 +93,34 @@ namespace Morpheus {
 			path = source.substr(0, path_cutoff);
 		}
 
-		Load(json, source, path, prototypeFactory, loadinto);
-	}
-
-	void MaterialLoader::Load(const nlohmann::json& json, 
-		const std::string& source, const std::string& path,
-		const MaterialPrototypeFactory& prototypeFactory,
-		MaterialResource* loadinto) {
-
 		std::string prototype_str;
 		json["Prototype"].get_to(prototype_str);
-	
-		std::unique_ptr<MaterialPrototype> materialPrototype(
-			prototypeFactory.Spawn(prototype_str, mManager, source, path, json));
 
-		if (materialPrototype == nullptr) {
-			throw std::runtime_error("Could not find prototype!");
-		}
-
-		// Use the material prototype to initialize material
-		materialPrototype->InitializeMaterial(mManager->GetParent()->GetDevice(), loadinto);
+		prototypeFactory.Spawn(prototype_str, manager, source, path, json, loadinto);
 	}
 
-	TaskId MaterialLoader::AsyncLoad(const std::string& source,
-		const MaterialPrototypeFactory& prototypeFactory,
+	TaskId MaterialLoader::AsyncLoad(ResourceManager* manager,
+		const std::string& source,
+		const MaterialFactory& prototypeFactory,
 		ThreadPool* pool,
 		TaskBarrierCallback barrierCallback,
 		MaterialResource* loadInto) {
 
 		loadInto->mLoadBarrier.SetCallback(barrierCallback);
 
-		auto manager = mManager;
-		auto device = mManager->GetParent()->GetDevice();
 		auto queue = pool->GetQueue();
 		PipeId filePipe;
 		TaskId readFile = ReadFileToMemoryJobDeferred(source, &queue, &filePipe);
 		TaskId spawnPrototype = queue.MakeTask(
 			[filePipe, prototypeFactory, manager, 
-			source, pool, loadInto, device](const TaskParams& params) {
+			source, pool, loadInto](const TaskParams& params) {
 
 			nlohmann::json json;
 
 			{
 				auto& value = params.mPool->ReadPipe(filePipe);
-				std::unique_ptr<ReadFileToMemoryResult> contents(value.cast<ReadFileToMemoryResult*>());
+				std::unique_ptr<ReadFileToMemoryResult> 
+					contents(value.cast<ReadFileToMemoryResult*>());
 				json = nlohmann::json::parse(contents->GetData());
 			}
 
@@ -168,32 +135,17 @@ namespace Morpheus {
 			}
 
 			MaterialPrototype* prototype;
-			TaskId loadOtherResourcesTask = prototypeFactory.SpawnAsyncDeferred(prototype_str, manager, source,
-				path, json, pool, &prototype);
-
-			if (prototype == nullptr) {
-				throw std::runtime_error("Could not find prototype!");
-			}
-
-			{
-				auto queue = params.mPool->GetQueue();
-				TaskId initMaterial = queue.MakeTask([prototype, device, loadInto](const TaskParams& params) {
-					prototype->InitializeMaterial(device, loadInto);
-				}, loadInto->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-
-				// Load resources before we create the material itself
-				prototype->ScheduleLoadBefore(queue.Dependencies(initMaterial));
-				queue.Schedule(initMaterial);
-			}
- 		});
+			prototypeFactory.SpawnAsync(
+				prototype_str, manager, source,
+				path, json, pool, loadInto);
+ 		}, &loadInto->mLoadBarrier);
 
 		queue.Dependencies(spawnPrototype).After(filePipe);
 		return readFile;
 	}
 
 	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) : 
-		mManager(manager), 
-		mLoader(manager, this) {
+		mManager(manager) {
 	}
 
 	ResourceCache<MaterialResource>::~ResourceCache() {
@@ -201,7 +153,8 @@ namespace Morpheus {
 	}
 
 	IResource* ResourceCache<MaterialResource>::Load(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
+		auto params_cast = reinterpret_cast<
+			const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 		
 		{
@@ -212,8 +165,8 @@ namespace Morpheus {
 			}
 		}
 
-		MaterialResource* resource = new MaterialResource(mManager, this);
-		mLoader.Load(src, mPrototypeFactory, resource);
+		MaterialResource* resource = new MaterialResource(mManager);
+		MaterialLoader::Load(mManager, src, mPrototypeFactory, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);
@@ -228,7 +181,8 @@ namespace Morpheus {
 		IResource** output,
 		const TaskBarrierCallback& callback) {
 		
-		auto params_cast = reinterpret_cast<const LoadParams<MaterialResource>*>(params);
+		auto params_cast = reinterpret_cast<
+			const LoadParams<MaterialResource>*>(params);
 		auto src = params_cast->mSource;
 
 		{
@@ -240,8 +194,9 @@ namespace Morpheus {
 			}
 		}
 
-		MaterialResource* resource = new MaterialResource(mManager, this);
-		TaskId task = mLoader.AsyncLoad(src, mPrototypeFactory, threadPool, callback, resource);
+		MaterialResource* resource = new MaterialResource(mManager);
+		TaskId task = MaterialLoader::AsyncLoad(mManager, src, 
+			mPrototypeFactory, threadPool, callback, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);
@@ -273,5 +228,7 @@ namespace Morpheus {
 			item.second->ResetRefCount();
 			delete item.second;
 		}
+
+		mViewRegistry.clear();
 	}
 }

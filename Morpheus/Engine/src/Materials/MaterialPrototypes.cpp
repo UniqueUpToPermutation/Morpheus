@@ -3,7 +3,6 @@
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/MaterialResource.hpp>
-#include <Engine/Materials/MaterialView.hpp>
 #include <Engine/Materials/StaticMeshPBRMaterial.hpp>
 #include <Engine/Materials/BasicTexturedMaterial.hpp>
 #include <Engine/Materials/WhiteMaterial.hpp>
@@ -12,50 +11,47 @@
 
 namespace Morpheus {
 
-	MaterialPrototypeFactory::MaterialPrototypeFactory() {
-		Add<BasicTexturedMaterialPrototype>("BasicTexturedMaterial");
-		Add<StaticMeshPBRMaterialPrototype>("StaticMeshPBRMaterial");
-		Add<WhiteMaterialPrototype>("WhiteMaterial");
+	MaterialFactory::MaterialFactory() {
+		mMap["BasicTexturedMaterial"] = &BasicTexturedMaterialPrototype;
+		mMap["StaticMeshPBRMaterial"] = &StaticMeshPBRMaterialPrototype;
+		mMap["WhiteMaterial"] = &WhiteMaterialPrototype;
 	}
 
-	MaterialPrototype* MaterialPrototypeFactory::Spawn(
+	void MaterialFactory::Spawn(
 		const std::string& type,
 		ResourceManager* manager,
 		const std::string& source, 
 		const std::string& path,
-		const nlohmann::json& config) const {
+		const nlohmann::json& config,
+		MaterialResource* materialOut) const {
 
 		auto it = mMap.find(type);
 		if (it != mMap.end()) {
-			return it->second(manager, source, path, config);
+			MaterialAsyncParams params;
+			params.bUseAsync = false;
+			it->second(manager, path, source, config, params, materialOut);
+		} else {
+			throw std::runtime_error("Requested material type could not be found!");
 		}
-		return nullptr;
 	}
 
-	TaskId MaterialPrototypeFactory::SpawnAsyncDeferred(
+	void MaterialFactory::SpawnAsync(
 		const std::string& type,
 		ResourceManager* manager,
 		const std::string& source, 
 		const std::string& path,
 		const nlohmann::json& config,
 		ThreadPool* pool,
-		MaterialPrototype** out) const {
-		auto it = mAsyncMap.find(type);
-		if (it != mAsyncMap.end()) {
-			return it->second(manager, source, path, config, pool, out);
+		MaterialResource* materialOut) const {
+		auto it = mMap.find(type);
+		if (it != mMap.end()) {
+			MaterialAsyncParams params;
+			params.bUseAsync = true;
+			params.mPool = pool;
+			it->second(manager, source, path, config, params, materialOut);
+		} else {
+			throw std::runtime_error("Requested material type could not be found!");
 		}
-		return TASK_NONE;
-	}
-
-	void MaterialPrototype::InternalInitialize(
-		MaterialResource* material,
-		DG::IShaderResourceBinding* binding, 
-		PipelineResource* pipeline,
-		const std::vector<TextureResource*>& textures,
-		const std::vector<DG::IBuffer*>& buffers) {
-
-		material->Init(binding, pipeline, textures, buffers);
-		material->mPrototype.reset(DeepCopy());
 	}
 	
 	DG::float4 ReadFloat4(const nlohmann::json& json, const std::string& name, const DG::float4& defaultValue) {

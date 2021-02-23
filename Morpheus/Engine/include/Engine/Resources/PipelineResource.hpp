@@ -48,63 +48,73 @@ namespace Morpheus {
 		InstancingType mInstancingType;
 		bool bSourced;
 		std::unordered_map<std::string, PipelineResource*>::iterator mIterator;
+		entt::registry* mPipelineViewRegistry;
+		entt::entity mPipelineEntity;
+		std::vector<DG::IShaderResourceBinding*> mShaderResourceBindings;
 
-		void Init(DG::IPipelineState* state,
-			const std::vector<DG::LayoutElement>& layoutElements,
-			VertexAttributeLayout attributeLayout);
+		inline void SetSource(const std::unordered_map<std::string, PipelineResource*>::iterator& it) {
+			mIterator = it;
+			bSourced = true;
+		}
 
 	public:
 		~PipelineResource();
 
-		inline PipelineResource(ResourceManager* manager) :
+		template <typename T, typename... Args> 
+		void AddView(Args&& ... args) {
+			mPipelineViewRegistry->emplace<T>(mPipelineEntity, std::forward<Args>(args)...);
+		}
+
+		std::vector<DG::IShaderResourceBinding*>& 
+			GetShaderResourceBindings() {
+			return mShaderResourceBindings;
+		}
+
+		inline uint GetMaxThreadCount() const {
+			return mShaderResourceBindings.size();
+		}
+
+		inline PipelineResource(ResourceManager* manager,
+			entt::registry* pipelineViewRegistry) :
 			IResource(manager),
 			mState(nullptr),
 			mInstancingType(InstancingType::INSTANCED_STATIC_TRANSFORMS),
-			bSourced(false) {
-		}
-
-		inline PipelineResource(ResourceManager* manager, 
-			DG::IPipelineState* state,
-			const std::vector<DG::LayoutElement>& layoutElements,
-			VertexAttributeLayout attributeLayout,
-			InstancingType instancingType,
-			factory_func_t factory) : 
-			IResource(manager),
-			mInstancingType(instancingType),
-			mState(state),
-			mVertexLayout(layoutElements),
-			mAttributeLayout(attributeLayout),
-			mFactory(factory),
-			bSourced(false) {
+			bSourced(false),
+			mPipelineViewRegistry(pipelineViewRegistry) {
+			mPipelineEntity = mPipelineViewRegistry->create();
 		}
 
 		inline void SetAll(DG::IPipelineState* state,
 			const std::vector<DG::LayoutElement>& layoutElements,
+			const std::vector<DG::IShaderResourceBinding*>& shaderResourceBindings,
 			VertexAttributeLayout attributeLayout,
 			InstancingType instancingType) {
+
+			mShaderResourceBindings = shaderResourceBindings;
 
 			if (mState) {
 				mState->Release();
 				mState = nullptr;
 			}
-
+				
 			mState = state;
 			mVertexLayout = layoutElements;
 			mInstancingType = instancingType;
 			mAttributeLayout = attributeLayout;
 		}
 
-		inline bool IsReady() const {
-			return mState != nullptr;
+		template <typename T> 
+		T& GetView() {
+			return mPipelineViewRegistry->get<T>(mPipelineEntity);
 		}
 
-		inline bool IsSourced() const {
-			return bSourced;
+		template <typename T>
+		T* TryGetView() {
+			return mPipelineViewRegistry->try_get<T>(mPipelineEntity);
 		}
-		
-		inline void SetSource(const std::unordered_map<std::string, PipelineResource*>::iterator& it) {
-			bSourced = true;
-			mIterator = it;
+
+		inline bool IsReady() const {
+			return mState != nullptr;
 		}
 
 		inline DG::IPipelineState* GetState() {
@@ -131,6 +141,10 @@ namespace Morpheus {
 			return mAttributeLayout;
 		}
 
+		inline bool IsSourced() const {
+			return bSourced;
+		}
+
 		PipelineResource* ToPipeline() override;
 
 		friend class PipelineLoader;
@@ -149,72 +163,14 @@ namespace Morpheus {
 		}
 	};
 
-	DG::SHADER_TYPE ReadShaderType(const std::string& str);
-
-	class PipelineLoader {
-	public:
-		static DG::TEXTURE_FORMAT ReadTextureFormat(ResourceManager* resourceManager, const std::string& str);
-		static DG::PRIMITIVE_TOPOLOGY ReadPrimitiveTopology(const std::string& str);
-		static void ReadRasterizerDesc(const nlohmann::json& json, DG::RasterizerStateDesc* desc);
-		static void ReadDepthStencilDesc(ResourceManager* resourceManager, const nlohmann::json& json, DG::DepthStencilStateDesc* desc);
-		static DG::CULL_MODE ReadCullMode(const std::string& str);
-		static DG::FILL_MODE ReadFillMode(const std::string& str);
-		static DG::STENCIL_OP ReadStencilOp(const std::string& str);
-		static DG::COMPARISON_FUNCTION ReadComparisonFunc(const std::string& str);
-		static void ReadSampleDesc(ResourceManager* resourceManager, const nlohmann::json& json, DG::SampleDesc* desc);
-		static void ReadStencilOpDesc(const nlohmann::json& json, DG::StencilOpDesc* desc);
-		static std::vector<DG::LayoutElement> ReadLayoutElements(const nlohmann::json& json);
-		static DG::LayoutElement ReadLayoutElement(const nlohmann::json& json);
-		static DG::VALUE_TYPE ReadValueType(const nlohmann::json& json);
-		static VertexAttributeLayout ReadVertexAttributes(const nlohmann::json& json);
-		static DG::SHADER_RESOURCE_VARIABLE_TYPE ReadShaderResourceVariableType(const nlohmann::json& json);
-		static DG::PipelineResourceLayoutDesc ReadResourceLayout(ResourceManager* resourceManager,
-			const nlohmann::json& json,
-			std::vector<DG::ShaderResourceVariableDesc>* variables,
-			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-			std::vector<char*>* strings);
-		static DG::SamplerDesc ReadSamplerDesc(ResourceManager* resourceManager, const nlohmann::json& json);
-		static DG::SHADER_TYPE ReadShaderStages(const nlohmann::json& json);
-		static DG::TEXTURE_ADDRESS_MODE ReadTextureAddressMode(const nlohmann::json& json);
-		static DG::FILTER_TYPE ReadFilterType(ResourceManager* resourceManager, const nlohmann::json& json);
-		static DG::INPUT_ELEMENT_FREQUENCY ReadInputElementFrequency(const std::string& str);
-
-		static void Load(ResourceManager* resourceManager, 
-			EmbeddedFileLoader* fileLoader,
-			const std::string& source, 
-			PipelineResource* into, 
-			const ShaderPreprocessorConfig* overrides=nullptr);
-		static void Load(ResourceManager* resourceManager,
-			EmbeddedFileLoader* fileLoader,
-			const nlohmann::json& json, 
-			const std::string& path, 
-			PipelineResource* into, 
-			const ShaderPreprocessorConfig* overrides=nullptr);
-		static DG::ComputePipelineStateCreateInfo ReadComputeInfo(const nlohmann::json& json);
-		static DG::GraphicsPipelineStateCreateInfo ReadGraphicsInfo(ResourceManager* resourceManager,
-			const nlohmann::json& json, 
-			std::vector<DG::LayoutElement>* layoutElements,
-			std::vector<DG::ShaderResourceVariableDesc>* variables,
-			std::vector<DG::ImmutableSamplerDesc>* immutableSamplers,
-			std::vector<char*>* strings);
-		static ShaderResource* LoadShader(ResourceManager* resourceManager,
-			const nlohmann::json& shaderConfig,
-			const std::string& path,
-			const ShaderPreprocessorConfig* config = nullptr);
-		static ShaderResource* LoadShader(ResourceManager* resourceManager,
-			DG::SHADER_TYPE shaderType,
-			const std::string& path,
-			const std::string& name,
-			const std::string& entryPoint,
-			const ShaderPreprocessorConfig* config = nullptr);
-	};
-
 	template <>
 	class ResourceCache<PipelineResource> : public IResourceCache {
 	private:
 		std::unordered_map<std::string, PipelineResource*> mCachedResources;
 		std::unordered_map<std::string, factory_func_t> mPipelineFactories;
 		ResourceManager* mManager;
+
+		entt::registry mPipelineViewRegistry;
 
 		void InitFactories();
 		void ActuallyLoad(const std::string& source, PipelineResource* into, 

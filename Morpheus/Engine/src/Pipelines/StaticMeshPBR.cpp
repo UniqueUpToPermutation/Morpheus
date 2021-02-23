@@ -2,6 +2,8 @@
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/Pipelines/ImageBasedLightingView.hpp>
+#include <Engine/Materials/StaticMeshPBRMaterial.hpp>
 #include <Engine/Renderer.hpp>
 namespace Morpheus {
 	TaskId CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
@@ -256,8 +258,12 @@ namespace Morpheus {
 			into->SetAll(
 				result,
 				layoutElements,
+				GenerateSRBs(result, renderer),
 				layout,
 				InstancingType::INSTANCED_STATIC_TRANSFORMS);
+
+			into->AddView<ImageBasedLightingView>(into);
+			into->AddView<StaticMeshPBRPipelineView>(into);
 		};
 
 		if (!asyncParams->bUseAsync) {

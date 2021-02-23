@@ -1,6 +1,7 @@
 #include <Engine/Pipelines/PipelineFactory.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/Materials/BasicTexturedMaterial.hpp>
 #include <Engine/Renderer.hpp>
 
 namespace Morpheus {
@@ -120,11 +121,16 @@ namespace Morpheus {
 			indx.mPosition = 0;
 			indx.mUV = 1;
 
+			auto srbs = GenerateSRBs(result, renderer);
+
 			into->SetAll(
 				result,
 				layoutElements,
+				srbs,
 				indx,
 				InstancingType::INSTANCED_STATIC_TRANSFORMS);
+
+			into->AddView<BasicTexturedPipelineView>(into);
 		};
 
 		if (!asyncParams->bUseAsync) {

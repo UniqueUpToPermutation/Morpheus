@@ -401,17 +401,20 @@ namespace Morpheus {
 		vertexBufferDesc.uiSizeInBytes = vert_buffer.size();
 
 		DG::BufferDesc indexBufferDesc;
-		indexBufferDesc.Usage = DG::USAGE_IMMUTABLE;
-		indexBufferDesc.BindFlags = DG::BIND_INDEX_BUFFER;
-		indexBufferDesc.uiSizeInBytes = indx_buffer_raw.size();
+		indexBufferDesc.Usage 			= DG::USAGE_IMMUTABLE;
+		indexBufferDesc.BindFlags 		= DG::BIND_INDEX_BUFFER;
+		indexBufferDesc.uiSizeInBytes 	= indx_buffer_raw.size();
 
 		DG::DrawIndexedAttribs indexedAttribs;
-		indexedAttribs.IndexType = DG::VT_UINT32;
-		indexedAttribs.NumIndices = indx_buffer_raw.size();
+		indexedAttribs.IndexType 	= DG::VT_UINT32;
+		indexedAttribs.NumIndices 	= indx_buffer_raw.size() / sizeof(DG::Uint32);
 		
 		// Write to output raw geometry
-		geometryOut->Set(pipeline, vertexBufferDesc, indexBufferDesc, 
-			std::move(vert_buffer), std::move(indx_buffer_raw),
+		geometryOut->Set(pipeline, 
+			vertexBufferDesc, 
+			indexBufferDesc, 
+			std::move(vert_buffer), 
+			std::move(indx_buffer_raw),
 			indexedAttribs, aabb);
 	}
 
