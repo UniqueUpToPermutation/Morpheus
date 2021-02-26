@@ -7,6 +7,7 @@
 	"settings": {
 		"files.associations": {
 			"*.csh": "hlsl",
+			"*.gsh": "hlsl",
 			"*.fxh": "hlsl",
 			"any": "cpp",
 			"array": "cpp",
@@ -83,7 +84,8 @@
 			"*.hlsl": "hlsl",
 			"complex": "cpp",
 			"strstream": "cpp",
-			"*.ipp": "cpp"
+			"*.ipp": "cpp",
+			"csetjmp": "cpp"
 		}
 	}
 }

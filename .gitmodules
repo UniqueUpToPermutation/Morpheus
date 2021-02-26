@@ -22,3 +22,6 @@
 [submodule "im3d"]
 	path = im3d
 	url = https://github.com/john-chapman/im3d.git
+[submodule "cereal"]
+	path = cereal
+	url = https://github.com/USCiLab/cereal.git

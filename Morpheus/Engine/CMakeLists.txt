@@ -140,6 +140,8 @@ list(APPEND SOURCE
 	src/Resources/GeometryResource.cpp
 	src/Resources/ShaderLoader.cpp
 	src/Resources/EmbeddedFileLoader.cpp
+	src/Resources/ResourceData.cpp
+	src/Resources/ResourceSerialization.cpp
 
 	src/Components/Transform.cpp
 	src/Components/SkyboxComponent.cpp
@@ -206,6 +208,9 @@ list(APPEND INCLUDE
     include/Engine/Resources/ResourceManager.hpp
     include/Engine/Resources/ShaderLoader.hpp
     include/Engine/Resources/TextureResource.hpp
+	include/Engine/Resources/ImageCopy.hpp
+	include/Engine/Resources/ResourceData.hpp
+	include/Engine/Resources/ResourceSerialization.hpp
     
     include/Engine/Systems/Physics.hpp
     include/Engine/Systems/RendererBridge.hpp
@@ -221,6 +226,7 @@ PUBLIC
 	${CMAKE_SOURCE_DIR}/gli/external
 	${CMAKE_SOURCE_DIR}/lodepng
 	${CMAKE_SOURCE_DIR}/im3d
+	${CMAKE_SOURCE_DIR}/cereal/include/
 	.
 )
 

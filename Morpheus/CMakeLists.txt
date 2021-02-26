@@ -6,7 +6,8 @@ function(add_third_party_libraries APP_NAME)
 	target_include_directories(${APP_NAME} PRIVATE
 		${CMAKE_SOURCE_DIR}/entt/src/
 		${CMAKE_SOURCE_DIR}/json/single_include
-		${CMAKE_SOURCE_DIR}/mio/single_include})
+		${CMAKE_SOURCE_DIR}/mio/single_include}
+		${CMAKE_SOURCE_DIR}/cereal/include/)
 endfunction()
 
 function(add_msvc_ignores TARGET_NAME)

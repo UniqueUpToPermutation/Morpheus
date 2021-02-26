@@ -11,6 +11,9 @@ namespace Morpheus {
 	class ShaderResource;
 	class ResourceManager;
 	class CollisionShapeResource;
+	class RawTexture;
+	class RawGeometry;
+	class RawShader;
 
 	struct AsyncResourceParams {
 		bool bUseAsync;
