@@ -221,4 +221,41 @@ namespace Morpheus {
 
 		return GetTypeSize(GetComponentType(format)) * count;
 	}
+
+	bool GetIsNormalized(DG::TEXTURE_FORMAT format) {
+		switch (format) {
+			case DG::TEX_FORMAT_RGBA16_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_RGBA16_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_RGBA8_UNORM:
+				return true;
+			case DG::TEX_FORMAT_RGBA8_UNORM_SRGB:
+				return true;
+			case DG::TEX_FORMAT_RGBA8_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_RG16_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_RG16_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_RG8_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_RG8_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_D16_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_R16_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_R16_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_R8_UNORM: 
+				return true;
+			case DG::TEX_FORMAT_R8_SNORM: 
+				return true;
+			case DG::TEX_FORMAT_A8_UNORM:	
+				return true;
+			default:
+				return false;
+		}
+	}
 }

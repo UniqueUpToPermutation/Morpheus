@@ -142,6 +142,8 @@ list(APPEND SOURCE
 	src/Resources/EmbeddedFileLoader.cpp
 	src/Resources/ResourceData.cpp
 	src/Resources/ResourceSerialization.cpp
+	src/Resources/RawTexture.cpp
+	src/Resources/RawSampler.cpp
 
 	src/Components/Transform.cpp
 	src/Components/SkyboxComponent.cpp
@@ -211,6 +213,8 @@ list(APPEND INCLUDE
 	include/Engine/Resources/ImageCopy.hpp
 	include/Engine/Resources/ResourceData.hpp
 	include/Engine/Resources/ResourceSerialization.hpp
+	include/Engine/Resources/RawTexture.hpp
+	include/Engine/Resources/RawSampler.hpp
     
     include/Engine/Systems/Physics.hpp
     include/Engine/Systems/RendererBridge.hpp

@@ -11,4 +11,5 @@ namespace Morpheus {
 	DG::VALUE_TYPE GetComponentType(DG::TEXTURE_FORMAT texFormat);
 	int GetComponentCount(DG::TEXTURE_FORMAT texFormat);
 	int GetPixelByteSize(DG::TEXTURE_FORMAT format);
+	bool GetIsNormalized(DG::TEXTURE_FORMAT format);
 }
