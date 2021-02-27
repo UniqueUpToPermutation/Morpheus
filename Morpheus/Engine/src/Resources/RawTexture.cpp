@@ -468,7 +468,6 @@ namespace Morpheus {
 		std::array<float, 256> m_ToLinear;
 	};
 
-
 	float LinearToSRGB(uint8_t x)
 	{
 		static const LinearToSRGBMap map;

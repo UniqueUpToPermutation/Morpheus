@@ -158,7 +158,7 @@ namespace Morpheus {
 		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device);
 
 		friend class ResourceCache<TextureResource>;
-		friend class RawTextureSampler;
-		friend class SurfaceWriter;
+		friend class RawSampler;
+		friend class TextureIterator;
 	};
 }

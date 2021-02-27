@@ -798,7 +798,7 @@ namespace Morpheus {
 		}
 	}
 
-	RawTextureSampler::RawTextureSampler(RawTexture* texture, 
+	RawSampler::RawSampler(RawTexture* texture, 
 		const WrapParameters& wrapping) :
 		mAdapterF(SpawnAdaptor<float, float>(texture->mDesc.Format,
 			&texture->mData[0],

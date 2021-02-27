@@ -62,6 +62,53 @@ namespace Morpheus {
 			return 1.0 / (mag * std::sqrt(mag));
 		}
 
+		static void FromUV(IndexType u, IndexType v, uint face,
+			IndexType* x, IndexType* y, IndexType* z) {
+			IndexType u_ = 2.0 * u - 1.0;
+			IndexType v_ = 2.0 * v - 1.0;
+			IndexType x_;
+			IndexType y_;
+			IndexType z_;
+
+			switch (face) {
+				case FACE_POSITIVE_X:
+					x_ = 1.0;
+					y_ = u_;
+					z_ = v_;
+					break;
+				case FACE_NEGATIVE_X:
+					x_ = -1.0;
+					y_ = u_;
+					z_ = v_;
+					break;
+				case FACE_POSITIVE_Y:
+					x_ = u_;
+					y_ = 1.0;
+					z_ = v_;
+					break;
+				case FACE_NEGATIVE_Y:
+					x_ = u_;
+					y_ = -1.0;
+					z_ = v_;
+					break;
+				case FACE_POSITIVE_Z:
+					x_ = u_;
+					y_ = v_;
+					z_ = 1.0;
+					break;
+				case FACE_NEGATIVE_Z:
+					x_ = u_;
+					y_ = v_;
+					z_ = -1.0;
+					break;
+			}
+
+			IndexType mag = std::sqrt(x_ * x_ + y_ * y_ + z_ * z_);
+			*x = x_ / mag;
+			*y = y_ / mag;
+			*z = z_ / mag;
+		}
+
 		static void ToUV(IndexType x, IndexType y, IndexType z, 
 			IndexType* u, IndexType* v, uint* face) {
 			IndexType x_abs = std::abs(x);
@@ -113,23 +160,23 @@ namespace Morpheus {
 		}
 	};
 
-	class RawTextureSampler;
+	class RawSampler;
 
 	template <typename T>
-	ISurfaceAdaptor<T, T>* GetRawAdaptor(RawTextureSampler* sampler);
+	ISurfaceAdaptor<T, T>* GetRawAdaptor(RawSampler* sampler);
 
 	template <>
-	ISurfaceAdaptor<float, float>* GetRawAdaptor<float>(RawTextureSampler* sampler);
+	ISurfaceAdaptor<float, float>* GetRawAdaptor<float>(RawSampler* sampler);
 	template <>
-	ISurfaceAdaptor<double, double>* GetRawAdaptor<double>(RawTextureSampler* sampler);
+	ISurfaceAdaptor<double, double>* GetRawAdaptor<double>(RawSampler* sampler);
 
-	class RawTextureSampler {
+	class RawSampler {
 	private:
 		std::unique_ptr<ISurfaceAdaptor<float, float>> mAdapterF;
 		std::unique_ptr<ISurfaceAdaptor<double, double>> mAdapterD;
 
 	public:
-		RawTextureSampler(RawTexture* texture, 
+		RawSampler(RawTexture* texture, 
 			const WrapParameters& wrapping = WrapParameters::Default());
 
 		template <typename T>
