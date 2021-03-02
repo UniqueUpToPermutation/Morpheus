@@ -146,6 +146,63 @@ namespace Morpheus {
 		}
 	}
 
+	size_t RawTexture::GetMipCount() const {
+		if (mDesc.MipLevels == 0) {
+
+			size_t mip_width = mDesc.Width;
+			size_t mip_height = mDesc.Height;
+			size_t mip_depth = mDesc.Depth;
+
+			size_t mip_count = 1;
+			while (mip_width > 1 || mip_height > 1 || mip_depth > 1) {
+				++mip_count;
+
+				mip_width = std::max<size_t>(mip_width >> 1, 1u);
+				mip_height = std::max<size_t>(mip_height >> 1, 1u);
+				mip_depth = std::max<size_t>(mip_depth >> 1, 1u);
+			}
+
+			return mip_count;
+		} else 
+			return mDesc.MipLevels;
+	}
+
+	RawTexture::RawTexture(const DG::TextureDesc& desc) : mDesc(desc) {
+
+		auto pixelSize = GetPixelByteSize(desc.Format);
+
+		if (pixelSize <= 0) {
+			throw std::runtime_error("Format not supported!");
+		}
+
+		size_t mip_count = GetMipCount();
+
+		// Compute subresources and sizes
+		mSubDescs.reserve(mDesc.ArraySize * mip_count);
+		size_t currentOffset = 0;
+		for (size_t iarray = 0; iarray < mDesc.ArraySize; ++iarray) {
+			for (size_t imip = 0; imip < mip_count; ++imip) {
+				size_t mip_width = mDesc.Width;
+				size_t mip_height = mDesc.Height;
+				size_t mip_depth = mDesc.Depth;
+
+				mip_width = std::max<size_t>(mip_width >> imip, 1u);
+				mip_height = std::max<size_t>(mip_height >> imip, 1u);
+				mip_depth = std::max<size_t>(mip_depth >> imip, 1u);
+
+				TextureSubResDataDesc subDesc;
+				subDesc.mSrcOffset = currentOffset;
+				subDesc.mDepthStride = mip_width * mip_height * pixelSize;
+				subDesc.mStride = mip_width * pixelSize;
+				mSubDescs.emplace_back(subDesc);
+
+				currentOffset += mip_width * mip_height * mip_depth * pixelSize;
+			}
+		}
+
+		mData.resize(currentOffset);
+	}
+
 	void RawTexture::Save(const std::string& path) {
 		std::ofstream f(path, std::ios::binary);
 
@@ -165,31 +222,33 @@ namespace Morpheus {
 
 		std::unique_ptr<gli::texture> tex;
 
+		size_t mip_count = GetMipCount();
+
 		switch (target) {
 		case gli::TARGET_1D: {
 			gli::extent1d ex;
 			ex.x = desc.Width;
-			tex.reset(new gli::texture1d(format, ex, desc.MipLevels));
+			tex.reset(new gli::texture1d(format, ex, mip_count));
 			break;
 		}
 		case gli::TARGET_1D_ARRAY: {
 			gli::extent1d ex;
 			ex.x = desc.Width;
-			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, desc.MipLevels));
+			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, mip_count));
 			break;
 		}
 		case gli::TARGET_2D: {
 			gli::extent2d ex;
 			ex.x = desc.Width;
 			ex.y = desc.Height;
-			tex.reset(new gli::texture2d(format, ex, desc.MipLevels));
+			tex.reset(new gli::texture2d(format, ex, mip_count));
 			break;
 		}
 		case gli::TARGET_2D_ARRAY: {
 			gli::extent2d ex;
 			ex.x = desc.Width;
 			ex.y = desc.Height;
-			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, desc.MipLevels));
+			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, mip_count));
 			break;
 		}
 		case gli::TARGET_3D: {
@@ -197,14 +256,14 @@ namespace Morpheus {
 			ex.x = desc.Width;
 			ex.y = desc.Height;
 			ex.z = desc.Depth;
-			tex.reset(new gli::texture3d(format, ex, desc.MipLevels));
+			tex.reset(new gli::texture3d(format, ex, mip_count));
 			break;
 		}
 		case gli::TARGET_CUBE: {
 			gli::extent2d ex;
 			ex.x = desc.Width;
 			ex.y = desc.Height;
-			tex.reset(new gli::texture_cube(format, ex, desc.MipLevels));
+			tex.reset(new gli::texture_cube(format, ex, mip_count));
 			break;
 		}
 		case gli::TARGET_CUBE_ARRAY: {
@@ -213,7 +272,7 @@ namespace Morpheus {
 			ex.y = desc.Height;
 			size_t faces = 6;
 			size_t array_size = desc.ArraySize / faces;
-			tex.reset(new gli::texture_cube_array(format, ex, array_size, desc.MipLevels));
+			tex.reset(new gli::texture_cube_array(format, ex, array_size, mip_count));
 			break;
 		}
 		}
@@ -221,7 +280,6 @@ namespace Morpheus {
 		uint pixel_size = GetPixelByteSize(desc.Format);
 
 		size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
-		size_t mip_count = desc.MipLevels;
 
 		for (size_t subResource = 0; subResource < mSubDescs.size(); ++subResource) {
 			size_t Level = subResource % mip_count;
@@ -253,11 +311,16 @@ namespace Morpheus {
 
 		auto type = GetComponentType(mDesc.Format);
 
-		size_t increment = bSaveMips ? 1 : mDesc.MipLevels;
+		if (type == DG::VT_NUM_TYPES) {
+			throw std::runtime_error("Invalid texture format!");
+		}
+
+		size_t mip_count = GetMipCount();
+
+		size_t increment = bSaveMips ? 1 : mip_count;
 		size_t channel_count = GetComponentCount(mDesc.Format);
 		size_t face_count = mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
-		size_t mip_count = mDesc.MipLevels;
-
+		
 		size_t slices = mSubDescs.size() / mip_count;
 
 		std::string path_base;
@@ -312,7 +375,8 @@ namespace Morpheus {
 		auto desc = texture->GetDesc();
 
 		if (desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
-			
+
+			mDesc = desc;
 			mData.clear();
 			mSubDescs.clear();
 
@@ -323,7 +387,7 @@ namespace Morpheus {
 
 			size_t current_source_offset = 0;
 			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layers) {
+				for (size_t layer = 0; layer < layers; ++layer) {
 					size_t subresource_width = std::max(1u, desc.Width >> layer);
 					size_t subresource_height = std::max(1u, desc.Width >> layer);
 					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
@@ -340,21 +404,40 @@ namespace Morpheus {
 
 			mData.resize(current_source_offset);
 
+			std::vector<DG::MappedTextureSubresource> mappedSubs;
+			mappedSubs.reserve(slices * layers);
+
+			// Map subresources and synchronize
+			for (size_t slice = 0; slice < slices; ++slice) {
+				for (size_t layer = 0; layer < layers; ++layer) {
+					DG::MappedTextureSubresource texSub;
+					context->MapTextureSubresource(texture, layer, slice, 
+						DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
+					mappedSubs.emplace_back(texSub);
+				}
+			}
+
+			DG::FenceDesc fence_desc;
+			fence_desc.Name = "CPU Retrieval Fence";
+			DG::IFence* fence = nullptr;
+			device->CreateFence(fence_desc, &fence);
+			context->SignalFence(fence, 1);
+			context->WaitForFence(fence, 1, true);
+			fence->Release();
+
 			size_t subresource = 0;
 			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layers) {
+				for (size_t layer = 0; layer < layers; ++layer) {
 					size_t subresource_width = std::max(1u, desc.Width >> layer);
-					size_t subresource_height = std::max(1u, desc.Width >> layer);
+					size_t subresource_height = std::max(1u, desc.Height >> layer);
 					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
 
 					size_t subresource_data_size = subresource_width * subresource_height * 
 						subresource_depth * pixel_size;
 
 					auto desc = mSubDescs[subresource];
+					DG::MappedTextureSubresource texSub = mappedSubs[subresource];
 
-					DG::MappedTextureSubresource texSub;
-					context->MapTextureSubresource(texture, layer, slice, 
-						DG::MAP_READ, DG::MAP_FLAG_NONE, nullptr, texSub);
 					std::memcpy(&mData[desc.mSrcOffset], texSub.pData, subresource_data_size);
 					context->UnmapTextureSubresource(texture, layer, slice);
 
@@ -391,19 +474,10 @@ namespace Morpheus {
 				}
 			}
 
-			DG::FenceDesc fence_desc;
-			fence_desc.Name = "CPU Retrieval Texture";
-			DG::IFence* fence = nullptr;
-			device->CreateFence(fence_desc, &fence);
-
-			context->SignalFence(fence, 1);
-			context->WaitForFence(fence, 1, true);
-
 			// Retrieve data from staging texture
 			RetrieveData(stage_tex, device, context);
 
 			stage_tex->Release();
-			fence->Release();
 		}
 	}
 

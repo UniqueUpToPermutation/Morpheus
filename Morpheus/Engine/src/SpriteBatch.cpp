@@ -139,9 +139,10 @@ namespace Morpheus {
 			attribs.NumVertices = mWriteIndex;
 			
 			mMapHelper.Unmap();
-			mCurrentState.mTextureVariable->Set(mLastTexture->GetShaderView());
+			mCurrentState.mTextureVariable->Set(
+				mLastTexture->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE));
 			mCurrentContext->CommitShaderResources(mCurrentState.mShaderBinding, 
-						RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			mCurrentContext->Draw(attribs);
 
 			mMapHelper.Map(mCurrentContext, mBuffer, DG::MAP_WRITE, DG::MAP_FLAG_DISCARD);
@@ -156,7 +157,7 @@ namespace Morpheus {
 		mCurrentState = SpriteBatchState();
 	}
 
-	void SpriteBatch::Draw(TextureResource* texture, const DG::float3& pos,
+	void SpriteBatch::Draw(DG::ITexture* texture, const DG::float3& pos,
 		const DG::float2& size, const SpriteRect& rect, 
 		const DG::float2& origin, const float rotation, 
 		const DG::float4& color) {
@@ -169,9 +170,10 @@ namespace Morpheus {
 		}
 
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
-		auto dim2d = texture->GetDimensions2D();
+		auto& desc = texture->GetDesc();
+		DG::float2 dim2d(desc.Width, desc.Height);
 		
-		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
+		DG::float2 uvtop_unscaled(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
 		auto uvbottom_unscaled = uvtop_unscaled + rect.mSize;
 
 		instance->mPos.x = pos.x;
@@ -188,7 +190,7 @@ namespace Morpheus {
 		++mWriteIndex;
 	}
 
-	void SpriteBatch::Draw(TextureResource* texture, const DG::float2& pos, 
+	void SpriteBatch::Draw(DG::ITexture* texture, const DG::float2& pos, 
 		const DG::float2& size, const SpriteRect& rect, 
 		const DG::float2& origin, const float rotation, 
 		const DG::float4& color) {
@@ -201,9 +203,10 @@ namespace Morpheus {
 		}
 
 		SpriteBatchVSInput* instance = &mMapHelper[mWriteIndex];
-		auto dim2d = texture->GetDimensions2D();
+		auto& desc = texture->GetDesc();
+		DG::float2 dim2d(desc.Width, desc.Height);
 		
-		auto uvtop_unscaled = DG::float2(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
+		DG::float2 uvtop_unscaled(rect.mPosition.x - 0.5f, rect.mPosition.y - 0.5f);
 		auto uvbottom_unscaled = uvtop_unscaled + rect.mSize;
 
 		instance->mPos.x = pos.x;

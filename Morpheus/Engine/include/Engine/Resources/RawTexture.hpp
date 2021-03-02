@@ -55,6 +55,20 @@ namespace Morpheus {
 		TaskId LoadArchiveAsyncDeferred(const std::string& source, ThreadPool* pool);
 
 	public:
+		size_t GetMipCount() const;
+
+		inline size_t GetWidth() const {
+			return mDesc.Width;
+		}
+
+		inline size_t GetHeight() const {
+			return mDesc.Height;
+		}
+
+		inline size_t GetDepth() const {
+			return mDesc.Depth;
+		}
+
 		inline TaskBarrier* GetLoadBarrier() {
 			return &mBarrier;
 		}
@@ -81,6 +95,9 @@ namespace Morpheus {
 
 		inline RawTexture() {
 		}
+
+		// Automatically instances texture and allocates data and raw subresources
+		RawTexture(const DG::TextureDesc& desc);
 
 		inline RawTexture(const DG::TextureDesc& desc, 
 			std::vector<uint8_t>&& data, 
@@ -127,6 +144,11 @@ namespace Morpheus {
 		void SavePng(const std::string& path, bool bSaveMips = false);
 		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context);
 
+		// Retrieves data from a GPU texture
+		inline RawTexture(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context) {
+			RetrieveData(texture, device, context);
+		}
+
 		inline RawTexture(const LoadParams<TextureResource>& params) {
 			Load(params);
 		}
@@ -147,9 +169,9 @@ namespace Morpheus {
 			LoadGli(LoadParams<TextureResource>::FromString(source));
 		}
 
-		// Read raw texture from texture data on the GPU.
-		inline RawTexture(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context) {
-			RetrieveData(texture, device, context);
+		inline void Clear() {
+			mData.clear();
+			mSubDescs.clear();
 		}
 
 		RawTexture(RawTexture&& other) = default;

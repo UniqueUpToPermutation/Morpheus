@@ -26,7 +26,7 @@ namespace Morpheus {
 		memT* dest_ = (memT*)dest;
 		for (int i = 0; i < count; ++i) {
 			if constexpr (bNormed) {
-				dest_[i] = (memT)(src[i] * (usrT)std::numeric_limits<memT>::max());
+				dest_[i] = (memT)(std::min<usrT>(std::max<usrT>(src[i], 0.0), 1.0) * (usrT)std::numeric_limits<memT>::max());
 			} else {
 				dest_[i] = (memT)(src[i]);
 			}
@@ -51,13 +51,16 @@ namespace Morpheus {
 		mUnderlying(&texture->mData[0]),
 		mMip(mip),
 		mIterationBegin(subBegin.x, subBegin.y, subBegin.z, sliceBegin),
-		mIterationEnd(subEnd.x, subEnd.y, subEnd.z, sliceEnd),
-		mIndexCoords(mIterationBegin) {
+		mIterationEnd(subEnd.x, subEnd.y, subEnd.z, sliceEnd) {
+
+		mIndexCoords = mIterationBegin;
+
+		auto mip_levels = texture->GetMipCount();
 
 		mPixelSize = GetPixelByteSize(texture->mDesc.Format);
 
 		size_t currentOffset = 0;
-		for (uint imip = 0; imip < texture->mDesc.MipLevels; ++imip) {
+		for (uint imip = 0; imip < mip_levels; ++imip) {
 			if (imip == mip) {
 				mMipOffset = currentOffset;
 			}
@@ -78,9 +81,9 @@ namespace Morpheus {
 		mYStride = mip_width * mPixelSize;
 		mZStride = mip_height * mip_width * mPixelSize;
 
-		mScale.x = 1.0 / (double)texture->mDesc.Width;
-		mScale.y = 1.0 / (double)texture->mDesc.Height;
-		mScale.z = 1.0 / (double)texture->mDesc.Depth;
+		mScale.x = 1.0 / (double)mip_width;
+		mScale.y = 1.0 / (double)mip_height;
+		mScale.z = 1.0 / (double)mip_depth;
 
 		UpdateGridValue(mIndexCoords);
 

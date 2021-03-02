@@ -165,7 +165,7 @@ namespace Morpheus {
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(subBegin.x, subBegin.y, 0), 
-				DG::uint3(subEnd.x, subEnd.y, texture->mDesc.Depth), 
+				DG::uint3(subEnd.x, subEnd.y, std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
 				0, texture->mDesc.ArraySize, mip) {
 		}
 
@@ -174,7 +174,8 @@ namespace Morpheus {
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(subBegin, 0, 0), 
-				DG::uint3(subEnd, texture->mDesc.Height, texture->mDesc.Depth), 
+				DG::uint3(subEnd, std::max<uint>(texture->mDesc.Height >> mip, 1u), 
+					std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
 				0, texture->mDesc.ArraySize, mip) {
 		}
 
@@ -182,7 +183,9 @@ namespace Morpheus {
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(0, 0, 0), 
-				DG::uint3(texture->mDesc.Width, texture->mDesc.Height, texture->mDesc.Depth), 
+				DG::uint3(std::max<uint>(texture->mDesc.Width >> mip, 1u), 
+					std::max<uint>(texture->mDesc.Height >> mip, 1u), 
+					std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
 				0, texture->mDesc.ArraySize, mip) {
 		}
 
@@ -203,7 +206,7 @@ namespace Morpheus {
 		}
 
 		inline bool IsValid() const {
-			return bFinished;
+			return !bFinished;
 		}
 
 		void Next();

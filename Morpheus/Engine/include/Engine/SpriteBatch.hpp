@@ -96,7 +96,7 @@ namespace Morpheus {
 		SpriteBatchState mDefaultState;
 		SpriteBatchState mCurrentState;
 		DG::IDeviceContext* mCurrentContext;
-		TextureResource* mLastTexture;
+		DG::ITexture* mLastTexture;
 
 		uint mWriteIndex;
 		uint mBatchSize;
@@ -133,15 +133,169 @@ namespace Morpheus {
 		void Flush();
 		void End();
 
-		void Draw(TextureResource* texture, const DG::float3& pos,
+		void Draw(DG::ITexture* texture, const DG::float3& pos,
 			const DG::float2& size, const SpriteRect& rect, 
 			const DG::float2& origin, const float rotation, 
 			const DG::float4& color);
 
-		void Draw(TextureResource* texture, const DG::float2& pos, 
+		void Draw(DG::ITexture* texture, const DG::float2& pos, 
 			const DG::float2& size, const SpriteRect& rect, 
 			const DG::float2& origin, const float rotation, 
 			const DG::float4& color);
+
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos,
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos,  size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos,
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation,
+			const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const DG::float2& size,
+			const DG::float2& origin, const float rotation,
+			const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos,  size, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				DG::float2(0.0, 0.0), 0.0, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				DG::float2(0.0, 0.0), 0.0, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				DG::float2(0.0, 0.0), 0.0, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				DG::float2(0.0, 0.0), 0.0, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const SpriteRect& rect, const DG::float4& color) {
+			Draw(texture, pos, rect.mSize, rect,
+				DG::float2(0.0, 0.0), 0.0, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const SpriteRect& rect, const DG::float4& color) {
+			Draw(texture, pos, rect.mSize, rect,
+				DG::float2(0.0, 0.0), 0.0, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const SpriteRect& rect) {
+			Draw(texture, pos, rect.mSize, rect,
+				DG::float2(0.0, 0.0), 0.0, 
+				DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const SpriteRect& rect) {
+			Draw(texture, pos, rect.mSize, rect,
+				DG::float2(0.0, 0.0), 0.0, 
+				DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const SpriteRect& rect, const DG::float2& origin, const float rotation) {
+			Draw(texture, pos, rect.mSize, rect,
+				origin, rotation, 
+				DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const SpriteRect& rect, const DG::float2& origin, const float rotation) {
+			Draw(texture, pos, rect.mSize, rect,
+				origin, rotation, 
+				DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const DG::float2& origin, const float rotation, const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const DG::float2& origin, const float rotation, const DG::float4& color) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos, 
+			const DG::float2& origin, const float rotation) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const DG::float2& origin, const float rotation) {
+			auto& desc = texture->GetDesc();
+			auto dimensions = DG::float2(desc.Width, desc.Height);
+			Draw(texture, pos, dimensions, SpriteRect{DG::float2(0.0, 0.0), dimensions},
+				origin, rotation, DG::float4(1.0, 1.0, 1.0, 1.0)); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float3& pos,
+			const SpriteRect& rect, const DG::float2& origin, 
+			const float rotation, const DG::float4& color) {
+			Draw(texture, pos, rect.mSize, rect,
+				origin, rotation, color); 
+		}
+		inline void Draw(DG::ITexture* texture, const DG::float2& pos, 
+			const SpriteRect& rect, const DG::float2& origin, 
+			const float rotation, const DG::float4& color) {
+			Draw(texture, pos, rect.mSize, rect,
+				origin, rotation, color); 
+		}
+
+
+		inline void Draw(TextureResource* texture, const DG::float3& pos,
+			const DG::float2& size, const SpriteRect& rect, 
+			const DG::float2& origin, const float rotation, 
+			const DG::float4& color) {
+			Draw(texture->GetTexture(), pos, size, rect, origin, rotation, color);
+		}
+
+		inline void Draw(TextureResource* texture, const DG::float2& pos, 
+			const DG::float2& size, const SpriteRect& rect, 
+			const DG::float2& origin, const float rotation, 
+			const DG::float4& color) {
+			Draw(texture->GetTexture(), pos, size, rect, origin, rotation, color);
+		}
 
 		inline void Draw(TextureResource* texture, const DG::float3& pos,
 			const DG::float2& size,

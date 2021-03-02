@@ -124,3 +124,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(Im3dGizmo)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(RawTextureTest)
+endif()
