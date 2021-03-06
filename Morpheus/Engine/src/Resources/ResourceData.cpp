@@ -258,4 +258,13 @@ namespace Morpheus {
 				return false;
 		}
 	}
+
+	bool GetIsSRGB(DG::TEXTURE_FORMAT format) {
+		switch (format) {
+			case DG::TEX_FORMAT_RGBA8_UNORM_SRGB:
+				return true;
+			default:
+				return false;
+		}
+	}
 }

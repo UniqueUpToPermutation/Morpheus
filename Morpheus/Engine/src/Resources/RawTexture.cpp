@@ -167,321 +167,7 @@ namespace Morpheus {
 			return mDesc.MipLevels;
 	}
 
-	RawTexture::RawTexture(const DG::TextureDesc& desc) : mDesc(desc) {
-
-		auto pixelSize = GetPixelByteSize(desc.Format);
-
-		if (pixelSize <= 0) {
-			throw std::runtime_error("Format not supported!");
-		}
-
-		size_t mip_count = GetMipCount();
-
-		// Compute subresources and sizes
-		mSubDescs.reserve(mDesc.ArraySize * mip_count);
-		size_t currentOffset = 0;
-		for (size_t iarray = 0; iarray < mDesc.ArraySize; ++iarray) {
-			for (size_t imip = 0; imip < mip_count; ++imip) {
-				size_t mip_width = mDesc.Width;
-				size_t mip_height = mDesc.Height;
-				size_t mip_depth = mDesc.Depth;
-
-				mip_width = std::max<size_t>(mip_width >> imip, 1u);
-				mip_height = std::max<size_t>(mip_height >> imip, 1u);
-				mip_depth = std::max<size_t>(mip_depth >> imip, 1u);
-
-				TextureSubResDataDesc subDesc;
-				subDesc.mSrcOffset = currentOffset;
-				subDesc.mDepthStride = mip_width * mip_height * pixelSize;
-				subDesc.mStride = mip_width * pixelSize;
-				mSubDescs.emplace_back(subDesc);
-
-				currentOffset += mip_width * mip_height * mip_depth * pixelSize;
-			}
-		}
-
-		mData.resize(currentOffset);
-	}
-
-	void RawTexture::Save(const std::string& path) {
-		std::ofstream f(path, std::ios::binary);
-
-		if (f.is_open()) {
-			cereal::PortableBinaryOutputArchive ar(f);
-			Morpheus::Save(ar, this);
-			f.close();
-		} else {
-			throw std::runtime_error("Could not open file for writing!");
-		}
-	}
-
-	void RawTexture::SaveGli(const std::string& path) {
-		auto target = DGToGli(mDesc.Type);
-		auto format = DGToGli(mDesc.Format);
-		auto desc = mDesc;
-
-		std::unique_ptr<gli::texture> tex;
-
-		size_t mip_count = GetMipCount();
-
-		switch (target) {
-		case gli::TARGET_1D: {
-			gli::extent1d ex;
-			ex.x = desc.Width;
-			tex.reset(new gli::texture1d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_1D_ARRAY: {
-			gli::extent1d ex;
-			ex.x = desc.Width;
-			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, mip_count));
-			break;
-		}
-		case gli::TARGET_2D: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture2d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_2D_ARRAY: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, mip_count));
-			break;
-		}
-		case gli::TARGET_3D: {
-			gli::extent3d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			ex.z = desc.Depth;
-			tex.reset(new gli::texture3d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_CUBE: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture_cube(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_CUBE_ARRAY: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			size_t faces = 6;
-			size_t array_size = desc.ArraySize / faces;
-			tex.reset(new gli::texture_cube_array(format, ex, array_size, mip_count));
-			break;
-		}
-		}
-
-		uint pixel_size = GetPixelByteSize(desc.Format);
-
-		size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
-
-		for (size_t subResource = 0; subResource < mSubDescs.size(); ++subResource) {
-			size_t Level = subResource % mip_count;
-			size_t Slice = subResource / mip_count;
-			size_t Face = subResource % face_count;
-			size_t Layer = subResource / face_count;
-			
-			size_t subresource_width = std::max(1u, desc.Width >> Level);
-			size_t subresource_height = std::max(1u, desc.Width >> Level);
-			size_t subresource_depth = std::max(1u, desc.Depth >> Level);
-
-			size_t subresource_data_size = subresource_width * subresource_height * 
-					subresource_depth * pixel_size;
-
-			size_t array_slice = Layer * tex->faces() + Face;
-
-			std::memcpy(tex->data(Layer, Face, Level), &mData[mSubDescs[subResource].mSrcOffset], subresource_data_size);
-		}
-
-		gli::save_ktx(*tex, path);
-	}
-
-	void RawTexture::SavePng(const std::string& path, bool bSaveMips) {
-		std::vector<uint8_t> buf;
-
-		if (mDesc.Type == DG::RESOURCE_DIM_TEX_3D) {
-			throw std::runtime_error("Cannot have 3D textures as PNG!");
-		}
-
-		auto type = GetComponentType(mDesc.Format);
-
-		if (type == DG::VT_NUM_TYPES) {
-			throw std::runtime_error("Invalid texture format!");
-		}
-
-		size_t mip_count = GetMipCount();
-
-		size_t increment = bSaveMips ? 1 : mip_count;
-		size_t channel_count = GetComponentCount(mDesc.Format);
-		size_t face_count = mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
-		
-		size_t slices = mSubDescs.size() / mip_count;
-
-		std::string path_base;
-
-		auto pos = path.find('.');
-		if (pos != std::string::npos) {
-			path_base = path.substr(0, pos);
-		} else {
-			path_base = path;
-		}
-
-		for (size_t subResource = 0; subResource < mSubDescs.size(); subResource += increment) {
-			size_t Level = subResource % mip_count;
-			size_t Slice = subResource / mip_count;
-
-			size_t subresource_width = std::max(1u, mDesc.Width >> Level);
-			size_t subresource_height = std::max(1u, mDesc.Width >> Level);
-			size_t subresource_depth = std::max(1u, mDesc.Depth >> Level);
-			size_t buf_size = subresource_width * subresource_height * 
-				subresource_depth * 4;
-
-			std::vector<uint8_t> buf;
-			buf.resize(buf_size);
-
-			auto& sub = mSubDescs[subResource];
-
-			ImageCopy<uint8_t, 4>(&buf[0], &mData[sub.mSrcOffset], 
-				subresource_width * subresource_height, channel_count, type);
-
-			std::stringstream ss;
-			ss << path_base;
-			if (slices > 1) {
-				ss << "_slice_" << Slice;
-			}
-			if (bSaveMips) {
-				ss << "_mip_" << Level;
-			}
-			ss << ".png";
-
-			auto err = lodepng::encode(ss.str(), &buf[0], subresource_width, subresource_height);
-
-			if (err) {
-				std::cout << "Encoder error " << err << ": " << lodepng_error_text(err) << std::endl;
-				throw std::runtime_error(lodepng_error_text(err));
-			}
-		}
-	}
-
-	void RawTexture::RetrieveData(DG::ITexture* texture, 
-		DG::IRenderDevice* device, DG::IDeviceContext* context) {
-
-		auto desc = texture->GetDesc();
-
-		if (desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
-
-			mDesc = desc;
-			mData.clear();
-			mSubDescs.clear();
-
-			size_t layers = desc.MipLevels;
-			size_t slices = desc.ArraySize;
-
-			size_t pixel_size = GetPixelByteSize(desc.Format);
-
-			size_t current_source_offset = 0;
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					size_t subresource_width = std::max(1u, desc.Width >> layer);
-					size_t subresource_height = std::max(1u, desc.Width >> layer);
-					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
-
-					TextureSubResDataDesc sub;
-					sub.mDepthStride = subresource_width * subresource_height * pixel_size;
-					sub.mSrcOffset = current_source_offset;
-					sub.mStride = subresource_width * pixel_size;
-
-					mSubDescs.emplace_back(sub);
-					current_source_offset += subresource_width * subresource_depth * subresource_height * pixel_size;
-				}
-			}
-
-			mData.resize(current_source_offset);
-
-			std::vector<DG::MappedTextureSubresource> mappedSubs;
-			mappedSubs.reserve(slices * layers);
-
-			// Map subresources and synchronize
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					DG::MappedTextureSubresource texSub;
-					context->MapTextureSubresource(texture, layer, slice, 
-						DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
-					mappedSubs.emplace_back(texSub);
-				}
-			}
-
-			DG::FenceDesc fence_desc;
-			fence_desc.Name = "CPU Retrieval Fence";
-			DG::IFence* fence = nullptr;
-			device->CreateFence(fence_desc, &fence);
-			context->SignalFence(fence, 1);
-			context->WaitForFence(fence, 1, true);
-			fence->Release();
-
-			size_t subresource = 0;
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					size_t subresource_width = std::max(1u, desc.Width >> layer);
-					size_t subresource_height = std::max(1u, desc.Height >> layer);
-					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
-
-					size_t subresource_data_size = subresource_width * subresource_height * 
-						subresource_depth * pixel_size;
-
-					auto desc = mSubDescs[subresource];
-					DG::MappedTextureSubresource texSub = mappedSubs[subresource];
-
-					std::memcpy(&mData[desc.mSrcOffset], texSub.pData, subresource_data_size);
-					context->UnmapTextureSubresource(texture, layer, slice);
-
-					++subresource;
-				}
-			}
-		} else {
-			// Create staging texture
-			auto stage_desc = texture->GetDesc();
-			stage_desc.Name = "CPU Retrieval Texture";
-			stage_desc.CPUAccessFlags = DG::CPU_ACCESS_READ;
-			stage_desc.Usage = DG::USAGE_STAGING;
-			stage_desc.BindFlags = DG::BIND_NONE;
-			stage_desc.MiscFlags = DG::MISC_TEXTURE_FLAG_NONE;
-
-			DG::ITexture* stage_tex = nullptr;
-			device->CreateTexture(stage_desc, nullptr, &stage_tex);
-
-			DG::CopyTextureAttribs copy_attribs;
-
-			for (uint slice = 0; slice < desc.ArraySize; ++slice) {
-				for (uint mip = 0; mip < desc.MipLevels; ++mip) {
-					copy_attribs.DstSlice = slice;
-					copy_attribs.DstMipLevel = mip;
-					copy_attribs.pDstTexture = stage_tex;
-					copy_attribs.DstTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
-
-					copy_attribs.SrcSlice = slice;
-					copy_attribs.SrcMipLevel = mip;
-					copy_attribs.pSrcTexture = texture;
-					copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
-
-					context->CopyTexture(copy_attribs);
-				}
-			}
-
-			// Retrieve data from staging texture
-			RetrieveData(stage_tex, device, context);
-
-			stage_tex->Release();
-		}
-	}
-
-	void ExpandDataUInt8(const uint8_t data[], uint8_t expanded_data[], uint blocks) {
+		void ExpandDataUInt8(const uint8_t data[], uint8_t expanded_data[], uint blocks) {
 		int src_idx = 0;
 		int dest_idx = 0;
 		for (uint i = 0; i < blocks; ++i) {
@@ -589,7 +275,7 @@ namespace Morpheus {
 	}
 
 	template <typename ChannelType>
-	void ComputeCoarseMip(DG::Uint32      NumChannels,
+	void ComputeCoarseMip2D(DG::Uint32      NumChannels,
 						bool        IsSRGB,
 						const void* pFineMip,
 						DG::Uint32      FineMipStride,
@@ -630,6 +316,424 @@ namespace Morpheus {
 						DstCol = LinearAverage(Chnl00, Chnl01, Chnl10, Chnl11);
 				}
 			}
+		}
+	}
+
+	typedef void (*mip_generator_2d_t)(DG::Uint32 NumChannels,
+		bool IsSRGB,
+		const void* pFineMip,
+		DG::Uint32 FineMipStride,
+		DG::Uint32 FineMipWidth,
+		DG::Uint32 FineMipHeight,
+		void* pCoarseMip,
+		DG::Uint32 CoarseMipStride,
+		DG::Uint32 CoarseMipWidth,
+		DG::Uint32 CoarseMipHeight);
+
+	void RawTexture::GenerateMips() {
+
+		size_t mipCount = GetMipCount();
+		bool isSRGB = GetIsSRGB();
+		size_t pixelSize = GetPixelByteSize();
+		uint channelCount = GetComponentCount();
+		auto valueType = GetComponentType();
+
+		uint iSubresource = 0;
+		for (size_t arrayIndex = 0; arrayIndex < mDesc.ArraySize; ++arrayIndex) {
+			auto& baseSubDesc = mSubDescs[iSubresource];
+			auto last_mip_data = &mData[baseSubDesc.mSrcOffset];
+			++iSubresource;
+
+			for (size_t i = 1; i < mipCount; ++i) {
+				auto& subDesc = mSubDescs[iSubresource];
+				auto new_mip_data = &mData[subDesc.mSrcOffset];
+
+				uint fineWidth = std::max<uint>(1u, mDesc.Width >> (i - 1));
+				uint fineHeight = std::max<uint>(1u, mDesc.Height >> (i - 1));
+				uint fineDepth = std::max<uint>(1u, mDesc.Depth >> (i - 1));
+				uint coarseWidth = std::max<uint>(1u, mDesc.Width >> i);
+				uint coarseHeight = std::max<uint>(1u, mDesc.Height >> i);
+				uint coarseDepth = std::max<uint>(1u, mDesc.Depth >> i);
+
+				uint fineStride = fineWidth * pixelSize;
+				uint coarseStride = coarseWidth * pixelSize;
+
+				mip_generator_2d_t mip_gen;
+
+				switch (valueType) {
+					case DG::VT_UINT8:
+						mip_gen = &ComputeCoarseMip2D<DG::Uint8>;
+						break;
+					case DG::VT_UINT16:
+						mip_gen = &ComputeCoarseMip2D<DG::Uint16>;
+						break;
+					case DG::VT_UINT32:
+						mip_gen = &ComputeCoarseMip2D<DG::Uint32>;
+						break;
+					case DG::VT_FLOAT32:
+						mip_gen = &ComputeCoarseMip2D<DG::Float32>;
+						break;
+					default:
+						throw std::runtime_error("Mip generation for texture type is not supported!");
+				}
+
+				mip_gen(channelCount, isSRGB, last_mip_data, fineStride, 
+					fineWidth, fineHeight, new_mip_data, 
+					coarseStride, coarseWidth, coarseHeight);
+
+				last_mip_data = new_mip_data;
+				++iSubresource;
+			}
+		}
+	}
+
+	void RawTexture::Alloc(const DG::TextureDesc& desc) {
+		mDesc = desc;
+		auto pixelSize = GetPixelByteSize();
+
+		if (pixelSize <= 0) {
+			throw std::runtime_error("Format not supported!");
+		}
+
+		size_t mip_count = GetMipCount();
+
+		// Compute subresources and sizes
+		mSubDescs.reserve(mDesc.ArraySize * mip_count);
+		size_t currentOffset = 0;
+		for (size_t iarray = 0; iarray < mDesc.ArraySize; ++iarray) {
+			for (size_t imip = 0; imip < mip_count; ++imip) {
+				size_t mip_width = mDesc.Width;
+				size_t mip_height = mDesc.Height;
+				size_t mip_depth = mDesc.Depth;
+
+				mip_width = std::max<size_t>(mip_width >> imip, 1u);
+				mip_height = std::max<size_t>(mip_height >> imip, 1u);
+				mip_depth = std::max<size_t>(mip_depth >> imip, 1u);
+
+				TextureSubResDataDesc subDesc;
+				subDesc.mSrcOffset = currentOffset;
+				subDesc.mDepthStride = mip_width * mip_height * pixelSize;
+				subDesc.mStride = mip_width * pixelSize;
+				mSubDescs.emplace_back(subDesc);
+
+				currentOffset += mip_width * mip_height * mip_depth * pixelSize;
+			}
+		}
+
+		mData.resize(currentOffset);
+	}
+
+	void* RawTexture::GetSubresourcePtr(uint mip, uint arrayIndex) {
+		size_t subresourceIndex = arrayIndex * mDesc.MipLevels + mip;
+		return &mData[mSubDescs[subresourceIndex].mSrcOffset];
+	}
+
+	size_t RawTexture::GetSubresourceSize(uint mip, uint arrayIndex) {
+		size_t subresourceIndex = arrayIndex * mDesc.MipLevels + mip;
+		size_t depth = std::max<size_t>(1u, mDesc.Depth >> mip);
+		return mSubDescs[subresourceIndex].mDepthStride * depth;
+	}
+
+	DG::VALUE_TYPE RawTexture::GetComponentType() const {
+		return Morpheus::GetComponentType(mDesc.Format);
+	}
+
+	int RawTexture::GetComponentCount() const {
+		return Morpheus::GetComponentCount(mDesc.Format);
+	}
+
+	bool RawTexture::GetIsSRGB() const {
+		return Morpheus::GetIsSRGB(mDesc.Format);
+	}
+
+	size_t RawTexture::GetPixelByteSize() const {
+		return Morpheus::GetPixelByteSize(mDesc.Format);
+	}
+
+	RawTexture::RawTexture(const DG::TextureDesc& desc) {
+		Alloc(desc);		
+	}
+
+	void RawTexture::Save(const std::string& path) {
+		std::ofstream f(path, std::ios::binary);
+
+		if (f.is_open()) {
+			cereal::PortableBinaryOutputArchive ar(f);
+			Morpheus::Save(ar, this);
+			f.close();
+		} else {
+			throw std::runtime_error("Could not open file for writing!");
+		}
+	}
+
+	void RawTexture::SaveGli(const std::string& path) {
+		auto target = DGToGli(mDesc.Type);
+		auto format = DGToGli(mDesc.Format);
+		auto desc = mDesc;
+
+		std::unique_ptr<gli::texture> tex;
+
+		size_t mip_count = GetMipCount();
+
+		switch (target) {
+		case gli::TARGET_1D: {
+			gli::extent1d ex;
+			ex.x = desc.Width;
+			tex.reset(new gli::texture1d(format, ex, mip_count));
+			break;
+		}
+		case gli::TARGET_1D_ARRAY: {
+			gli::extent1d ex;
+			ex.x = desc.Width;
+			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, mip_count));
+			break;
+		}
+		case gli::TARGET_2D: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture2d(format, ex, mip_count));
+			break;
+		}
+		case gli::TARGET_2D_ARRAY: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, mip_count));
+			break;
+		}
+		case gli::TARGET_3D: {
+			gli::extent3d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			ex.z = desc.Depth;
+			tex.reset(new gli::texture3d(format, ex, mip_count));
+			break;
+		}
+		case gli::TARGET_CUBE: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			tex.reset(new gli::texture_cube(format, ex, mip_count));
+			break;
+		}
+		case gli::TARGET_CUBE_ARRAY: {
+			gli::extent2d ex;
+			ex.x = desc.Width;
+			ex.y = desc.Height;
+			size_t faces = 6;
+			size_t array_size = desc.ArraySize / faces;
+			tex.reset(new gli::texture_cube_array(format, ex, array_size, mip_count));
+			break;
+		}
+		}
+
+		uint pixel_size = GetPixelByteSize();
+
+		size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
+
+		for (size_t subResource = 0; subResource < mSubDescs.size(); ++subResource) {
+			size_t Level = subResource % mip_count;
+			size_t Slice = subResource / mip_count;
+			size_t Face = subResource % face_count;
+			size_t Layer = subResource / face_count;
+			
+			size_t subresource_width = std::max(1u, desc.Width >> Level);
+			size_t subresource_height = std::max(1u, desc.Width >> Level);
+			size_t subresource_depth = std::max(1u, desc.Depth >> Level);
+
+			size_t subresource_data_size = subresource_width * subresource_height * 
+					subresource_depth * pixel_size;
+
+			size_t array_slice = Layer * tex->faces() + Face;
+
+			std::memcpy(tex->data(Layer, Face, Level), &mData[mSubDescs[subResource].mSrcOffset], subresource_data_size);
+		}
+
+		gli::save_ktx(*tex, path);
+	}
+
+	void RawTexture::SavePng(const std::string& path, bool bSaveMips) {
+		std::vector<uint8_t> buf;
+
+		if (mDesc.Type == DG::RESOURCE_DIM_TEX_3D) {
+			throw std::runtime_error("Cannot have 3D textures as PNG!");
+		}
+
+		auto type = GetComponentType();
+
+		if (type == DG::VT_NUM_TYPES) {
+			throw std::runtime_error("Invalid texture format!");
+		}
+
+		size_t mip_count = GetMipCount();
+
+		size_t increment = bSaveMips ? 1 : mip_count;
+		size_t channel_count = GetComponentCount();
+		size_t face_count = mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
+		
+		size_t slices = mSubDescs.size() / mip_count;
+
+		std::string path_base;
+
+		auto pos = path.find('.');
+		if (pos != std::string::npos) {
+			path_base = path.substr(0, pos);
+		} else {
+			path_base = path;
+		}
+
+		for (size_t subResource = 0; subResource < mSubDescs.size(); subResource += increment) {
+			size_t Level = subResource % mip_count;
+			size_t Slice = subResource / mip_count;
+
+			size_t subresource_width = std::max(1u, mDesc.Width >> Level);
+			size_t subresource_height = std::max(1u, mDesc.Width >> Level);
+			size_t subresource_depth = std::max(1u, mDesc.Depth >> Level);
+			size_t buf_size = subresource_width * subresource_height * 
+				subresource_depth * 4;
+
+			std::vector<uint8_t> buf;
+			buf.resize(buf_size);
+
+			auto& sub = mSubDescs[subResource];
+
+			ImageCopy<uint8_t, 4>(&buf[0], &mData[sub.mSrcOffset], 
+				subresource_width * subresource_height, channel_count, type);
+
+			std::stringstream ss;
+			ss << path_base;
+			if (slices > 1) {
+				ss << "_slice_" << Slice;
+			}
+			if (bSaveMips) {
+				ss << "_mip_" << Level;
+			}
+			ss << ".png";
+
+			auto err = lodepng::encode(ss.str(), &buf[0], subresource_width, subresource_height);
+
+			if (err) {
+				std::cout << "Encoder error " << err << ": " << lodepng_error_text(err) << std::endl;
+				throw std::runtime_error(lodepng_error_text(err));
+			}
+		}
+	}
+
+	void RawTexture::RetrieveData(DG::ITexture* texture, 
+		DG::IRenderDevice* device, DG::IDeviceContext* context) {
+		RetrieveData(texture, device, context, texture->GetDesc());
+	}
+
+	void RawTexture::RetrieveData(DG::ITexture* texture, 
+		DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& texDesc) {
+
+		auto& desc = texture->GetDesc();
+
+		if (desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
+
+			mDesc = texDesc;
+			mData.clear();
+			mSubDescs.clear();
+
+			size_t layers = desc.MipLevels;
+			size_t slices = desc.ArraySize;
+
+			size_t pixel_size = GetPixelByteSize();
+
+			size_t current_source_offset = 0;
+			for (size_t slice = 0; slice < slices; ++slice) {
+				for (size_t layer = 0; layer < layers; ++layer) {
+					size_t subresource_width = std::max(1u, desc.Width >> layer);
+					size_t subresource_height = std::max(1u, desc.Width >> layer);
+					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
+
+					TextureSubResDataDesc sub;
+					sub.mDepthStride = subresource_width * subresource_height * pixel_size;
+					sub.mSrcOffset = current_source_offset;
+					sub.mStride = subresource_width * pixel_size;
+
+					mSubDescs.emplace_back(sub);
+					current_source_offset += subresource_width * subresource_depth * subresource_height * pixel_size;
+				}
+			}
+
+			mData.resize(current_source_offset);
+
+			std::vector<DG::MappedTextureSubresource> mappedSubs;
+			mappedSubs.reserve(slices * layers);
+
+			// Map subresources and synchronize
+			for (size_t slice = 0; slice < slices; ++slice) {
+				for (size_t layer = 0; layer < layers; ++layer) {
+					DG::MappedTextureSubresource texSub;
+					context->MapTextureSubresource(texture, layer, slice, 
+						DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
+					mappedSubs.emplace_back(texSub);
+				}
+			}
+
+			DG::FenceDesc fence_desc;
+			fence_desc.Name = "CPU Retrieval Fence";
+			DG::IFence* fence = nullptr;
+			device->CreateFence(fence_desc, &fence);
+			context->SignalFence(fence, 1);
+			context->WaitForFence(fence, 1, true);
+			fence->Release();
+
+			size_t subresource = 0;
+			for (size_t slice = 0; slice < slices; ++slice) {
+				for (size_t layer = 0; layer < layers; ++layer) {
+					size_t subresource_width = std::max(1u, desc.Width >> layer);
+					size_t subresource_height = std::max(1u, desc.Height >> layer);
+					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
+
+					size_t subresource_data_size = subresource_width * subresource_height * 
+						subresource_depth * pixel_size;
+
+					auto desc = mSubDescs[subresource];
+					DG::MappedTextureSubresource texSub = mappedSubs[subresource];
+
+					std::memcpy(&mData[desc.mSrcOffset], texSub.pData, subresource_data_size);
+					context->UnmapTextureSubresource(texture, layer, slice);
+
+					++subresource;
+				}
+			}
+		} else {
+			// Create staging texture
+			auto stage_desc = texture->GetDesc();
+			stage_desc.Name = "CPU Retrieval Texture";
+			stage_desc.CPUAccessFlags = DG::CPU_ACCESS_READ;
+			stage_desc.Usage = DG::USAGE_STAGING;
+			stage_desc.BindFlags = DG::BIND_NONE;
+			stage_desc.MiscFlags = DG::MISC_TEXTURE_FLAG_NONE;
+
+			DG::ITexture* stage_tex = nullptr;
+			device->CreateTexture(stage_desc, nullptr, &stage_tex);
+
+			DG::CopyTextureAttribs copy_attribs;
+
+			for (uint slice = 0; slice < desc.ArraySize; ++slice) {
+				for (uint mip = 0; mip < desc.MipLevels; ++mip) {
+					copy_attribs.DstSlice = slice;
+					copy_attribs.DstMipLevel = mip;
+					copy_attribs.pDstTexture = stage_tex;
+					copy_attribs.DstTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+
+					copy_attribs.SrcSlice = slice;
+					copy_attribs.SrcMipLevel = mip;
+					copy_attribs.pSrcTexture = texture;
+					copy_attribs.SrcTextureTransitionMode = DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION;
+
+					context->CopyTexture(copy_attribs);
+				}
+			}
+
+			// Retrieve data from staging texture
+			RetrieveData(stage_tex, device, context, desc);
+
+			stage_tex->Release();
 		}
 	}
 
@@ -732,7 +836,7 @@ namespace Morpheus {
 			uint coarseStride = coarseWidth * new_comp;
 
 			if (bIsHDR) {
-				ComputeCoarseMip<float>(new_comp, false,
+				ComputeCoarseMip2D<float>(new_comp, false,
 					(float*)last_mip_data, 
 					fineStride,
 					fineWidth, fineHeight,
@@ -740,7 +844,7 @@ namespace Morpheus {
 					coarseStride,
 					coarseWidth, coarseHeight);
 			} else {
-				ComputeCoarseMip<uint8_t>(new_comp, false,
+				ComputeCoarseMip2D<uint8_t>(new_comp, false,
 					(uint8_t*)last_mip_data,
 					fineStride,
 					fineWidth, fineHeight,
@@ -876,7 +980,7 @@ namespace Morpheus {
 		desc.BindFlags = DG::BIND_SHADER_RESOURCE;
 		desc.Width = width;
 		desc.Height = height;
-		desc.MipLevels = 0;
+		desc.MipLevels = params.bGenerateMips ? 0 : 1;
 		desc.Name = params.mSource.c_str();
 		desc.Format = format;
 		desc.Type = DG::RESOURCE_DIM_TEX_2D;
@@ -884,50 +988,11 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.ArraySize = 1;
 
-		size_t mipCount = MipCount(width, height);
+		into->Alloc(desc);
+		std::memcpy(into->GetSubresourcePtr(), &image[0], into->GetSubresourceSize());
 
-		TextureSubResDataDesc mip0;
-		mip0.mDepthStride = width * height * 4 * sizeof(uint8_t);
-		mip0.mStride = width * 4 * sizeof(uint8_t);
-		mip0.mSrcOffset = currentIndx;
-		subDatas.emplace_back(mip0);
-
-		std::memcpy(&rawData[0], &image[0], width * height * 4);
-
-		currentIndx = width * height * 4;
-
-		uint8_t* last_mip_data = &rawData[0];
-
-		for (size_t i = 1; i < mipCount; ++i) {
-			auto new_mip_data = &rawData[currentIndx];
-
-			uint fineWidth = std::max(1u, width >> (i - 1));
-			uint fineHeight = std::max(1u, height >> (i - 1));
-			uint coarseWidth = std::max(1u, width >> i);
-			uint coarseHeight = std::max(1u, height >> i);
-
-			uint fineStride = fineWidth * 4 * sizeof(uint8_t);
-			uint coarseStride = coarseWidth * 4 * sizeof(uint8_t);
-
-			ComputeCoarseMip<uint8_t>(4, params.bIsSRGB,
-				last_mip_data,
-				fineStride,
-				fineWidth, fineHeight,
-				new_mip_data,
-				coarseStride,
-				coarseWidth, coarseHeight);
-
-			TextureSubResDataDesc mipDesc;
-			mipDesc.mDepthStride = coarseWidth * coarseHeight * 4 * sizeof(uint8_t);
-			mipDesc.mStride = coarseWidth * 4 * sizeof(uint8_t);
-			mipDesc.mSrcOffset = currentIndx;
-			subDatas.emplace_back(mipDesc);
-
-			currentIndx += coarseWidth * coarseHeight * 4;
-			last_mip_data = new_mip_data;
-		}
-
-		into->Set(desc, std::move(rawData), subDatas);
+		if (params.bGenerateMips)
+			into->GenerateMips();
 	}
 
 	void RawTexture::LoadArchive(const std::string& path) {

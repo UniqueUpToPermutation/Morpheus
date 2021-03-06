@@ -54,8 +54,11 @@ namespace Morpheus {
 		TaskId LoadStbAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool);
 		TaskId LoadArchiveAsyncDeferred(const std::string& source, ThreadPool* pool);
 
+		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& desc);
+
 	public:
 		size_t GetMipCount() const;
+		void GenerateMips();
 
 		inline size_t GetWidth() const {
 			return mDesc.Width;
@@ -96,6 +99,17 @@ namespace Morpheus {
 		inline RawTexture() {
 		}
 
+		// Automatically instances texture and allocates data and raw subresources
+		void Alloc(const DG::TextureDesc& desc);
+
+		void* GetSubresourcePtr(uint mip = 0, uint arrayIndex = 0);
+		size_t GetSubresourceSize(uint mip = 0, uint arrayIndex = 0);
+
+		DG::VALUE_TYPE GetComponentType() const;
+		int GetComponentCount() const;
+		bool GetIsSRGB() const;
+		size_t GetPixelByteSize() const;
+		
 		// Automatically instances texture and allocates data and raw subresources
 		RawTexture(const DG::TextureDesc& desc);
 

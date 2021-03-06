@@ -4,6 +4,8 @@
 #include <Engine/Resources/RawSampler.hpp>
 #include <Engine/Resources/TextureIterator.hpp>
 
+#include <filesystem>
+
 using namespace Morpheus;
 
 int main() {
@@ -48,10 +50,15 @@ int main() {
 		}
 	}
 
+	RawTexture fromArchive;
+	bool bArchiveTextureExists = false;
+	if (std::filesystem::exists("FromGpu.arkt")) {
+		fromArchive.Load("FromGpu.arkt");
+		bArchiveTextureExists = true;
+	}
+
 	Engine en;
-
 	en.AddComponent<DefaultRenderer>();
-
 	en.Startup();
 
 	std::unique_ptr<Scene> scene(new Scene());
@@ -69,8 +76,14 @@ int main() {
 
 	auto gpuTexture1 = texture.SpawnOnGPU(en.GetDevice());
 	auto gpuTexture2 = fromDesc.SpawnOnGPU(en.GetDevice());
+
+	DG::ITexture* gpuTexture3 = nullptr;
+	if (bArchiveTextureExists) 
+		gpuTexture3 = fromArchive.SpawnOnGPU(en.GetDevice());
+
 	texture.Clear();
 	fromDesc.Clear();
+	fromArchive.Clear();
 
 	auto& d = gpuTexture1->GetDesc();
 
@@ -85,6 +98,8 @@ int main() {
 		spriteBatch->Begin(en.GetImmediateContext());
 		spriteBatch->Draw(gpuTexture1, DG::float2(-300.0, -300.0));
 		spriteBatch->Draw(gpuTexture2, DG::float2(0.0, 0.0));
+		if (gpuTexture3)
+			spriteBatch->Draw(gpuTexture3, DG::float2(300.0, 300.0));
 		spriteBatch->End();
 
 		en.RenderUI();
@@ -97,8 +112,12 @@ int main() {
 	RawTexture fromGpu2(gpuTexture2, en.GetDevice(), en.GetImmediateContext());
 	fromGpu2.SavePng("FromGpu2.png", true);
 
+	fromGpu1.Save("FromGpu.arkt");
+
 	gpuTexture1->Release();
 	gpuTexture2->Release();
+	if (gpuTexture3)
+		gpuTexture3->Release();
 
 	spriteBatch.reset();
 	scene.reset();
