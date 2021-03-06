@@ -27,7 +27,7 @@ namespace Morpheus {
 		std::vector<uint8_t> mVertexBufferData;
 		std::vector<uint8_t> mIndexBufferData;
 
-		PipelineResource* mPipeline = nullptr;
+		VertexLayout mLayout;
 		BoundingBox mAabb;
 		bool bHasIndexBuffer;
 
@@ -36,15 +36,14 @@ namespace Morpheus {
 		}
 		RawGeometry(const RawGeometry& other) = delete;
 		RawGeometry(RawGeometry&& other);
-		~RawGeometry();
 
-		void Set(PipelineResource* pipeline,
+		void Set(const VertexLayout& layout,
 			const DG::BufferDesc& vertexBufferDesc, 
 			std::vector<uint8_t>&& vertexBufferData,
 			const DG::DrawAttribs& unindexedDrawAttribs,
 			const BoundingBox& aabb);
 
-		void Set(PipelineResource* pipeline,
+		void Set(const VertexLayout& layout,
 			const DG::BufferDesc& vertexBufferDesc,
 			const DG::BufferDesc& indexBufferDesc,
 			std::vector<uint8_t>&& vertexBufferData,
@@ -52,17 +51,17 @@ namespace Morpheus {
 			DG::DrawIndexedAttribs& indexedDrawAttribs,
 			const BoundingBox& aabb);
 
-		inline RawGeometry(PipelineResource* pipeline,
+		inline RawGeometry(const VertexLayout& layout,
 		const DG::BufferDesc& vertexBufferDesc, 
 			std::vector<uint8_t>&& vertexBufferData,
 			const DG::DrawAttribs& unindexedDrawAttribs,
 			const BoundingBox& aabb) {
-			Set(pipeline,
+			Set(layout,
 				vertexBufferDesc, std::move(vertexBufferData), 
 				unindexedDrawAttribs, aabb);
 		}
 
-		inline RawGeometry(PipelineResource* pipeline,
+		inline RawGeometry(const VertexLayout& layout,
 			const DG::BufferDesc& vertexBufferDesc,
 			const DG::BufferDesc& indexBufferDesc,
 			std::vector<uint8_t>&& vertexBufferData,
@@ -85,7 +84,7 @@ namespace Morpheus {
 
 		uint mVertexBufferOffset;
 
-		PipelineResource* mPipeline;
+		VertexLayout mLayout;
 
 		DG::DrawIndexedAttribs mIndexedAttribs;
 		DG::DrawAttribs mUnindexedAttribs;
@@ -97,13 +96,13 @@ namespace Morpheus {
 		void InitIndexed(DG::IBuffer* vertexBuffer, DG::IBuffer* indexBuffer,
 			uint vertexBufferOffset, 
 			const DG::DrawIndexedAttribs& attribs,
-			PipelineResource* pipeline, 
+			const VertexLayout& layout,
 			const BoundingBox& aabb);
 
 		void Init(DG::IBuffer* vertexBuffer,
 			uint vertexBufferOffset,
 			const DG::DrawAttribs& attribs,
-			PipelineResource* pipeline, 
+			const VertexLayout& layout,
 			const BoundingBox& aabb);
 
 	public:
@@ -127,8 +126,8 @@ namespace Morpheus {
 			return mVertexBufferOffset;
 		}
 
-		inline PipelineResource* GetPipeline() {
-			return mPipeline;
+		inline const VertexLayout& GetLayout() const {
+			return mLayout;
 		}
 
 		inline DG::DrawIndexedAttribs GetIndexedDrawAttribs() const {
@@ -156,9 +155,7 @@ namespace Morpheus {
 
 	template <>
 	struct LoadParams<GeometryResource> {
-		// If pipeline resource is nullptr, then default to loading from pipeline source
-		PipelineResource* mPipelineResource;
-		std::string mPipelineSource;
+		VertexLayout mVertexLayout;
 		std::string mSource;
 
 		static LoadParams<GeometryResource> FromString(const std::string& str) {
@@ -168,18 +165,20 @@ namespace Morpheus {
 
 	class GeometryLoader {
 	public:
-		static void Load(DG::IRenderDevice* device, const std::string& source, 
-			PipelineResource* pipeline, GeometryResource* loadinto);
+		static void Load(DG::IRenderDevice* device, 
+			const std::string& source, 
+			const VertexLayout& vertexLayout, 
+			GeometryResource* loadinto);
 
 		static void Load(const aiScene* scene,
-			PipelineResource* pipeline,
+			const VertexLayout& vertexLayout,
 			RawGeometry* geometryOut);
 
 		static TaskId LoadAsync(DG::IRenderDevice* device, 
 			ThreadPool* pool,
 			const std::string& source,
 			const TaskBarrierCallback& callback,
-			PipelineResource* pipeline, 
+			const VertexLayout& vertexLayout,
 			GeometryResource* loadinto);
 	};
 

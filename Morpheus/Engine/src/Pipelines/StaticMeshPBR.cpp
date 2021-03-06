@@ -248,7 +248,8 @@ namespace Morpheus {
 			pbrStaticMeshVSResource->Release();
 			pbrStaticMeshPSResource->Release();
 
-			VertexAttributeLayout layout;
+			VertexLayout layout;
+			layout.mElements = std::move(layoutElements);
 			layout.mPosition = 0;
 			layout.mNormal = 1;
 			layout.mUV = 2;
@@ -257,7 +258,6 @@ namespace Morpheus {
 
 			into->SetAll(
 				result,
-				layoutElements,
 				GenerateSRBs(result, renderer),
 				layout,
 				InstancingType::INSTANCED_STATIC_TRANSFORMS);

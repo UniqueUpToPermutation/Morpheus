@@ -117,17 +117,17 @@ namespace Morpheus {
 			basicTexturedVSResource->Release();
 			basicTexturedPSResource->Release();
 
-			VertexAttributeLayout indx;
-			indx.mPosition = 0;
-			indx.mUV = 1;
+			VertexLayout layout;
+			layout.mElements = std::move(layoutElements);
+			layout.mPosition = 0;
+			layout.mUV = 1;
 
 			auto srbs = GenerateSRBs(result, renderer);
 
 			into->SetAll(
 				result,
-				layoutElements,
 				srbs,
-				indx,
+				layout,
 				InstancingType::INSTANCED_STATIC_TRANSFORMS);
 
 			into->AddView<BasicTexturedPipelineView>(into);

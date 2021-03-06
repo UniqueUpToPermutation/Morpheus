@@ -3,6 +3,7 @@
 #include <Engine/SpriteBatch.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Renderer.hpp>
+#include <Engine/Geometry.hpp>
 
 using namespace DG;
 
@@ -390,7 +391,8 @@ namespace Morpheus {
 			sbGeo->Release();
 			sbPixel->Release();
 
-			VertexAttributeLayout layout;
+			VertexLayout layout;
+			layout.mElements = std::move(layoutElements);
 			layout.mPosition = 0;
 			layout.mStride = sizeof(SpriteBatchVSInput);
 
@@ -398,7 +400,6 @@ namespace Morpheus {
 
 			into->SetAll(
 				result,
-				layoutElements,
 				srbs,
 				layout,
 				InstancingType::NONE);

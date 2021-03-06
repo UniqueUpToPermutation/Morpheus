@@ -10,7 +10,16 @@ using namespace Morpheus;
 
 int main() {
 	RawTexture texture("brick_albedo.png");
+
+	{
+		RawTexture textureCopy;
+		textureCopy.CopyFrom(texture);
+		textureCopy.Save("brick.arkt");
+	}
+
+	RawTexture textureFromArchive("brick.arkt");
 	
+	// Invert the brick texture
 	{
 		TextureIterator it(&texture);
 		for (; it.IsValid(); it.Next()) {
@@ -23,6 +32,7 @@ int main() {
 		}
 	}
 
+	// Create a texture programmatically
 	DG::TextureDesc texTest;
 	texTest.Width = 512;
 	texTest.Height = 512;
@@ -50,6 +60,7 @@ int main() {
 		}
 	}
 
+	// Load from an archive created from a texture from the GPU
 	RawTexture fromArchive;
 	bool bArchiveTextureExists = false;
 	if (std::filesystem::exists("FromGpu.arkt")) {
@@ -57,6 +68,7 @@ int main() {
 		bArchiveTextureExists = true;
 	}
 
+	// Create scene to render textures
 	Engine en;
 	en.AddComponent<DefaultRenderer>();
 	en.Startup();
@@ -74,6 +86,7 @@ int main() {
 
 	en.CollectGarbage();
 
+	// Spawn textures on GPU
 	auto gpuTexture1 = texture.SpawnOnGPU(en.GetDevice());
 	auto gpuTexture2 = fromDesc.SpawnOnGPU(en.GetDevice());
 
@@ -81,9 +94,12 @@ int main() {
 	if (bArchiveTextureExists) 
 		gpuTexture3 = fromArchive.SpawnOnGPU(en.GetDevice());
 
+	auto gpuTexture4 = textureFromArchive.SpawnOnGPU(en.GetDevice());
+
 	texture.Clear();
 	fromDesc.Clear();
 	fromArchive.Clear();
+	textureFromArchive.Clear();
 
 	auto& d = gpuTexture1->GetDesc();
 
@@ -96,6 +112,7 @@ int main() {
 		en.Render(scene.get());
 
 		spriteBatch->Begin(en.GetImmediateContext());
+		spriteBatch->Draw(gpuTexture4, DG::float2(-400.0, -400.0));
 		spriteBatch->Draw(gpuTexture1, DG::float2(-300.0, -300.0));
 		spriteBatch->Draw(gpuTexture2, DG::float2(0.0, 0.0));
 		if (gpuTexture3)
@@ -106,18 +123,19 @@ int main() {
 		en.Present();
 	}
 
+	// Retreive textures from GPU and write to disk
 	RawTexture fromGpu1(gpuTexture1, en.GetDevice(), en.GetImmediateContext());
 	fromGpu1.SavePng("FromGpu1.png", false);
+	fromGpu1.Save("FromGpu.arkt");
 
 	RawTexture fromGpu2(gpuTexture2, en.GetDevice(), en.GetImmediateContext());
 	fromGpu2.SavePng("FromGpu2.png", true);
-
-	fromGpu1.Save("FromGpu.arkt");
 
 	gpuTexture1->Release();
 	gpuTexture2->Release();
 	if (gpuTexture3)
 		gpuTexture3->Release();
+	gpuTexture4->Release();
 
 	spriteBatch.reset();
 	scene.reset();

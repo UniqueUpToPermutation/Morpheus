@@ -112,9 +112,8 @@ namespace Morpheus {
 
 			into->SetAll(
 				result,
-				std::vector<DG::LayoutElement>(),
 				GenerateSRBs(result, renderer),
-				VertexAttributeLayout(),
+				VertexLayout(),
 				InstancingType::NONE);
 		};
 

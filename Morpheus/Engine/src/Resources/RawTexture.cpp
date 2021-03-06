@@ -625,6 +625,17 @@ namespace Morpheus {
 		RetrieveData(texture, device, context, texture->GetDesc());
 	}
 
+	void RawTexture::CopyTo(RawTexture* texture) const {
+		texture->mDesc = mDesc;
+		texture->mData = mData;
+		texture->mIntensity = mIntensity;
+		texture->mSubDescs = mSubDescs;
+	}
+
+	void RawTexture::CopyFrom(const RawTexture& texture) {
+		texture.CopyTo(this);
+	}
+
 	void RawTexture::RetrieveData(DG::ITexture* texture, 
 		DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& texDesc) {
 

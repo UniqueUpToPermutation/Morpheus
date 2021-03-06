@@ -78,7 +78,7 @@ namespace Morpheus {
 
 		LoadParams<GeometryResource> geoParams;
 		geoParams.mSource = geometrySource;
-		geoParams.mPipelineResource = (*materialResourceOut)->GetPipeline();
+		geoParams.mVertexLayout = (*materialResourceOut)->GetPipeline()->GetVertexLayout();
 
 		*geometryResourceOut = Load<GeometryResource>(geoParams);
 	}

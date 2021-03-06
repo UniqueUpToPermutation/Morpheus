@@ -57,6 +57,9 @@ namespace Morpheus {
 		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& desc);
 
 	public:
+		void CopyTo(RawTexture* texture) const;
+		void CopyFrom(const RawTexture& texture);
+
 		size_t GetMipCount() const;
 		void GenerateMips();
 

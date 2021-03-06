@@ -2,6 +2,7 @@
 
 #include <shared_mutex>
 
+#include <Engine/Geometry.hpp>
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ShaderLoader.hpp>
 #include <Engine/Pipelines/PipelineFactory.hpp>
@@ -20,18 +21,6 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 
-	struct VertexAttributeLayout {
-	public:
-		int mPosition	= -1;
-		int mUV			= -1;
-		int mNormal 	= -1;
-		int mTangent 	= -1;
-		int mBitangent	= -1;
-
-		// If this is -1, then assume dense packing
-		int mStride 	= -1; 
-	};
-
 	enum class InstancingType {
 		// No instancing
 		NONE,
@@ -43,8 +32,7 @@ namespace Morpheus {
 	private:
 		DG::IPipelineState* mState;
 		factory_func_t mFactory;
-		std::vector<DG::LayoutElement> mVertexLayout;
-		VertexAttributeLayout mAttributeLayout;
+		VertexLayout mLayout;
 		InstancingType mInstancingType;
 		bool bSourced;
 		std::unordered_map<std::string, PipelineResource*>::iterator mIterator;
@@ -85,9 +73,8 @@ namespace Morpheus {
 		}
 
 		inline void SetAll(DG::IPipelineState* state,
-			const std::vector<DG::LayoutElement>& layoutElements,
 			const std::vector<DG::IShaderResourceBinding*>& shaderResourceBindings,
-			VertexAttributeLayout attributeLayout,
+			const VertexLayout& layout,
 			InstancingType instancingType) {
 
 			mShaderResourceBindings = shaderResourceBindings;
@@ -98,9 +85,8 @@ namespace Morpheus {
 			}
 				
 			mState = state;
-			mVertexLayout = layoutElements;
+			mLayout = layout;
 			mInstancingType = instancingType;
-			mAttributeLayout = attributeLayout;
 		}
 
 		template <typename T> 
@@ -133,12 +119,8 @@ namespace Morpheus {
 			return resource_type::type<PipelineResource>;
 		}
 
-		inline std::vector<DG::LayoutElement> GetVertexLayout() const {
-			return mVertexLayout;
-		}
-
-		inline VertexAttributeLayout GetAttributeLayout() const {
-			return mAttributeLayout;
+		inline const VertexLayout& GetVertexLayout() const {
+			return mLayout;
 		}
 
 		inline bool IsSourced() const {

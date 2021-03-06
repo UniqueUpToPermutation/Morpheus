@@ -13,18 +13,13 @@ using namespace std;
 
 namespace Morpheus {
 
-	void RawGeometry::Set(PipelineResource* pipeline,
+	void RawGeometry::Set(const VertexLayout& layout,
 		const DG::BufferDesc& vertexBufferDesc, 
 		std::vector<uint8_t>&& vertexBufferData,
 		const DG::DrawAttribs& unindexedDrawAttribs,
 		const BoundingBox& aabb) {
-
-		if (mPipeline)
-			mPipeline->Release();
-			
-		mPipeline = pipeline;
-		mPipeline->AddRef();
-
+		
+		mLayout = layout;
 		mVertexBufferDesc = vertexBufferDesc;
 		mVertexBufferData = vertexBufferData;
 		mUnindexedDrawAttribs = unindexedDrawAttribs;
@@ -32,19 +27,15 @@ namespace Morpheus {
 		mAabb = aabb;
 	}
 
-	void RawGeometry::Set(PipelineResource* pipeline,
+	void RawGeometry::Set(const VertexLayout& layout,
 		const DG::BufferDesc& vertexBufferDesc,
 		const DG::BufferDesc& indexBufferDesc,
 		std::vector<uint8_t>&& vertexBufferData,
 		std::vector<uint8_t>&& indexBufferData,
 		DG::DrawIndexedAttribs& indexedDrawAttribs,
 		const BoundingBox& aabb) {
-		if (mPipeline)
-			mPipeline->Release();
-
-		mPipeline = pipeline;
-		mPipeline->AddRef();
-
+		
+		mLayout = layout;
 		mVertexBufferDesc = vertexBufferDesc;
 		mIndexBufferDesc = indexBufferDesc;
 		mVertexBufferData = vertexBufferData;
@@ -63,18 +54,8 @@ namespace Morpheus {
 		mAabb(other.mAabb),
 		bHasIndexBuffer(other.bHasIndexBuffer),
 		mIndexedDrawAttribs(other.mIndexedDrawAttribs),
-		mUnindexedDrawAttribs(other.mUnindexedDrawAttribs) {
-
-		if (mPipeline)
-			mPipeline->Release();
-			
-		mPipeline = other.mPipeline;
-		mPipeline->AddRef();
-	}
-
-	RawGeometry::~RawGeometry() {
-		if (mPipeline)
-			mPipeline->Release();
+		mUnindexedDrawAttribs(other.mUnindexedDrawAttribs),
+		mLayout(other.mLayout) {
 	}
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device, 
@@ -103,10 +84,10 @@ namespace Morpheus {
 
 		if (indexBuffer) {
 			writeTo->InitIndexed(vertexBuffer, indexBuffer, 0,
-				mIndexedDrawAttribs, mPipeline, mAabb);
+				mIndexedDrawAttribs, mLayout, mAabb);
 		} else {
 			writeTo->Init(vertexBuffer, 0, mUnindexedDrawAttribs, 
-				mPipeline, mAabb);
+				mLayout, mAabb);
 		}
 	}
 
@@ -114,40 +95,36 @@ namespace Morpheus {
 		DG::IBuffer* indexBuffer,
 		uint vertexBufferOffset, 
 		const DG::DrawIndexedAttribs& attribs,
-		PipelineResource* pipeline, 
+		const VertexLayout& layout,
 		const BoundingBox& aabb) {
 		mVertexBuffer = vertexBuffer;
 		mIndexBuffer = indexBuffer;
 		mVertexBufferOffset = vertexBufferOffset;
-		mPipeline = pipeline;
+		mLayout = layout,
 		mBoundingBox = aabb;
 		mIndexedAttribs = attribs;
-		pipeline->AddRef();
 	}
 
 	void GeometryResource::Init(DG::IBuffer* vertexBuffer,
 		uint vertexBufferOffset,
 		const DG::DrawAttribs& attribs,
-		PipelineResource* pipeline, 
+		const VertexLayout& layout,
 		const BoundingBox& aabb) {
 		mVertexBuffer = vertexBuffer;
 		mIndexBuffer = nullptr;
 		mVertexBufferOffset = vertexBufferOffset;
-		mPipeline = pipeline;
+		mLayout = layout;
 		mBoundingBox = aabb;
 		mUnindexedAttribs = attribs;
-		pipeline->AddRef();
 	}
 
 	GeometryResource::GeometryResource(ResourceManager* manager) :
 		IResource(manager),
 		mVertexBuffer(nullptr),
-		mIndexBuffer(nullptr),
-		mPipeline(nullptr) {
+		mIndexBuffer(nullptr) {
 	}
 
 	GeometryResource::~GeometryResource() {
-		mPipeline->Release();
 		if (mVertexBuffer)
 			mVertexBuffer->Release();
 		if (mIndexBuffer)
@@ -182,15 +159,14 @@ namespace Morpheus {
 	}
 
 	void GeometryLoader::Load(const aiScene* scene,
-		PipelineResource* pipeline,
+		const VertexLayout& layout,
 		RawGeometry* geometryOut) {
 
-		VertexAttributeLayout attributes = pipeline->GetAttributeLayout();
-		std::vector<DG::LayoutElement> layout = pipeline->GetVertexLayout();
+		auto& layoutElements = layout.mElements;
 		std::vector<uint> offsets;
 		offsets.emplace_back(0);
 
-		for (auto& layoutItem : layout) {
+		for (auto& layoutItem : layoutElements) {
 			uint size = GetSize(layoutItem.ValueType) * layoutItem.NumComponents;
 			if (layoutItem.BufferSlot == 0) 
 				offsets.emplace_back(offsets[offsets.size() - 1] + size);
@@ -201,8 +177,8 @@ namespace Morpheus {
 		uint stride = offsets[offsets.size() - 1];
 
 		// Override stride if specified.
-		if (attributes.mStride > 0) {
-			stride = attributes.mStride;
+		if (layout.mStride > 0) {
+			stride = layout.mStride;
 		}
 
 		int positionOffset = -1;
@@ -211,7 +187,7 @@ namespace Morpheus {
 		int tangentOffset = -1;
 		int bitangentOffset = -1;
 
-		auto verifyAttrib = [](DG::LayoutElement& element) {
+		auto verifyAttrib = [](const DG::LayoutElement& element) {
 			if (element.BufferSlot != 0) {
 				throw std::runtime_error("Buffer slot must be 0!");
 			}
@@ -221,34 +197,34 @@ namespace Morpheus {
 			}
 		};
 
-		if (attributes.mPosition >= 0) {
-			auto& posAttrib = layout[attributes.mPosition];
+		if (layout.mPosition >= 0) {
+			auto& posAttrib = layoutElements[layout.mPosition];
 			verifyAttrib(posAttrib);
-			positionOffset = offsets[attributes.mPosition];
+			positionOffset = offsets[layout.mPosition];
 		}
 
-		if (attributes.mUV >= 0) {
-			auto& uvAttrib = layout[attributes.mUV];
+		if (layout.mUV >= 0) {
+			auto& uvAttrib = layoutElements[layout.mUV];
 			verifyAttrib(uvAttrib);
-			uvOffset = offsets[attributes.mUV];
+			uvOffset = offsets[layout.mUV];
 		}
 
-		if (attributes.mNormal >= 0) {
-			auto& normalAttrib = layout[attributes.mNormal];
+		if (layout.mNormal >= 0) {
+			auto& normalAttrib = layoutElements[layout.mNormal];
 			verifyAttrib(normalAttrib);
-			normalOffset = offsets[attributes.mNormal];
+			normalOffset = offsets[layout.mNormal];
 		}
 
-		if (attributes.mTangent >= 0) {
-			auto& tangentAttrib = layout[attributes.mTangent];
+		if (layout.mTangent >= 0) {
+			auto& tangentAttrib = layoutElements[layout.mTangent];
 			verifyAttrib(tangentAttrib);
-			tangentOffset = offsets[attributes.mTangent];
+			tangentOffset = offsets[layout.mTangent];
 		}
 
-		if (attributes.mBitangent >= 0) {
-			auto& bitangentAttrib = layout[attributes.mBitangent];
+		if (layout.mBitangent >= 0) {
+			auto& bitangentAttrib = layoutElements[layout.mBitangent];
 			verifyAttrib(bitangentAttrib);
-			bitangentOffset = offsets[attributes.mBitangent];	
+			bitangentOffset = offsets[layout.mBitangent];	
 		}
 
 		uint nVerts;
@@ -410,7 +386,7 @@ namespace Morpheus {
 		indexedAttribs.NumIndices 	= indx_buffer_raw.size() / sizeof(DG::Uint32);
 		
 		// Write to output raw geometry
-		geometryOut->Set(pipeline, 
+		geometryOut->Set(layout,
 			vertexBufferDesc, 
 			indexBufferDesc, 
 			std::move(vert_buffer), 
@@ -419,7 +395,7 @@ namespace Morpheus {
 	}
 
 	void GeometryLoader::Load(DG::IRenderDevice* device, const std::string& source, 
-		PipelineResource* pipeline, GeometryResource* resource) {
+		const VertexLayout& layout, GeometryResource* resource) {
 		
 		cout << "Loading geometry " << source << "..." << endl;
 		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
@@ -442,7 +418,7 @@ namespace Morpheus {
 		}
 
 		RawGeometry rawGeo;
-		Load(pScene, pipeline, &rawGeo);
+		Load(pScene, layout, &rawGeo);
 		rawGeo.SpawnOnGPU(device, resource);
 	}
 
@@ -450,7 +426,7 @@ namespace Morpheus {
 		ThreadPool* pool,
 		const std::string& source,
 		const TaskBarrierCallback& callback,
-		PipelineResource* pipeline, 
+		const VertexLayout& layout, 
 		GeometryResource* loadinto) {
 
 		auto barrier = loadinto->GetLoadBarrier();
@@ -461,7 +437,7 @@ namespace Morpheus {
 		TaskId readFile = ReadFileToMemoryJobDeferred(source, &queue, &filePipe);
 		PipeId rawGeoPipe = queue.MakePipe();
 
-		TaskId convertToRaw = queue.MakeTask([filePipe, source, pipeline, rawGeoPipe](const TaskParams& params) {
+		TaskId convertToRaw = queue.MakeTask([filePipe, source, layout, rawGeoPipe](const TaskParams& params) {
 			try {
 				auto& value = params.mPool->ReadPipe(filePipe);
 				std::unique_ptr<ReadFileToMemoryResult> contents(value.cast<ReadFileToMemoryResult*>());
@@ -483,7 +459,7 @@ namespace Morpheus {
 				}
 
 				std::unique_ptr<RawGeometry> rawGeo(new RawGeometry());
-				Load(pScene, pipeline, rawGeo.get());
+				Load(pScene, layout, rawGeo.get());
 
 				params.mPool->WritePipe(rawGeoPipe, rawGeo.release());
 			}
@@ -500,8 +476,7 @@ namespace Morpheus {
 			rawGeo->SpawnOnGPU(device, loadinto);
 		}, barrier, ASSIGN_THREAD_MAIN);
 
-		// Schedule everything linearly, make sure to schedule after pipeline has been loaded!
-		queue.Dependencies(readFile).After(pipeline->GetLoadBarrier());
+		// Schedule everything linearly!
 		queue.Dependencies(convertToRaw).After(filePipe);
 		queue.Dependencies(rawGeoPipe).After(convertToRaw);
 		queue.Dependencies(rawToGpu).After(rawGeoPipe);
@@ -539,21 +514,9 @@ namespace Morpheus {
 				return it->second;
 		}
 
-		PipelineResource* pipeline = nullptr;
-		if (params_cast->mPipelineResource) {
-			pipeline = params_cast->mPipelineResource;
-		} else {
-			pipeline = mManager->Load<PipelineResource>(params_cast->mPipelineSource);
-		}
-
 		auto resource = new GeometryResource(mManager);
 		mLoader.Load(mManager->GetParent()->GetDevice(), 
-			params_cast->mSource, pipeline, resource);
-
-		if (!params_cast->mPipelineResource) {
-			// If we loaded the pipeline, we should release it
-			pipeline->Release();
-		}
+			params_cast->mSource, params_cast->mVertexLayout, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
@@ -580,38 +543,9 @@ namespace Morpheus {
 			}
 		}
 
-		bool bLoadedPipeline = false;
-
-		PipelineResource* pipeline = nullptr;
-		TaskId loadPipelineTask = TASK_NONE;
-		if (params_cast->mPipelineResource) {
-			pipeline = params_cast->mPipelineResource;
-		} else {
-			loadPipelineTask = mManager->AsyncLoadDeferred<PipelineResource>(
-				params_cast->mPipelineSource, &pipeline);
-			bLoadedPipeline = true;
-		}
-
-		TaskBarrierCallback geometryCallback;
-		if (bLoadedPipeline) {
-			geometryCallback = [pipeline, callback](ThreadPool* pool) {
-				// Make sure to release the pipeline after the geometry has been loaded!
-				// Geometry now has reference to pipeline, so pipeline won't be unloaded
-				pipeline->Release();
-				callback(pool);
-			};
- 		} else {
-			geometryCallback = callback;
-		}
-
 		auto resource = new GeometryResource(mManager);
 		TaskId loadGeoTask = mLoader.LoadAsync(mManager->GetParent()->GetDevice(),
-			threadPool, params_cast->mSource, geometryCallback, pipeline, resource);
-
-		if (!params_cast->mPipelineResource) {
-			// If we loaded the pipeline, we should release it
-			pipeline->Release();
-		}
+			threadPool, params_cast->mSource, callback, params_cast->mVertexLayout, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
@@ -620,14 +554,7 @@ namespace Morpheus {
 
 		*output = resource;
 
-		if (bLoadedPipeline) {
-			// Pipeline has already been or is in the process of being loaded,
-			// we should schedule the geometry load.
-			return loadGeoTask;
-		} else {
-			// Pipeline has not yet been loaded, we should schedule the pipeline load.
-			return loadPipelineTask;
-		}
+		return loadGeoTask;
 	}
 
 	void ResourceCache<GeometryResource>::Add(IResource* resource, const void* params) {
