@@ -1018,7 +1018,7 @@ namespace Morpheus {
 		}
 	}
 
-		void RawTexture::LoadArchive(const uint8_t* rawArchive, const size_t length) {
+	void RawTexture::LoadArchive(const uint8_t* rawArchive, const size_t length) {
 		MemoryInputStream stream(rawArchive, length);
 		cereal::PortableBinaryInputArchive ar(stream);
 		Morpheus::Load(ar, this);
@@ -1136,7 +1136,7 @@ namespace Morpheus {
 			return LoadStbAsyncDeferred(params, pool);
 		} else if (ext == ".png") {
 			return LoadPngAsyncDeferred(params, pool);
-		} else if (ext == ".arkt") {
+		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
 			return LoadArchiveAsyncDeferred(params.mSource, pool);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");
@@ -1186,7 +1186,7 @@ namespace Morpheus {
 			LoadStb(params);
 		} else if (ext == ".png") {
 			LoadPng(params);
-		} else if (ext == ".arkt") {
+		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
 			LoadArchive(params.mSource);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");

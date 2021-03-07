@@ -58,6 +58,7 @@ namespace Morpheus {
 			TaskId rawToGpu = queue.MakeTask([raw, device, result](const TaskParams& params) {
 				DG::ITexture* tex = raw->SpawnOnGPU(device);
 				result->mTexture = tex;
+				raw->Clear();
 			}, gpuSpawnBarrier);
 
 			queue.Dependencies(rawToGpu).After(rawBarrier);

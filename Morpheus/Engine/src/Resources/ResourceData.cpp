@@ -214,6 +214,29 @@ namespace Morpheus {
 		}
 	}
 
+	int GetSize(DG::VALUE_TYPE v) {
+		switch (v) {
+			case DG::VT_FLOAT32:
+				return 4;
+			case DG::VT_FLOAT16:
+				return 2;
+			case DG::VT_INT8:
+				return 1;
+			case DG::VT_INT16:
+				return 2;
+			case DG::VT_INT32:
+				return 4;
+			case DG::VT_UINT8:
+				return 1;
+			case DG::VT_UINT16:
+				return 2;
+			case DG::VT_UINT32:
+				return 4;
+			default:
+				return -1;
+		}
+	}
+
 	int GetPixelByteSize(DG::TEXTURE_FORMAT format) {
 		auto count = GetComponentCount(format);
 		if (count < 0)

@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
 	});
 
 	LoadParams<GeometryResource> geoParams;
-	geoParams.mPipelineResource = pipeline;
+	geoParams.mMaterial = material;
 	geoParams.mSource = "matBall.obj";
 
 	GeometryResource* geometry = manager->AsyncLoad<GeometryResource>(geoParams, [](ThreadPool* pool) {

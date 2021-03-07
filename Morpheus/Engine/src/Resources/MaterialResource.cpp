@@ -72,6 +72,10 @@ namespace Morpheus {
 		return this;
 	}
 
+	const VertexLayout& MaterialResource::GetVertexLayout() const {
+		return mPipeline->GetVertexLayout();
+	}
+
 	void MaterialLoader::Load(ResourceManager* manager,
 		const std::string& source, 
 		const MaterialFactory& prototypeFactory, 

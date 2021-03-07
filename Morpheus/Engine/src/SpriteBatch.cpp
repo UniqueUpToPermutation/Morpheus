@@ -11,7 +11,6 @@ using namespace DG;
 
 namespace Morpheus {
 	SpriteBatch::SpriteBatch(DG::IRenderDevice* device, PipelineResource* pipeline, uint batchSize) {
-
 		mBatchSize = batchSize;
 		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
 

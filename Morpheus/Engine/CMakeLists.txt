@@ -144,6 +144,7 @@ list(APPEND SOURCE
 	src/Resources/ResourceSerialization.cpp
 	src/Resources/RawTexture.cpp
 	src/Resources/RawSampler.cpp
+	src/Resources/RawGeometry.cpp
 	src/Resources/TextureIterator.cpp
 
 	src/Components/Transform.cpp
@@ -216,6 +217,7 @@ list(APPEND INCLUDE
 	include/Engine/Resources/ResourceSerialization.hpp
 	include/Engine/Resources/RawTexture.hpp
 	include/Engine/Resources/RawSampler.hpp
+	include/Engine/Resources/RawGeometry.hpp
 	include/Engine/Resources/TextureIterator.hpp
     
     include/Engine/Systems/Physics.hpp

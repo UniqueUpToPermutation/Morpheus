@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <Engine/Geometry.hpp>
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Materials/MaterialPrototypes.hpp>
 #include <Engine/InputController.hpp>
@@ -74,6 +75,8 @@ namespace Morpheus {
 				return "No Source";
 			}
 		}
+
+		const VertexLayout& GetVertexLayout() const;
 
 		entt::id_type GetType() const override {
 			return resource_type::type<MaterialResource>;

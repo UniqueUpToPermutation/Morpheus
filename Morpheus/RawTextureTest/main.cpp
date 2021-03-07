@@ -14,10 +14,10 @@ int main() {
 	{
 		RawTexture textureCopy;
 		textureCopy.CopyFrom(texture);
-		textureCopy.Save("brick.arkt");
+		textureCopy.Save("brick.tark");
 	}
 
-	RawTexture textureFromArchive("brick.arkt");
+	RawTexture textureFromArchive("brick.tark");
 	
 	// Invert the brick texture
 	{
@@ -63,8 +63,8 @@ int main() {
 	// Load from an archive created from a texture from the GPU
 	RawTexture fromArchive;
 	bool bArchiveTextureExists = false;
-	if (std::filesystem::exists("FromGpu.arkt")) {
-		fromArchive.Load("FromGpu.arkt");
+	if (std::filesystem::exists("FromGpu.tark")) {
+		fromArchive.Load("FromGpu.tark");
 		bArchiveTextureExists = true;
 	}
 
@@ -126,7 +126,7 @@ int main() {
 	// Retreive textures from GPU and write to disk
 	RawTexture fromGpu1(gpuTexture1, en.GetDevice(), en.GetImmediateContext());
 	fromGpu1.SavePng("FromGpu1.png", false);
-	fromGpu1.Save("FromGpu.arkt");
+	fromGpu1.Save("FromGpu.tark");
 
 	RawTexture fromGpu2(gpuTexture2, en.GetDevice(), en.GetImmediateContext());
 	fromGpu2.SavePng("FromGpu2.png", true);

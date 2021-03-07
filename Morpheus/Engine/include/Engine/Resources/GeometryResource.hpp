@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/Resources/RawGeometry.hpp>
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Engine.hpp>
 #include <Engine/Geometry.hpp>
@@ -16,66 +17,6 @@ struct aiScene;
 namespace Morpheus {
 
 	class GeometryResource;
-	class RawGeometry {
-	private:
-		DG::BufferDesc mVertexBufferDesc;
-		DG::BufferDesc mIndexBufferDesc;
-
-		DG::DrawAttribs mUnindexedDrawAttribs;
-		DG::DrawIndexedAttribs mIndexedDrawAttribs;
-
-		std::vector<uint8_t> mVertexBufferData;
-		std::vector<uint8_t> mIndexBufferData;
-
-		VertexLayout mLayout;
-		BoundingBox mAabb;
-		bool bHasIndexBuffer;
-
-	public:
-		inline RawGeometry() {
-		}
-		RawGeometry(const RawGeometry& other) = delete;
-		RawGeometry(RawGeometry&& other);
-
-		void Set(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc, 
-			std::vector<uint8_t>&& vertexBufferData,
-			const DG::DrawAttribs& unindexedDrawAttribs,
-			const BoundingBox& aabb);
-
-		void Set(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc,
-			const DG::BufferDesc& indexBufferDesc,
-			std::vector<uint8_t>&& vertexBufferData,
-			std::vector<uint8_t>&& indexBufferData,
-			DG::DrawIndexedAttribs& indexedDrawAttribs,
-			const BoundingBox& aabb);
-
-		inline RawGeometry(const VertexLayout& layout,
-		const DG::BufferDesc& vertexBufferDesc, 
-			std::vector<uint8_t>&& vertexBufferData,
-			const DG::DrawAttribs& unindexedDrawAttribs,
-			const BoundingBox& aabb) {
-			Set(layout,
-				vertexBufferDesc, std::move(vertexBufferData), 
-				unindexedDrawAttribs, aabb);
-		}
-
-		inline RawGeometry(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc,
-			const DG::BufferDesc& indexBufferDesc,
-			std::vector<uint8_t>&& vertexBufferData,
-			std::vector<uint8_t>&& indexBufferData,
-			DG::DrawIndexedAttribs& indexedDrawAttribs,
-			const BoundingBox& aabb);
-
-		void SpawnOnGPU(DG::IRenderDevice* device, 
-			DG::IBuffer** vertexBufferOut, 
-			DG::IBuffer** indexBufferOut);
-
-		void SpawnOnGPU(DG::IRenderDevice* device,
-			GeometryResource* writeTo);
-	};
 
 	class GeometryResource : public IResource {
 	private:
@@ -104,6 +45,9 @@ namespace Morpheus {
 			const DG::DrawAttribs& attribs,
 			const VertexLayout& layout,
 			const BoundingBox& aabb);
+
+		void LoadAssimp(const aiScene* scene,
+			const VertexLayout& vertexLayout);
 
 	public:
 
@@ -153,32 +97,16 @@ namespace Morpheus {
 		friend class ResourceCache<GeometryResource>;
 	};
 
-	template <>
-	struct LoadParams<GeometryResource> {
-		VertexLayout mVertexLayout;
-		std::string mSource;
-
-		static LoadParams<GeometryResource> FromString(const std::string& str) {
-			throw std::runtime_error("Cannot create geometry resource load params from string!");
-		}
-	};
-
 	class GeometryLoader {
 	public:
 		static void Load(DG::IRenderDevice* device, 
-			const std::string& source, 
-			const VertexLayout& vertexLayout, 
+			const LoadParams<GeometryResource>& params,
 			GeometryResource* loadinto);
-
-		static void Load(const aiScene* scene,
-			const VertexLayout& vertexLayout,
-			RawGeometry* geometryOut);
 
 		static TaskId LoadAsync(DG::IRenderDevice* device, 
 			ThreadPool* pool,
-			const std::string& source,
+			const LoadParams<GeometryResource>& params,
 			const TaskBarrierCallback& callback,
-			const VertexLayout& vertexLayout,
 			GeometryResource* loadinto);
 	};
 

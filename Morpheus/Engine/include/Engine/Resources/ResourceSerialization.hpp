@@ -5,6 +5,12 @@
 #include <Engine/Resources/Resource.hpp>
 #include <iostream>
 
+#define TEXTURE_ARCHIVE_EXTENSION ".tark"
+#define GEOMETRY_ARCHIVE_EXTENSION ".gark"
+
+#define TEXTURE_ARCHIVE_VERSION 1
+#define GEOMETRY_ARCHIVE_VERSION 1
+
 namespace Morpheus {
 	class MemoryInputStream : public std::istream
     {
