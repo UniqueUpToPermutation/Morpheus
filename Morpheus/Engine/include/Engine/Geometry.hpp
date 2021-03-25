@@ -11,6 +11,24 @@ namespace Morpheus {
 		DG::float3 mUpper;
 	};
 
+	struct SpriteRect {
+		DG::float2 mPosition;
+		DG::float2 mSize;
+
+		inline SpriteRect() {
+		}
+
+		inline SpriteRect(const DG::float2& position, const DG::float2& size) :
+			mPosition(position),
+			mSize(size) {
+		}
+
+		inline SpriteRect(float upperX, float upperY, float sizeX, float sizeY) :
+			mPosition(upperX, upperY),
+			mSize(sizeX, sizeY) {
+		}
+	};
+
 	struct VertexLayout {
 	public:
 		std::vector<DG::LayoutElement> mElements;

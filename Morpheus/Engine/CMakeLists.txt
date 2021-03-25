@@ -131,6 +131,9 @@ list(APPEND SOURCE
 	src/SpriteBatch.cpp
 	src/Im3d.cpp
 	src/Renderer.cpp
+	src/RendererGlobalsData.cpp
+
+	src/Engine2D/Renderer2D.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -197,6 +200,11 @@ list(APPEND INCLUDE
     include/Engine/ThreadTasks.hpp
 	include/Engine/Im3d.hpp
 	include/Engine/DynamicGlobalsBuffer.hpp
+	include/Engine/RendererGlobalsData.hpp
+
+	include/Engine/Engine2D/Renderer2D.hpp
+	include/Engine/Engine2D/Sprite.hpp
+	include/Engine/Engine2D/Tilemap.hpp
 
     include/Engine/Materials/BasicTexturedMaterial.hpp
     include/Engine/Materials/MaterialPrototypes.hpp
@@ -225,6 +233,8 @@ list(APPEND INCLUDE
     
     include/Engine/Systems/Physics.hpp
     include/Engine/Systems/RendererBridge.hpp
+	include/Engine/Systems/ScriptSystem.hpp
+	include/Engine/Systems/TransformSystem.hpp
 )
 
 add_library(Morpheus-Engine STATIC ${SOURCE} ${INCLUDE})

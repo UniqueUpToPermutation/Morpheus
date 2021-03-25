@@ -4,6 +4,7 @@
 namespace Morpheus {
 	void IResource::Release() {
 		auto value = mRefCount.fetch_sub(1);
+		assert(value >= 1);
 		if (value == 1) {
 			mManager->RequestUnload(this);
 		}

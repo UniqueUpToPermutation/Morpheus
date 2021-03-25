@@ -4,30 +4,13 @@
 #include <Engine/Resources/ShaderResource.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Geometry.hpp>
 
 #include "MapHelper.hpp"
 
 #define DEFAULT_SPRITE_BATCH_SIZE 100
 
 namespace Morpheus {
-	struct SpriteRect {
-		DG::float2 mPosition;
-		DG::float2 mSize;
-
-		inline SpriteRect() {
-		}
-
-		inline SpriteRect(const DG::float2& position, const DG::float2& size) :
-			mPosition(position),
-			mSize(size) {
-		}
-
-		inline SpriteRect(float upperX, float upperY, float sizeX, float sizeY) :
-			mPosition(upperX, upperY),
-			mSize(sizeX, sizeY) {
-		}
-	};
-
 	class SpriteBatchState {
 	private:
 		DG::IShaderResourceBinding* mShaderBinding;
@@ -43,21 +26,9 @@ namespace Morpheus {
 
 		SpriteBatchState(DG::IShaderResourceBinding* shaderBinding, 
 			DG::IShaderResourceVariable* textureVariable, 
-			PipelineResource* pipeline) :
-			mShaderBinding(shaderBinding),
-			mTextureVariable(textureVariable),
-			mPipeline(pipeline) {
-		}
+			PipelineResource* pipeline);
 
-		void CopyFrom(const SpriteBatchState& state) {
-			mShaderBinding = state.mShaderBinding;
-			mTextureVariable = state.mTextureVariable;
-			mPipeline = state.mPipeline;
-
-			mShaderBinding->AddRef();
-			mPipeline->AddRef();
-			mTextureVariable->AddRef();
-		}
+		void CopyFrom(const SpriteBatchState& state);
 
 		void Swap(SpriteBatchState&& state) {
 			std::swap(mShaderBinding, state.mShaderBinding);
@@ -83,12 +54,7 @@ namespace Morpheus {
 			return *this;
 		}
 
-		~SpriteBatchState() {
-			if (mShaderBinding) {
-				mShaderBinding->Release();
-				mPipeline->Release();
-			}
-		}
+		~SpriteBatchState();
 
 		friend class SpriteBatch;
 	};
@@ -128,11 +94,7 @@ namespace Morpheus {
 			mDefaultState = CreateState(pipeline);
 		}
 
-		inline void ResetDefaultPipeline(ResourceManager* resourceManager) {
-			auto pipeline = LoadPipeline(resourceManager);
-			SetDefaultPipeline(pipeline);
-			pipeline->Release();
-		}
+		void ResetDefaultPipeline(ResourceManager* resourceManager);
 
 		void Begin(DG::IDeviceContext* context, const SpriteBatchState* state = nullptr);
 		void Flush();

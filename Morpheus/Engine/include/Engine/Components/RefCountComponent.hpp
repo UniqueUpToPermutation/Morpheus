@@ -26,6 +26,9 @@ namespace Morpheus {
 		}
 
 		inline RefCountComponent& operator=(const RefCountComponent& other) noexcept {
+			if (mPtr)
+				mPtr->Release();
+
 			mPtr->Release();
 			mPtr = other.mPtr;
 			mPtr->AddRef(); 
@@ -38,6 +41,8 @@ namespace Morpheus {
 		}
 
 		RefCountComponent& operator=(RefCountComponent&& other) {
+			if (mPtr)
+				mPtr->Release();
 			std::swap(mPtr, other.mPtr);
 			return *this;
 		}

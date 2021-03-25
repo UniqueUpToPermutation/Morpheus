@@ -1,5 +1,5 @@
 #include <Engine/Core.hpp>
-#include <Engine/DefaultRenderer.hpp>
+#include <Engine/Engine2D/Renderer2D.hpp>
 
 using namespace Morpheus;
 
@@ -18,7 +18,8 @@ int main(int argc, char** argv) {
 	EngineParams params;
 
 	Engine en;
-	en.AddComponent<DefaultRenderer>();
+
+	en.AddComponent<Renderer2D>();
 	en.Startup(params);
 
 	Scene* scene = new Scene();
@@ -27,8 +28,7 @@ int main(int argc, char** argv) {
 	camera->SetClipPlanes(-1.0, 1.0);
 
 	TextureResource* spriteTexture = en.GetResourceManager()->Load<TextureResource>("sprite.png");
-	std::unique_ptr<SpriteBatch> spriteBatch(
-		new SpriteBatch(en.GetDevice(), en.GetResourceManager()));
+	auto spriteBatch = std::make_unique<SpriteBatch>(en.GetDevice(), en.GetResourceManager());
 
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
@@ -66,11 +66,14 @@ int main(int argc, char** argv) {
 
 	while (en.IsReady()) {
 		en.Update(scene);
-
-		const auto& SCD = en.GetSwapChain()->GetDesc();
-		camera->SetOrthoSize(SCD.Width, SCD.Height);
-
 		en.Render(scene);
+
+		// Use a custom rendering proceedure to draw all sprites
+		auto camera = scene->GetCamera();
+		auto swapChain = en.GetSwapChain();
+		auto& swapChainDesc = swapChain->GetDesc();
+
+		camera->SetOrthoSize(swapChainDesc.Width, swapChainDesc.Height);
 
 		for (auto& obj : insts) {
 			obj.mOscillatorX += obj.mOscillatorVelocity;

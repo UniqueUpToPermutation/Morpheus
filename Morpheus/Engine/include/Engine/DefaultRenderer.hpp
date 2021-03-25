@@ -11,12 +11,7 @@ namespace DG = Diligent;
 
 #define DEFAULT_INSTANCE_BATCH_SIZE 1024
 
-using float2 = DG::float2;
-using float3 = DG::float3;
-using float4 = DG::float4;
-using float4x4 = DG::float4x4;
-
-#include <shaders/BasicStructures.hlsl>
+#include <Engine/RendererGlobalsData.hpp>
 
 #include "MapHelper.hpp"
 

@@ -130,5 +130,5 @@ if (TARGET Morpheus-Engine)
 endif()
 
 if (TARGET Morpheus-Engine)
-	add_subdirectory(TacticsGame)
+	add_subdirectory(Renderer2DTest)
 endif()

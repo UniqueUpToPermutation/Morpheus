@@ -209,48 +209,19 @@ namespace Morpheus {
 	}
 
 	void DefaultRenderer::WriteGlobalData(EntityNode cameraNode, LightProbe* globalLightProbe) {
-
-		auto camera = cameraNode.TryGet<Camera>();
-		auto camera_transform = cameraNode.TryGet<MatrixTransformCache>();
-
-		float4x4 view = camera->GetView();
-		float4x4 projection = camera->GetProjection(mEngine);
-		float3 eye = camera->GetEye();
-
-		if (camera_transform) {
-			auto camera_transform_mat = camera_transform->mCache;
-			auto camera_transform_inv = camera_transform_mat.Inverse();
-			view = camera_transform_inv * view;
-			eye = eye * camera_transform_mat;
-		}
+		Camera* camera = cameraNode.TryGet<Camera>();
+		MatrixTransformCache* cameraTransformCache = cameraNode.TryGet<MatrixTransformCache>();
 
 		auto context = mEngine->GetImmediateContext();
+		auto projection = camera->GetProjection(mEngine);
 		auto swapChain = mEngine->GetSwapChain();
-		auto swapChainDesc = swapChain->GetDesc();
+		auto& swapChainDesc = swapChain->GetDesc();
+		DG::float2 viewportSize((float)swapChainDesc.Width, (float)swapChainDesc.Height);
 
-		RendererGlobalData data;
-		data.mCamera.fNearPlaneZ = camera->GetNearZ();
-		data.mCamera.fFarPlaneZ = camera->GetFarZ();
-		data.mCamera.f4Position = DG::float4(eye, 1.0f);
-		data.mCamera.f4ViewportSize = DG::float4(
-			(float)swapChainDesc.Width,
-			(float)swapChainDesc.Height,
-			1.0f / (float)swapChainDesc.Width,
-			1.0f / (float)swapChainDesc.Height);
-		data.mCamera.mViewT = view.Transpose();
-		data.mCamera.mProjT = projection.Transpose();
-		data.mCamera.mViewProjT = (view * projection).Transpose();
-		data.mCamera.mProjInvT = data.mCamera.mProjT.Inverse();
-		data.mCamera.mViewInvT = data.mCamera.mViewT.Inverse();
-		data.mCamera.mViewProjInvT = data.mCamera.mViewProjT.Inverse();
-
-		if (globalLightProbe)
-			data.mGlobalLighting.fGlobalEnvMapLevels = 
-				(float)globalLightProbe->GetPrefilteredEnvMap()->GetTexture()->GetDesc().MipLevels;
-		else 
-			data.mGlobalLighting.fGlobalEnvMapLevels = 0;
-
-		mGlobals.Write(context, data);
+		WriteRenderGlobalsData(&mGlobals, context, viewportSize, camera,
+			projection,
+			(cameraTransformCache == nullptr ? nullptr : &cameraTransformCache->mCache),
+			globalLightProbe);
 	}
 
 	void DefaultRenderer::ReallocateIntermediateFramebuffer(

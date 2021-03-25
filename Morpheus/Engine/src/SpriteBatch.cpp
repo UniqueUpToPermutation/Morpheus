@@ -10,6 +10,33 @@ using namespace DG;
 #include <shaders/SpriteBatchStructures.hlsl>
 
 namespace Morpheus {
+	SpriteBatchState::SpriteBatchState(DG::IShaderResourceBinding* shaderBinding, 
+		DG::IShaderResourceVariable* textureVariable, 
+		PipelineResource* pipeline) :
+		mShaderBinding(shaderBinding),
+		mTextureVariable(textureVariable),
+		mPipeline(pipeline) {
+
+		mShaderBinding->AddRef();
+		mPipeline->AddRef();
+	}
+
+	void SpriteBatchState::CopyFrom(const SpriteBatchState& state) {
+		mShaderBinding = state.mShaderBinding;
+		mTextureVariable = state.mTextureVariable;
+		mPipeline = state.mPipeline;
+
+		mShaderBinding->AddRef();
+		mPipeline->AddRef();
+	}
+
+	SpriteBatchState::~SpriteBatchState() {
+		if (mShaderBinding) {
+			mShaderBinding->Release();
+			mPipeline->Release();
+		}
+	}
+
 	SpriteBatch::SpriteBatch(DG::IRenderDevice* device, PipelineResource* pipeline, uint batchSize) {
 		mBatchSize = batchSize;
 		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
@@ -72,7 +99,15 @@ namespace Morpheus {
 		mBuffer->Release();
 	}
 
+	void SpriteBatch::ResetDefaultPipeline(ResourceManager* resourceManager) {
+		auto pipeline = LoadPipeline(resourceManager);
+		SetDefaultPipeline(pipeline);
+		pipeline->Release();
+	}
+
 	PipelineResource* SpriteBatch::LoadPipeline(ResourceManager* manager, DG::FILTER_TYPE filterType, ShaderResource* pixelShader) {
+		PipelineResource* result = nullptr;
+		
 		if (pixelShader) {
 			auto cache = manager->GetCache<PipelineResource>();
 
@@ -89,7 +124,7 @@ namespace Morpheus {
 				return taskId;
 			};
 
-			return cache->LoadFromFactory(factory);
+			result = cache->LoadFromFactory(factory);
 		} else {
 			auto cache = manager->GetCache<PipelineResource>();
 
@@ -104,8 +139,11 @@ namespace Morpheus {
 					overrides, filterType, async, nullptr);
 			};
 
-			return cache->LoadFromFactory(factory);
+			result = cache->LoadFromFactory(factory);
 		}
+		
+		result->AddRef();
+		return result;
 	}
 
 	void SpriteBatch::Begin(DG::IDeviceContext* context, const SpriteBatchState* state) {

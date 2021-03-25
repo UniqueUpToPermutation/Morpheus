@@ -45,4 +45,7 @@ namespace Morpheus {
 			*data = t;
 		}
 	};
+
+	struct RendererGlobalData;
+	struct LightProbe;
 }

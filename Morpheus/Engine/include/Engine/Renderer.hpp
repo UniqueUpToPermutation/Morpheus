@@ -17,6 +17,9 @@ namespace Morpheus {
 	
 	class IRenderer : public IEngineComponent {
 	public:
+		virtual ~IRenderer() {
+		}
+
 		virtual void RequestConfiguration(DG::EngineD3D11CreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineD3D12CreateInfo* info) = 0;
 		virtual void RequestConfiguration(DG::EngineGLCreateInfo* info) = 0;
