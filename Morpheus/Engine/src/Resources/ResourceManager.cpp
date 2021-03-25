@@ -68,18 +68,4 @@ namespace Morpheus {
 
 		mResourceCaches.clear();
 	}
-
-	void ResourceManager::LoadMesh(const std::string& geometrySource,
-		const std::string& materialSource,
-		GeometryResource** geometryResourceOut,
-		MaterialResource** materialResourceOut) {
-
-		*materialResourceOut = Load<MaterialResource>(materialSource);
-
-		LoadParams<GeometryResource> geoParams;
-		geoParams.mSource = geometrySource;
-		geoParams.mVertexLayout = (*materialResourceOut)->GetPipeline()->GetVertexLayout();
-
-		*geometryResourceOut = Load<GeometryResource>(geoParams);
-	}
 }

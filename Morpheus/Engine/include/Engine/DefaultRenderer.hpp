@@ -46,7 +46,7 @@ namespace Morpheus {
 		bool bUseSHIrradiance;
 
 		void RenderStaticMeshes(entt::registry* registry,
-			RendererBridge* renderBridge,
+			DefaultRendererBridge* renderBridge,
 			LightProbe* globalLightProbe);
 		void RenderSkybox(SkyboxComponent* skybox);
 		void ReallocateIntermediateFramebuffer(uint width, uint height);
@@ -66,7 +66,7 @@ namespace Morpheus {
 		
 		void InitializeSystems(Scene* scene) override;
 		void Initialize(Engine* engine) override;
-		void Render(Scene* scene, EntityNode cameraNode) override;
+		void Render(Scene* scene, EntityNode cameraNode, const RenderPassTargets& targets) override;
 
 		DG::IBuffer* GetGlobalsBuffer() override;
 		DG::FILTER_TYPE GetDefaultFilter() const override;

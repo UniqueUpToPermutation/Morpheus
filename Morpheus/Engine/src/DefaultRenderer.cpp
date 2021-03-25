@@ -315,7 +315,7 @@ namespace Morpheus {
 
 	void DefaultRenderer::InitializeSystems(Scene* scene) {
 		// Add the render interface to the current scene
-		scene->AddSystem<RendererBridge>(this, mEngine->GetResourceManager());
+		scene->AddSystem<DefaultRendererBridge>(this, mEngine->GetResourceManager());
 	}
 
 	DG::IBuffer* DefaultRenderer::GetGlobalsBuffer() {
@@ -337,7 +337,7 @@ namespace Morpheus {
 
 	void DefaultRenderer::RenderStaticMeshes(
 		entt::registry* registry,
-		RendererBridge* renderBridge,
+		DefaultRendererBridge* renderBridge,
 		LightProbe* globalLightProbe) {
 
 		PipelineResource* currentPipeline = nullptr;
@@ -419,11 +419,11 @@ namespace Morpheus {
 		}
 	}
 
-	void DefaultRenderer::Render(Scene* scene, EntityNode cameraNode) {
+	void DefaultRenderer::Render(Scene* scene, EntityNode cameraNode, const RenderPassTargets& targets) {
 		auto context = mEngine->GetImmediateContext();
 		auto swapChain = mEngine->GetSwapChain();
 
-		auto renderBridge = scene->GetSystem<RendererBridge>();
+		auto renderBridge = scene->GetSystem<DefaultRendererBridge>();
 
 		entt::registry* registry = nullptr;
 
@@ -433,8 +433,7 @@ namespace Morpheus {
 			FrameBeginEvent e;
 			e.mScene = scene;
 			e.mRenderer = this;
-
-			scene->Trigger<FrameBeginEvent>(e);
+			scene->BeginFrame(e);
 		}
 
 		if (!context || !swapChain) {
@@ -442,8 +441,8 @@ namespace Morpheus {
 			return;
 		}
 
-		ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
-		ITextureView* pDSV = swapChain->GetDepthBufferDSV();
+		ITextureView* pRTV = targets.mColorOutputs[0];
+		ITextureView* pDSV = targets.mDepthOutput;
 		ITextureView* intermediateDepthView = nullptr;
 
 		if (mMSAADepthBuffer) {

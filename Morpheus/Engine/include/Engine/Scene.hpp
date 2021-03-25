@@ -15,14 +15,13 @@ namespace DG = Diligent;
 namespace Morpheus {
 
 	class Engine;
+	class Scene;
+	class Camera;
+	class IRenderer;
 
-	class ISystem {
-	public:
-		virtual void Startup(Scene* scene) = 0;
-		virtual void Shutdown(Scene* scene) = 0;
-
-		virtual ~ISystem() {
-		}
+	struct FrameBeginEvent {
+		Scene* mScene;
+		IRenderer* mRenderer;
 	};
 
 	struct UpdateEvent {
@@ -35,9 +34,18 @@ namespace Morpheus {
 		Scene* mSender;
 	};
 
-	class Scene;
-	class Camera;
-	class IRenderer;
+	class ISystem {
+	public:
+		virtual void Startup(Scene* scene) = 0;
+		virtual void Shutdown(Scene* scene) = 0;
+		virtual void OnSceneBegin(const SceneBeginEvent& args) = 0;
+		virtual void OnFrameBegin(const FrameBeginEvent& args) = 0;
+		virtual void OnSceneUpdate(const UpdateEvent& e) = 0;
+
+		virtual ~ISystem() {
+		}
+	};
+
 
 	class DepthFirstNodeIterator {
 	private:
@@ -201,6 +209,7 @@ namespace Morpheus {
 		void Begin();
 		void Shutdown();
 		void Update(double currTime, double elapsedTime);
+		void BeginFrame(const FrameBeginEvent& e);
 
 		EntityNode CreateNode(entt::entity entity);
 		EntityNode CreateNode();

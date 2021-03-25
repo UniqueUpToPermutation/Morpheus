@@ -4,7 +4,6 @@
 
 using namespace Morpheus;
 
-
 #if PLATFORM_WIN32
 int __stdcall WinMain(
 	HINSTANCE hInstance,
@@ -28,19 +27,20 @@ int main(int argc, char** argv) {
 	auto content = en.GetResourceManager();
 
 	// Create Gun
-	GeometryResource* gunMesh;
-	MaterialResource* gunMaterial;
-	content->LoadMesh("cerberus.obj", "cerberusmat.json", &gunMesh, &gunMaterial);
-	
+	MaterialResource* gunMaterial = content->Load<MaterialResource>("cerberusmat.json");
+
+	LoadParams<GeometryResource> gunParams;
+	gunParams.mMaterial = gunMaterial;
+	gunParams.mSource = "cerberus.obj";
+	GeometryResource* gunMesh = content->Load<GeometryResource>(gunParams);
+
 	auto gunNode = root.CreateChild();
 	gunNode.Add<GeometryComponent>(gunMesh);
 	gunNode.Add<MaterialComponent>(gunMaterial);
-
-	Transform& transform = gunNode.Add<Transform>(
-		DG::float3(0.0f, 0.0f, 0.0f),
-		DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI),
-		DG::float3(8.0f, 8.0f, 8.0f)
-	);
+	gunNode.Add<Transform>()
+		.SetTranslation(0.0f, 0.0f, 0.0f)
+		.SetRotation(DG::Quaternion::RotationFromAxisAngle(DG::float3(0.0f, 1.0f, 0.0f), DG::PI))
+		.SetScale(8.0f, 8.0f, 8.0f);
 
 	gunMaterial->Release();
 	gunMesh->Release();
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
 	// Create a controller 
 	auto cameraNode = scene->GetCameraNode();
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
-	cameraNode.Add<EditorCameraController>(cameraNode, scene);
+	cameraNode.Add<ScriptComponent>().AddScript<EditorCameraController>();
 
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();

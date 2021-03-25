@@ -105,7 +105,7 @@ namespace Morpheus
 							&(*mXCBInfo.atom_wm_delete_window).atom);
 		free(reply);
 
-		mTitle = mEngine->GetAppTitle();
+		mTitle = params.mWindow.mWindowTitle;
 
 		// https://stackoverflow.com/a/27771295
 		xcb_size_hints_t hints = {};
@@ -260,7 +260,7 @@ namespace Morpheus
 
 		mDeviceType = DG::RENDER_DEVICE_TYPE_GL;
 	
-		mTitle = mEngine->GetAppTitle();
+		mTitle = params.mWindow.mWindowTitle;
 		if (!mEngine->OnGLContextCreated(mDisplay, mWindow))
 		{
 			LOG_ERROR("Unable to initialize the application in OpenGL mode. Aborting");

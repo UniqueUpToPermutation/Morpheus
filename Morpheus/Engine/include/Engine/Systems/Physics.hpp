@@ -27,7 +27,9 @@ namespace Morpheus {
 		void OnDestroyRigidBody(entt::registry& reg, entt::entity e);
 		void OnConstructRigidBody(entt::registry& reg, entt::entity e);
 
-		void OnSceneUpdate(const UpdateEvent& e);
+		void OnSceneBegin(const SceneBeginEvent& args) override;
+		void OnFrameBegin(const FrameBeginEvent& args) override;
+		void OnSceneUpdate(const UpdateEvent& e) override;
 
 		inline btDynamicsWorld* GetWorld() {
 			return mWorld;

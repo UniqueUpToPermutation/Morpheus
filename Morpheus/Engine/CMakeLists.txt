@@ -130,6 +130,7 @@ list(APPEND SOURCE
 	src/ThreadTasks.cpp
 	src/SpriteBatch.cpp
 	src/Im3d.cpp
+	src/Renderer.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -164,6 +165,8 @@ list(APPEND SOURCE
 
 	src/Systems/RendererBridge.cpp
 	src/Systems/Physics.cpp
+	src/Systems/TransformSystem.cpp
+	src/Systems/ScriptSystem.cpp
 
 	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
 	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp

@@ -49,9 +49,11 @@ int main(int argc, char** argv) {
 	auto root = scene->GetRoot();
 	auto content = en.GetResourceManager();
 
-	GeometryResource* groundMesh;
-	MaterialResource* groundMaterial;
-	content->LoadMesh("ground.obj", "wood1/material.json", &groundMesh, &groundMaterial);
+	MaterialResource* groundMaterial = content->Load<MaterialResource>("wood1/material.json");
+	LoadParams<GeometryResource> groundParams;
+	groundParams.mMaterial = groundMaterial;
+	groundParams.mSource = "ground.obj";
+	GeometryResource* groundMesh = content->Load<GeometryResource>(groundParams);
 	
 	auto groundNode = root.CreateChild();
 	groundNode.Add<GeometryComponent>(groundMesh);
@@ -62,10 +64,12 @@ int main(int argc, char** argv) {
 	groundMesh->Release();
 	groundMaterial->Release();
 
-	// Create Grid of Spheres
-	GeometryResource* sphereMesh;
-	MaterialResource* sphereMaterial;
-	content->LoadMesh("sphere.obj", "testpbr.json", &sphereMesh, &sphereMaterial);
+	// Create Grid of Spheres 
+	MaterialResource* sphereMaterial = content->Load<MaterialResource>("testpbr.json");
+	LoadParams<GeometryResource> sphereParams;
+	sphereParams.mMaterial = sphereMaterial;
+	sphereParams.mSource = "sphere.obj";
+	GeometryResource* sphereMesh = content->Load<GeometryResource>(sphereParams);
 
 	int stackCount = 40;
 	for (int i = 0; i < stackCount; ++i) {
@@ -95,7 +99,7 @@ int main(int argc, char** argv) {
 	// Create a controller 
 	auto cameraNode = scene->GetCameraNode();
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
-	cameraNode.Add<EditorCameraController>(cameraNode, scene);
+	cameraNode.Add<ScriptComponent>().AddScript<EditorCameraController>();
 
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();

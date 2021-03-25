@@ -1,5 +1,7 @@
 #include <Engine/Engine.hpp>
 #include <Engine/Platform.hpp>
+#include <Engine/Systems/TransformSystem.hpp>
+#include <Engine/Systems/ScriptSystem.hpp>
 #include <Engine/DefaultRenderer.hpp>
 
 #include <sstream>
@@ -607,19 +609,6 @@ namespace Morpheus
 				break;
 		}
 
-		switch (mDeviceType)
-		{
-			// clang-format off
-			case RENDER_DEVICE_TYPE_D3D11:  mAppTitle.append(" (D3D11)");    break;
-			case RENDER_DEVICE_TYPE_D3D12:  mAppTitle.append(" (D3D12)");    break;
-			case RENDER_DEVICE_TYPE_GL:     mAppTitle.append(" (OpenGL)");   break;
-			case RENDER_DEVICE_TYPE_GLES:   mAppTitle.append(" (OpenGLES)"); break;
-			case RENDER_DEVICE_TYPE_VULKAN: mAppTitle.append(" (Vulkan)");   break;
-			case RENDER_DEVICE_TYPE_METAL:  mAppTitle.append(" (Metal)");    break;
-			default: UNEXPECTED("Unknown/unsupported device type");
-				// clang-format on
-		}
-
 		mImmediateContext = ppContexts[0];
 		auto NumDeferredCtx = ppContexts.size() - 1;
 		mDeferredContexts.resize(NumDeferredCtx);
@@ -875,7 +864,7 @@ namespace Morpheus
 		}
 
 		if (mRenderer) {
-			mRenderer->Render(activeScene, camera);
+			mRenderer->Render(activeScene, camera, GetSwapChain());
 		} else {
 			throw std::runtime_error("Engine does not have renderer!");
 		}
@@ -910,6 +899,9 @@ namespace Morpheus
 
 	void Engine::InitializeDefaultSystems(Scene* scene) {
 		std::cout << "Initializing default systems for new scene..." << std::endl;
+
+		scene->AddSystem<TransformSystem>();
+		scene->AddSystem<ScriptSystem>(this);
 
 		for (auto& component : mComponents) {
 			component->InitializeSystems(scene);

@@ -53,28 +53,34 @@ namespace Morpheus {
 			mRotation(rotation) {
 		}
 
-		inline void SetTranslation(const DG::float3& t) {
+		inline Transform& SetTranslation(const DG::float3& t) {
 			mTranslation = t;
+			return *this;
 		}
 
-		inline void SetTranslation(const float x, const float y, const float z) {
+		inline Transform& SetTranslation(const float x, const float y, const float z) {
 			SetTranslation(DG::float3(x, y, z));
+			return *this;
 		}
 
-		inline void SetRotation(const DG::Quaternion& q) {
+		inline Transform& SetRotation(const DG::Quaternion& q) {
 			mRotation = q;
+			return *this;
 		}
 
-		inline void SetScale(const DG::float3& s) {
+		inline Transform& SetScale(const DG::float3& s) {
 			mScale = s;
+			return *this;
 		}
 
-		inline void SetScale(const float x, const float y, const float z) {
+		inline Transform& SetScale(const float x, const float y, const float z) {
 			SetScale(DG::float3(x, y, z));
+			return *this;
 		}
 
-		inline void SetScale(const float s) {
+		inline Transform& SetScale(const float s) {
 			SetScale(DG::float3(s, s, s));
+			return *this;
 		}
 
 		inline DG::float3 GetTranslation() const {

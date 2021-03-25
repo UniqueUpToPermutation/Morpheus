@@ -90,8 +90,6 @@ namespace Morpheus {
 
 		InitPhysics(scene);
 
-		scene->GetDispatcher()->sink<UpdateEvent>().connect<&PhysicsSystem::OnSceneUpdate>(this);
-
 		mPhysicsComponentTransformUpdateObs.connect(*registry, entt::collector.update<Transform>().where<RigidBodyComponent>());
 		mPhysicsComponentTransformGroupObs.connect(*registry, entt::collector.group<Transform, RigidBodyComponent>());
 	}
@@ -152,6 +150,14 @@ namespace Morpheus {
 		}
 	}
 
+	void PhysicsSystem::OnSceneBegin(const SceneBeginEvent& args) {
+		
+	}
+
+	void PhysicsSystem::OnFrameBegin(const FrameBeginEvent& args) {
+		
+	}
+
 	void PhysicsSystem::OnDestroyRigidBody(entt::registry& reg, entt::entity e) {
 		auto component = reg.get<RigidBodyComponent>(e);
 		mWorld->removeRigidBody(component);
@@ -175,8 +181,6 @@ namespace Morpheus {
 
 		mPhysicsComponentTransformGroupObs.disconnect();
 		mPhysicsComponentTransformUpdateObs.disconnect();
-
-		scene->GetDispatcher()->sink<UpdateEvent>().disconnect<&PhysicsSystem::OnSceneUpdate>(this);
 
 		KillPhysics(scene);
 

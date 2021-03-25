@@ -18,12 +18,8 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
-	struct FrameBeginEvent {
-		Scene* mScene;
-		IRenderer* mRenderer;
-	};
 
-	class RendererBridge : public ISystem {
+	class DefaultRendererBridge : public ISystem {
 	public:
 	typedef entt::basic_group<
 		entt::entity,
@@ -44,7 +40,7 @@ namespace Morpheus {
 		std::unique_ptr<StaticMeshGroupType> mRenderableGroup;
 
 	public:
-		inline RendererBridge(
+		inline DefaultRendererBridge(
 			IRenderer* renderer,
 			ResourceManager* resources) : 
 			mRenderer(renderer), 
@@ -54,16 +50,11 @@ namespace Morpheus {
 		void Startup(Scene* scene) override;
 		void Shutdown(Scene* scene) override;
 
-		void OnSceneBegin(const SceneBeginEvent& args);
-		void OnFrameBegin(const FrameBeginEvent& args);
+		void OnSceneBegin(const SceneBeginEvent& args) override;
+		void OnFrameBegin(const FrameBeginEvent& args) override;
+		void OnSceneUpdate(const UpdateEvent& args) override;
 
-		void UpdateDescendants(EntityNode node, const DG::float4x4& matrix);
-		MatrixTransformCache& UpdateCache(EntityNode node, 
-			const Transform& transform,
-			bool bUpdateDescendants);
-		EntityNode FindTransformParent(EntityNode node);
-
-		inline decltype(RendererBridge::mRenderableGroup)& GetRenderableGroup() {
+		inline decltype(DefaultRendererBridge::mRenderableGroup)& GetRenderableGroup() {
 			return mRenderableGroup;
 		}
 	};

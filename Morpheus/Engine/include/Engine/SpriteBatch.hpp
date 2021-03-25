@@ -21,6 +21,11 @@ namespace Morpheus {
 			mPosition(position),
 			mSize(size) {
 		}
+
+		inline SpriteRect(float upperX, float upperY, float sizeX, float sizeY) :
+			mPosition(upperX, upperY),
+			mSize(sizeX, sizeY) {
+		}
 	};
 
 	class SpriteBatchState {

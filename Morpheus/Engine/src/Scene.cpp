@@ -23,7 +23,11 @@ namespace Morpheus {
 		if (!bBeginCalled) {
 			SceneBeginEvent e;
 			e.mSender = this;
-			mDispatcher.trigger<SceneBeginEvent>(e);
+
+			for (auto system : mSystems) {
+				system.second->OnSceneBegin(e);
+			}
+
 			bBeginCalled = true;
 		}
 	}
@@ -76,16 +80,24 @@ namespace Morpheus {
 			throw std::runtime_error("Scene::Begin has not yet been called!");
 		}
 
-		// Update everything else that needs updating
 		UpdateEvent e;
 		e.mSender = this;
 		e.mCurrTime = currTime;
 		e.mElapsedTime = elapsedTime;
 
-		mDispatcher.trigger<UpdateEvent>(e);
+		// Update everything else that needs updating
+		for (auto system : mSystems) {
+			system.second->OnSceneUpdate(e);
+		}
 
 		for (auto gui : mImGuiObjects) {
 			gui->OnUpdate(this, currTime, elapsedTime);
+		}
+	}
+
+	void Scene::BeginFrame(const FrameBeginEvent& e) {
+		for (auto system : mSystems) {
+			system.second->OnFrameBegin(e);
 		}
 	}
 }

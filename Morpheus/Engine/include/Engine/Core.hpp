@@ -24,3 +24,4 @@
 #include <Engine/Components/PhysicsComponents.hpp>
 #include <Engine/Components/SkyboxComponent.hpp>
 #include <Engine/Components/Transform.hpp>
+#include <Engine/Components/ScriptComponent.hpp>

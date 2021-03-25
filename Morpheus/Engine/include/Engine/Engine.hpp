@@ -22,6 +22,7 @@
 #include <Engine/Scene.hpp>
 #include <Engine/Entity.hpp>
 #include <Engine/ThreadPool.hpp>
+#include <Engine/Components/ScriptComponent.hpp>
 
 namespace Diligent
 {
@@ -80,10 +81,6 @@ namespace Morpheus {
 	public:
 		Engine();
 		~Engine();
-
-		const char* GetAppTitle() const { 
-			return mAppTitle.c_str(); 
-		}
 
 		void Update(Scene* activeScene);
 		void Update(const update_callback_t& callback);
@@ -159,11 +156,11 @@ namespace Morpheus {
 		ResourceManager* 	mResourceManager 		= nullptr;
 		IRenderer*			mRenderer 				= nullptr;
 		ThreadPool			mThreadPool;
+		ScriptFactory		mScriptFactory;
 
 		int          		mInitialWindowWidth  	= 0;
 		int          		mInitialWindowHeight 	= 0;
 		int         		mValidationLevel     	= -1;
-		std::string  		mAppTitle    			= "Morpheus";
 		DG::Uint32      	mAdapterId   			= 0;
 		DG::ADAPTER_TYPE 	mAdapterType 			= DG::ADAPTER_TYPE_UNKNOWN;
 		std::string  		mAdapterDetailsString;
@@ -271,6 +268,9 @@ namespace Morpheus {
 		}
 		inline ThreadPool* GetThreadPool() {
 			return &mThreadPool;
+		}
+		inline ScriptFactory* GetScriptFactory() {
+			return &mScriptFactory;
 		}
 
 		void InitializeDefaultSystems(Scene* scene);

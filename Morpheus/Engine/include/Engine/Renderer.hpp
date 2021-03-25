@@ -9,6 +9,11 @@ namespace Morpheus {
 
 	class Scene;
 	class Camera;
+
+	struct RenderPassTargets {
+		std::vector<DG::ITextureView*> mColorOutputs;
+		DG::ITextureView* mDepthOutput;
+	};
 	
 	class IRenderer : public IEngineComponent {
 	public:
@@ -21,7 +26,7 @@ namespace Morpheus {
 		virtual void Initialize(Engine* engine) = 0;
 		virtual void InitializeSystems(Scene* scene) = 0;
 
-		virtual void Render(Scene* scene, EntityNode cameraNode) = 0;
+		virtual void Render(Scene* scene, EntityNode cameraNode, const RenderPassTargets& targets) = 0;
 
 		virtual DG::IRenderDevice* GetDevice() = 0;
 		virtual DG::IDeviceContext* GetImmediateContext() = 0;
@@ -50,5 +55,7 @@ namespace Morpheus {
 		const IRenderer* ToRenderer() const override {
 			return this;
 		}
+
+		void Render(Scene* scene, EntityNode cameraNode, DG::ISwapChain* swapChain);
 	};
 }

@@ -3,16 +3,18 @@
 #include <Engine/Components/Transform.hpp>
 
 namespace Morpheus {
-	void EditorCameraController::OnUpdate(const UpdateEvent& e) {
+	void EditorCameraController::OnUpdate(const ScriptUpdateEvent& e) {
 
-		auto& input = GetEngine()->GetInputController();
+		auto& input = e.mEngine->GetInputController();
 		const auto& mouseState = input.GetMouseState();
 		const auto& lastState = input.GetLastMouseState();
 
-		auto oldTransform = mCameraNode.TryGet<Transform>(); 
+		EntityNode entity = e.mEntity;
+		auto oldTransform = entity.TryGet<Transform>();
+		auto& data = entity.Get<EditorCameraController::Data>();
 
 		if (oldTransform) {
-			auto viewVec = GetViewVector();
+			auto viewVec = data.GetViewVector();
 
 			auto up = DG::float3(0.0f, 1.0f, 0.0f);
 			auto sideways = DG::cross(viewVec, up);
@@ -24,63 +26,52 @@ namespace Morpheus {
 			DG::float3 newTranslation = oldTransform->GetTranslation();
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_LEFT) {
-				mAzimuth -= mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
-				mElevation += mMouseRotationSpeedY * (float)(mouseState.PosY - lastState.PosY);
+				data.mAzimuth -= data.mMouseRotationSpeedX * (float)(mouseState.PosX - lastState.PosX);
+				data.mElevation += data.mMouseRotationSpeedY * (float)(mouseState.PosY - lastState.PosY);
 
-				newRotation = GetViewQuat();
+				newRotation = data.GetViewQuat();
 			}
 
 			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_RIGHT) {
-				newTranslation -= mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
-				newTranslation -= mMousePanSpeedY * (float)(mouseState.PosY - lastState.PosY) * viewUp;
+				newTranslation -= data.mMousePanSpeedX * (float)(mouseState.PosX - lastState.PosX) * sideways;
+				newTranslation -= data.mMousePanSpeedY * (float)(mouseState.PosY - lastState.PosY) * viewUp;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveForward)) {
-				newTranslation += (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
+				newTranslation += (float)(data.mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveBackward)) {
-				newTranslation -= (float)(mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
+				newTranslation -= (float)(data.mKeyPanSpeedZ * e.mElapsedTime) * viewVec;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveLeft)) {
-				newTranslation -= (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				newTranslation -= (float)(data.mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 
 			if (input.IsKeyDown(InputKeys::MoveRight)) {
-				newTranslation += (float)(mKeyPanSpeedX * e.mElapsedTime) * sideways;
+				newTranslation += (float)(data.mKeyPanSpeedX * e.mElapsedTime) * sideways;
 			}
 
 			// Update the transform
-			mCameraNode.Patch<Transform>([&](Transform& transform) {
+			entity.Patch<Transform>([&](Transform& transform) {
 				transform.SetTranslation(newTranslation);
 				transform.SetRotation(newRotation);
 			});
 		}
 	}
 
-	EditorCameraController::EditorCameraController(EntityNode cameraNode, Scene* scene) :
-		mCameraNode(cameraNode),
-		mScene(scene) {
-		scene->GetDispatcher()->sink<UpdateEvent>().
-			connect<&EditorCameraController::OnUpdate>(this);
+	void EditorCameraController::OnBegin(const ScriptBeginEvent& args) {
+		auto entity = args.mEntity;
+		entity.AddOrReplace<EditorCameraController::Data>();
 	}
 
-	EditorCameraController::EditorCameraController(const EditorCameraController& other) :
-		mCameraNode(other.mCameraNode),
-		mElevation(other.mElevation),
-		mAzimuth(other.mAzimuth),
-		mScene(other.mScene) {
-		mScene->GetDispatcher()->sink<UpdateEvent>().
-			connect<&EditorCameraController::OnUpdate>(this);
+	void EditorCameraController::OnDestroy(const ScriptDestroyEvent& args) {
+		auto entity = args.mEntity;
+		entity.Remove<EditorCameraController::Data>();
 	}
 
-	EditorCameraController::~EditorCameraController() {
-		mScene->GetDispatcher()->sink<UpdateEvent>().
-			disconnect<&EditorCameraController::OnUpdate>(this);
-	}
-
-	DG::Quaternion EditorCameraController::GetViewQuat() const {
+	DG::Quaternion EditorCameraController::Data::GetViewQuat() const {
 		auto rotate_azimuth =  DG::Quaternion::RotationFromAxisAngle(
 			DG::float3(0.0f, 1.0f, 0.0f), mAzimuth);
 		auto rotate_elevation = DG::Quaternion::RotationFromAxisAngle(
@@ -88,7 +79,7 @@ namespace Morpheus {
 		return rotate_azimuth * rotate_elevation;
 	}
 
-	DG::float3 EditorCameraController::GetViewVector() const {
+	DG::float3 EditorCameraController::Data::GetViewVector() const {
 		return GetViewQuat().RotateVector(DG::float3(0.0f, 0.0f, 1.0f));
 	}
 }

@@ -32,9 +32,7 @@ namespace Morpheus {
 		MaterialResource* mMaterial = nullptr;
 
 		static LoadParams<GeometryResource> FromString(const std::string& str) {
-			LoadParams<GeometryResource> params;
-			params.mSource = str;
-			return params;
+			throw std::runtime_error("Geometry cannot be created from string, pipeline must be specified!");
 		}
 	};
 

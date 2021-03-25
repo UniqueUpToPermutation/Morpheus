@@ -128,3 +128,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(RawTextureTest)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(TacticsGame)
+endif()

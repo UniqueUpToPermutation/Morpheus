@@ -10,11 +10,8 @@
 #include <Engine/Resources/GeometryResource.hpp>
 
 namespace Morpheus {
-	void RendererBridge::Startup(Scene* scene) {
+	void DefaultRendererBridge::Startup(Scene* scene) {
 		std::cout << "Initializing renderer-scene bridge..." << std::endl;
-
-		scene->GetDispatcher()->sink<SceneBeginEvent>().connect<&RendererBridge::OnSceneBegin>(this);
-		scene->GetDispatcher()->sink<FrameBeginEvent>().connect<&RendererBridge::OnFrameBegin>(this);
 
 		mRenderableGroup.reset(new StaticMeshGroupType(
 			scene->GetRegistry()->group<
@@ -23,25 +20,8 @@ namespace Morpheus {
 			GeometryComponent>()));
 	}
 
-	void RendererBridge::OnSceneBegin(const SceneBeginEvent& args) {
+	void DefaultRendererBridge::OnSceneBegin(const SceneBeginEvent& args) {
 		auto registry = args.mSender->GetRegistry();
-
-		// Create matrix caches for all transforms
-		auto transformView = registry->view<Transform>();
-		for (auto e : transformView) {
-			UpdateCache(EntityNode(registry, e), 
-				transformView.get<Transform>(e),
-				false); 
-		}
-
-		// Observe future changes
-		mTransformNoCacheObs.connect(*registry,
-			entt::collector.group<Transform>(entt::exclude<MatrixTransformCache>));
-		mCacheNoTransformObs.connect(*registry,
-			entt::collector.group<MatrixTransformCache>(entt::exclude<Transform>));
-		mTransformUpdateObs.connect(*registry,
-			entt::collector.update<Transform>());
-
 		auto skybox_view = registry->view<SkyboxComponent>();
 
 		auto textureCache = mResourceManager->GetCache<TextureResource>();
@@ -84,55 +64,11 @@ namespace Morpheus {
 		}
 	}
 
-	EntityNode RendererBridge::FindTransformParent(EntityNode node) {
-		auto result = node.GetParent();
-		for (; result.IsValid(); result = result.GetParent()) {
-			if (result.Has<Transform>()) {
-				return result;
-			}
-		}
-		return result;
+	void DefaultRendererBridge::OnSceneUpdate(const UpdateEvent& args) {
 	}
 
-	void RendererBridge::UpdateDescendants(EntityNode node, 
-		const DG::float4x4& matrix) {
-		
-		for (auto child = node.GetFirstChild(); child.IsValid(); child = child.GetNext()) {
-			auto transform = child.TryGet<Transform>();
-			if (transform) {
-				DG::float4x4 newMatrix = transform->ToMatrix() * matrix;
-				child.AddOrReplace<MatrixTransformCache>(newMatrix);
-				UpdateDescendants(child, newMatrix);
-			} else {
-				UpdateDescendants(child, matrix);
-			}
-		}
-	}
-
-	void RendererBridge::OnFrameBegin(const FrameBeginEvent& args) {
+	void DefaultRendererBridge::OnFrameBegin(const FrameBeginEvent& args) {
 		auto registry = args.mScene->GetRegistry();
-
-		// Update everything that has changed
-		for (auto e : mTransformNoCacheObs) {
-			EntityNode node(registry, e);
-			UpdateCache(node, registry->get<Transform>(e), true);
-		}
-
-		// Update everything that has changed
-		for (auto e : mTransformUpdateObs) {
-			EntityNode node(registry, e);
-			UpdateCache(node, registry->get<Transform>(e), true);
-		}
-
-		// Remove any caches with no transforms (for whatever reason)
-		for (auto e : mCacheNoTransformObs) {
-			registry->remove<MatrixTransformCache>(e);
-		}
-
-		// Clear observers
-		mTransformNoCacheObs.clear();
-		mTransformUpdateObs.clear();
-		mCacheNoTransformObs.clear();
 
 		auto group = mRenderableGroup.get();
 		mRenderableGroup->sort([&group](
@@ -153,28 +89,7 @@ namespace Morpheus {
 		});
 	}
 
-	MatrixTransformCache& RendererBridge::UpdateCache(EntityNode node, 
-		const Transform& transform,
-		bool bUpdateDescendants) {
-		auto parentTransform = FindTransformParent(node);
-
-		auto matrix = transform.ToMatrix();
-
-		if (parentTransform.IsValid() && 
-			!parentTransform.Has<MatrixTransformCache>()) {
-			auto& cache = UpdateCache(parentTransform, 
-				parentTransform.Get<Transform>(),
-				false);
-			matrix = matrix * cache.mCache;
-		}
-
-		if (bUpdateDescendants)
-			UpdateDescendants(node, matrix);
-
-		return node.AddOrReplace<MatrixTransformCache>(matrix);
-	}
-
-	void RendererBridge::Shutdown(Scene* scene) {
+	void DefaultRendererBridge::Shutdown(Scene* scene) {
 
 		std::cout << "Shutting down renderer-scene bridge..." << std::endl;
 		auto registry = scene->GetRegistry();
@@ -186,11 +101,6 @@ namespace Morpheus {
 		mTransformNoCacheObs.disconnect();
 		mCacheNoTransformObs.disconnect();
 		mTransformUpdateObs.disconnect();
-
-		scene->GetDispatcher()->sink<SceneBeginEvent>()
-			.disconnect<&RendererBridge::OnSceneBegin>(this);
-		scene->GetDispatcher()->sink<FrameBeginEvent>()
-			.disconnect<&RendererBridge::OnFrameBegin>(this);
 
 		mRenderableGroup.release();
 	}

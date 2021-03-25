@@ -154,10 +154,5 @@ namespace Morpheus {
 		inline EmbeddedFileLoader* GetEmbededFileLoader() {
 			return &mEmbeddedFileLoader;
 		}
-
-		void LoadMesh(const std::string& geometrySource,
-			const std::string& materialSource,
-			GeometryResource** geometryResourceOut,
-			MaterialResource** materialResourceOut);
 	};
 }
