@@ -6,8 +6,8 @@ namespace Morpheus {
 
 	class LightProbe {
 	private:
-		TextureResource* mIrradianceMap;
-		TextureResource* mPrefilteredEnvMap;
+		RefHandle<TextureResource> mIrradianceMap;
+		RefHandle<TextureResource> mPrefilteredEnvMap;
 		DG::RefCntAutoPtr<DG::IBuffer> mIrradianceSH;
 
 		DG::ITextureView* mIrradianceMapView;
@@ -34,42 +34,15 @@ namespace Morpheus {
 			return mPrefilteredEnvMap;
 		}
 
-		void SetIrradiance(TextureResource* irradiance, 
-			DG::ITextureView* irradianceView = nullptr) {
+		inline void SetIrradiance(TextureResource* irradiance, 
+			DG::ITextureView* irradianceView = nullptr);
 
-			if (mIrradianceMap) {
-				mIrradianceMap->Release();
-				mIrradianceMap = nullptr;
-			}
-
-			mIrradianceMap = irradiance;
-			mIrradianceMapView = irradianceView;
-
-			if (!mIrradianceMapView) {
-				mIrradianceMapView = mIrradianceMap->GetShaderView();
-			}
-		}
-
-		void SetIrradianceSH(DG::RefCntAutoPtr<DG::IBuffer> irradiance) {
+		inline void SetIrradianceSH(DG::RefCntAutoPtr<DG::IBuffer> irradiance) {
 			mIrradianceSH = irradiance;
 		}
 
 		void SetPrefilteredEnvMap(TextureResource* prefilteredEnvMap, 
-			DG::ITextureView* prefilteredEnvMapView = nullptr) {
-			if (mPrefilteredEnvMap) {
-				mPrefilteredEnvMap->Release();
-				mPrefilteredEnvMap = nullptr;
-			}
-
-			mPrefilteredEnvMap = prefilteredEnvMap;
-			mPrefilteredEnvMapView = prefilteredEnvMapView;
-
-			mPrefilteredEnvMap->AddRef();
-
-			if (!mPrefilteredEnvMapView) {
-				mPrefilteredEnvMapView = mPrefilteredEnvMap->GetShaderView();
-			}
-		}
+			DG::ITextureView* prefilteredEnvMapView = nullptr);
 
 		inline LightProbe() : 
 			mIrradianceMap(nullptr),
@@ -87,78 +60,8 @@ namespace Morpheus {
 			mIrradianceSH(irradianceSH),
 			mPrefilteredEnvMap(prefilteredEnvMap) {
 
-			if (mIrradianceMap) {
-				mIrradianceMap->AddRef();
-				mIrradianceMapView = mIrradianceMap->GetShaderView();
-			}
-
-			mPrefilteredEnvMap->AddRef();
-			mPrefilteredEnvMapView = mPrefilteredEnvMap->GetShaderView();
-		}
-
-		inline LightProbe(const LightProbe& other) :
-			mIrradianceMap(other.mIrradianceMap),
-			mPrefilteredEnvMap(other.mPrefilteredEnvMap),
-			mIrradianceMapView(other.mIrradianceMapView),
-			mPrefilteredEnvMapView(other.mPrefilteredEnvMapView),
-			mIrradianceSH(other.mIrradianceSH) {
-
-			if (mIrradianceMap)
-				mIrradianceMap->AddRef();
-			if (mPrefilteredEnvMap)
-				mPrefilteredEnvMap->AddRef();
-		}
-
-		inline void MoveFrom(LightProbe&& other) {
-			mIrradianceMap = other.mIrradianceMap;
-			mIrradianceMapView =other.mIrradianceMapView;
-			mPrefilteredEnvMap = other.mPrefilteredEnvMap;
-			mPrefilteredEnvMapView = other.mPrefilteredEnvMapView;
-			mIrradianceSH = other.mIrradianceSH;
-
-			other.mIrradianceMap = nullptr;
-			other.mIrradianceMapView = nullptr;
-			other.mPrefilteredEnvMap = nullptr;
-			other.mPrefilteredEnvMapView = nullptr;
-			other.mIrradianceSH = nullptr;
-		}
-
-		inline LightProbe(LightProbe&& other) {
-			MoveFrom(std::move(other));
-		}
-
-		inline LightProbe& operator=(LightProbe&& other) {
-			MoveFrom(std::move(other));
-
-			return *this;
-		}
-
-		inline LightProbe& operator=(const LightProbe& other) {
-	
-			if (mIrradianceMap)
-				mIrradianceMap->Release();
-			if (mPrefilteredEnvMap)
-				mPrefilteredEnvMap->Release();
-
-			mIrradianceMap = other.mIrradianceMap;
-			mIrradianceMapView =other.mIrradianceMapView;
-			mPrefilteredEnvMap = other.mPrefilteredEnvMap;
-			mPrefilteredEnvMapView = other.mPrefilteredEnvMapView;
-			mIrradianceSH = other.mIrradianceSH;
-
-			if (mIrradianceMap)
-				mIrradianceMap->AddRef();
-			if (mPrefilteredEnvMap)
-				mPrefilteredEnvMap->AddRef();
-
-			return *this;
-		}
-
-		inline ~LightProbe() {
-			if (mIrradianceMap)
-				mIrradianceMap->Release();
-			if (mPrefilteredEnvMap)
-				mPrefilteredEnvMap->Release();
+			mPrefilteredEnvMapView = mPrefilteredEnvMap ? mPrefilteredEnvMap->GetShaderView() : nullptr;
+			mIrradianceMapView = mIrradianceMap ? mIrradianceMap->GetShaderView() : nullptr;
 		}
 	};
 }

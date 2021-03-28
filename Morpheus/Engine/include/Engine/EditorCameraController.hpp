@@ -12,7 +12,7 @@ namespace Morpheus {
 	using entt::operator""_hs;
 	using entt::operator""_hws;
 
-	struct EditorCameraController {
+	struct EditorCameraControllerFirstPerson {
 		struct Data {
 			float mElevation = 0.0f;
 			float mAzimuth = 0.0f;
@@ -34,8 +34,18 @@ namespace Morpheus {
 		static void OnBegin(const ScriptBeginEvent& args);
 		static void OnDestroy(const ScriptDestroyEvent& args);
 
-		static entt::hashed_string Name() {
-			return "EditorCameraController"_hs;
+		static inline entt::hashed_string Name() {
+			return "EditorCameraControllerFirstPerson"_hs;
+		}
+	};
+
+	struct EditorCameraController2D {
+		static void OnUpdate(const ScriptUpdateEvent& args);
+		static void OnBegin(const ScriptBeginEvent& args);
+		static void OnDestroy(const ScriptDestroyEvent& args);
+
+		static inline entt::hashed_string Name() {
+			return "EditorCameraController2D"_hs;
 		}
 	};
 }

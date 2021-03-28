@@ -1,63 +1,65 @@
 #include <Engine/Core.hpp>
 #include <Engine/Engine2D/Renderer2D.hpp>
 #include <Engine/Engine2D/Sprite.hpp>
+#include <Engine/Engine2D/Tilemap.hpp>
 
 using namespace Morpheus;
 
 int main() {
+	EngineParams params;
+	params.mThreads.mThreadCount = 1;
+
 	Engine en;
 
 	en.AddComponent<Renderer2D>();
-	en.Startup();
+	en.Startup(params);
 
 	std::unique_ptr<Scene> scene(new Scene());
 	TextureResource* texture = en.GetResourceManager()->Load<TextureResource>("blocks_1.png");
 
-	RenderLayer2DComponent renderLayer1;
-	RenderLayer2DComponent renderLayer2;
+	RenderLayer2DComponent renderLayer;
 
-	renderLayer1.mId = 0;
-	renderLayer1.mName = "Background";
-	renderLayer1.mOrder = -1;
+	renderLayer.mId = 0;
+	renderLayer.mName = "Tilemap";
+	renderLayer.mOrder = -1;
+	renderLayer.mSorting = LayerSorting2D::SORT_BY_Y_DECREASING;
 	
-	renderLayer2.mId = 1;
-	renderLayer2.mName = "Foreground";
-	renderLayer2.mOrder = 1;
+	scene->CreateNode().Add<RenderLayer2DComponent>(renderLayer);
 
-	scene->CreateNode().Add<RenderLayer2DComponent>(renderLayer1);
-	scene->CreateNode().Add<RenderLayer2DComponent>(renderLayer2);
+	TilemapComponent tilemap;
+	TilemapView view(tilemap);
+	
+	DG::float2 spacing = texture->GetDimensions2D();
+	spacing.x /= 2.0f;
+	spacing.y = spacing.x / 2.0f;
 
-	{
-		auto spriteEntity = scene->CreateNode();
-		auto& sprite = spriteEntity.Add<SpriteComponent>(texture);
-		sprite.mRenderLayer = 0;
-		sprite.mColor.g = 0.5;
-		sprite.mColor.r = 0.0;
-		spriteEntity.Add<Transform>();
+	uint width = 21;
+	uint height = 21;
+
+	view.SetType(TilemapType::ISOMETRIC);
+	view.SetDimensions(width, height);
+	view.CreateNewLayer(texture->GetDimensions2D(), spacing);
+	view.CreateNewTileset(texture, texture->GetDimensions2D(), texture->GetDimensions2D() / 2);
+
+	auto tilemapLayer = view[0];
+	tilemapLayer.Fill(0);
+	tilemapLayer.SetRenderLayer(0);
+
+	for (uint x = 1; x < width; x += 2) {
+		for (uint y = 1; y < height; y += 2) {
+			tilemapLayer(x, y).SetTileId(TILE_NONE);
+		}
 	}
 
-	// Goes on top
-	{
-		auto spriteEntity = scene->CreateNode();
-		auto& sprite = spriteEntity.Add<SpriteComponent>(texture);
-		sprite.mRenderLayer = 1;
-		sprite.mColor.g = 0.0;
-		sprite.mColor.b = 0.0;
-		spriteEntity.Add<Transform>().SetTranslation(20.0f, 20.0f, 0.0f);
-	}
-
-	{
-		auto spriteEntity = scene->CreateNode();
-		auto& sprite = spriteEntity.Add<SpriteComponent>(texture);
-		sprite.mRenderLayer = 0;
-		sprite.mColor.g = 0.5;
-		sprite.mColor.r = 0.0;
-		spriteEntity.Add<Transform>().SetTranslation(40.0f, 40.0f, 0.0f);
-	}
+	auto tilemapEntity = scene->CreateNode();
+	tilemapEntity.Add<TilemapComponent>(std::move(tilemap));
+	tilemapEntity.Add<Transform>();
 
 	auto camera = scene->GetCamera();
 	camera->SetType(CameraType::ORTHOGRAPHIC);
 	camera->SetClipPlanes(-1.0, 1.0);
+	scene->GetCameraNode().Add<Transform>();
+	scene->GetCameraNode().Add<ScriptComponent>().AddScript<EditorCameraController2D>();
 
 	texture->Release();
 

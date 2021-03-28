@@ -3,7 +3,7 @@
 #include <Engine/Components/Transform.hpp>
 
 namespace Morpheus {
-	void EditorCameraController::OnUpdate(const ScriptUpdateEvent& e) {
+	void EditorCameraControllerFirstPerson::OnUpdate(const ScriptUpdateEvent& e) {
 
 		auto& input = e.mEngine->GetInputController();
 		const auto& mouseState = input.GetMouseState();
@@ -11,7 +11,7 @@ namespace Morpheus {
 
 		EntityNode entity = e.mEntity;
 		auto oldTransform = entity.TryGet<Transform>();
-		auto& data = entity.Get<EditorCameraController::Data>();
+		auto& data = entity.Get<EditorCameraControllerFirstPerson::Data>();
 
 		if (oldTransform) {
 			auto viewVec = data.GetViewVector();
@@ -61,17 +61,17 @@ namespace Morpheus {
 		}
 	}
 
-	void EditorCameraController::OnBegin(const ScriptBeginEvent& args) {
+	void EditorCameraControllerFirstPerson::OnBegin(const ScriptBeginEvent& args) {
 		auto entity = args.mEntity;
-		entity.AddOrReplace<EditorCameraController::Data>();
+		entity.AddOrReplace<EditorCameraControllerFirstPerson::Data>();
 	}
 
-	void EditorCameraController::OnDestroy(const ScriptDestroyEvent& args) {
+	void EditorCameraControllerFirstPerson::OnDestroy(const ScriptDestroyEvent& args) {
 		auto entity = args.mEntity;
-		entity.Remove<EditorCameraController::Data>();
+		entity.Remove<EditorCameraControllerFirstPerson::Data>();
 	}
 
-	DG::Quaternion EditorCameraController::Data::GetViewQuat() const {
+	DG::Quaternion EditorCameraControllerFirstPerson::Data::GetViewQuat() const {
 		auto rotate_azimuth =  DG::Quaternion::RotationFromAxisAngle(
 			DG::float3(0.0f, 1.0f, 0.0f), mAzimuth);
 		auto rotate_elevation = DG::Quaternion::RotationFromAxisAngle(
@@ -79,7 +79,36 @@ namespace Morpheus {
 		return rotate_azimuth * rotate_elevation;
 	}
 
-	DG::float3 EditorCameraController::Data::GetViewVector() const {
+	DG::float3 EditorCameraControllerFirstPerson::Data::GetViewVector() const {
 		return GetViewQuat().RotateVector(DG::float3(0.0f, 0.0f, 1.0f));
+	}
+
+
+	void EditorCameraController2D::OnUpdate(const ScriptUpdateEvent& args) {
+		auto& input = args.mEngine->GetInputController();
+		const auto& mouseState = input.GetMouseState();
+		const auto& lastState = input.GetLastMouseState();
+
+		EntityNode entity = args.mEntity;
+		auto camera = entity.TryGet<Camera>();
+
+		if (camera && entity.Has<Transform>()) {
+			if (mouseState.ButtonFlags & MouseState::BUTTON_FLAG_RIGHT) {
+				DG::float2 diff(mouseState.PosX - lastState.PosX, mouseState.PosY - lastState.PosY);
+		
+				entity.Patch<Transform>([diff](Transform& transform) {
+					auto translation = transform.GetTranslation();
+					translation.x -= diff.x;
+					translation.y += diff.y;
+					transform.SetTranslation(translation);
+				});
+			}
+		}
+	}
+
+	void EditorCameraController2D::OnBegin(const ScriptBeginEvent& args) {
+	}
+
+	void EditorCameraController2D::OnDestroy(const ScriptDestroyEvent& args) {
 	}
 }

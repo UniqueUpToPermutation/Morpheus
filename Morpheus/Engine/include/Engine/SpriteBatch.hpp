@@ -61,6 +61,26 @@ namespace Morpheus {
 
 	struct SpriteBatchVSInput;
 
+	struct SpriteBatchCall2D {
+		DG::ITexture* mTexture; 
+		DG::float2 mPosition;
+		DG::float2 mSize;
+		SpriteRect mRect;
+		DG::float2 mOrigin; 
+		float mRotation;
+		DG::float4 mColor;
+	};
+
+	struct SpriteBatchCall3D {
+		DG::ITexture* mTexture; 
+		DG::float3 mPosition;
+		DG::float2 mSize;
+		SpriteRect mRect;
+		DG::float2 mOrigin; 
+		float mRotation;
+		DG::float4 mColor;
+	};
+
 	class SpriteBatch {
 	private:
 		DG::IBuffer* mBuffer;
@@ -99,6 +119,9 @@ namespace Morpheus {
 		void Begin(DG::IDeviceContext* context, const SpriteBatchState* state = nullptr);
 		void Flush();
 		void End();
+
+		void Draw(const SpriteBatchCall2D sprites[], size_t count);
+		void Draw(const SpriteBatchCall3D sprites[], size_t count);
 
 		void Draw(DG::ITexture* texture, const DG::float3& pos,
 			const DG::float2& size, const SpriteRect& rect, 

@@ -228,6 +228,22 @@ namespace Morpheus {
 		++mWriteIndex;
 	}
 
+	void SpriteBatch::Draw(const SpriteBatchCall2D sprites[], size_t count) {
+		for (size_t i = 0; i < count; ++i) {
+			auto& sprite = sprites[i];
+			Draw(sprite.mTexture, sprite.mPosition, sprite.mSize, sprite.mRect,
+				sprite.mOrigin, sprite.mRotation, sprite.mColor);
+		}
+	}
+
+	void SpriteBatch::Draw(const SpriteBatchCall3D sprites[], size_t count) {
+		for (size_t i = 0; i < count; ++i) {
+			auto& sprite = sprites[i];
+			Draw(sprite.mTexture, sprite.mPosition, sprite.mSize, sprite.mRect,
+				sprite.mOrigin, sprite.mRotation, sprite.mColor);
+		}
+	}
+
 	void SpriteBatch::Draw(DG::ITexture* texture, const DG::float2& pos, 
 		const DG::float2& size, const SpriteRect& rect, 
 		const DG::float2& origin, const float rotation, 

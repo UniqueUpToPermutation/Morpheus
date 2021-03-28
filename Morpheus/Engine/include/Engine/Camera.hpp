@@ -81,6 +81,10 @@ namespace Morpheus {
 			mOrthoSize.y = height;
 		}
 
+		inline DG::float2 GetOrthoSize() const {
+			return mOrthoSize;
+		}
+
 		inline void SetClipPlanes(float fNear, float fFar) {
 			mNearPlane = fNear;
 			mFarPlane = fFar;

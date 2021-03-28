@@ -15,6 +15,93 @@ namespace Morpheus {
 	class RawGeometry;
 	class RawShader;
 
+	template <typename T>
+	struct RefHandle {
+	private:
+		T* mPtr;
+
+	public:
+		inline T* RawPtr() {
+			return mPtr;
+		}
+
+		inline const T* RawPtr() const {
+			return mPtr;
+		}
+
+		inline RefHandle() noexcept : mPtr(nullptr) {
+		}
+
+		inline RefHandle(T* ptr) noexcept : mPtr(ptr) {
+			if (ptr)
+				ptr->AddRef();
+		}
+
+		inline ~RefHandle() {
+			if (mPtr)
+				mPtr->Release();
+		}
+
+		inline RefHandle(const RefHandle& other) noexcept : mPtr(other.mPtr) {
+			if (mPtr)
+				mPtr->AddRef();
+		}
+
+		inline RefHandle(RefHandle&& other) noexcept : mPtr(other.mPtr) {
+			other.mPtr = nullptr;
+		}
+
+		inline RefHandle& operator=(const RefHandle& other) noexcept {
+			mPtr = other.mPtr;
+			if (mPtr)
+				mPtr->AddRef();
+
+			return *this;
+		}
+
+		inline RefHandle& operator=(RefHandle&& other) {
+			if (mPtr) 
+				mPtr->Release();
+
+			mPtr = other.mPtr;
+			other.mPtr = nullptr;
+
+			return *this;
+		}
+
+		inline T* operator->() noexcept {
+			return mPtr;
+		}
+
+		inline const T* operator->() const noexcept {
+			return mPtr;
+		}
+
+		inline RefHandle& operator=(T* ptr) {
+			if (mPtr) 
+				mPtr->Release();
+
+			mPtr = ptr;
+
+			if (mPtr)
+				mPtr->AddRef();
+
+			return *this;
+		}
+
+		inline operator bool() const noexcept {
+			return mPtr != nullptr;
+		}
+
+		inline operator T*() noexcept {
+			return mPtr;
+		}
+
+		inline operator const T*() const noexcept {
+			return mPtr;
+		}
+	};
+
 	struct AsyncResourceParams {
 		bool bUseAsync;
 		TaskBarrierCallback mCallback;
@@ -90,7 +177,7 @@ namespace Morpheus {
 			assert(mRefCount == 0);
 		}
 
-		inline void AddRef() {
+		inline void AddRef() noexcept {
 			++mRefCount;
 		}
 

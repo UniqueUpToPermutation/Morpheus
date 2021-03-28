@@ -11,8 +11,8 @@ namespace Morpheus {
 	class SkyboxComponent {
 	private:
 		DG::RefCntAutoPtr<DG::IShaderResourceBinding> mResourceBinding;
-		PipelineResource* mPipeline;
-		TextureResource* mCubemap;
+		RefHandle<PipelineResource> mPipeline;
+		RefHandle<TextureResource> mCubemap;
 
 		void LoadPipeline(ResourceManager* manager);
 
@@ -24,33 +24,17 @@ namespace Morpheus {
 
 		inline SkyboxComponent(TextureResource* resource) :
 			mCubemap(resource) {
-			resource->AddRef();
 			LoadPipeline(resource->GetManager());
-		}
-
-		inline SkyboxComponent(const SkyboxComponent& other) :
-			mCubemap(other.mCubemap), 
-			mResourceBinding(other.mResourceBinding), 
-			mPipeline(other.mPipeline) {
-			if (mCubemap)
-				mCubemap->AddRef();
-			mPipeline->AddRef();
-		}
-
-		inline ~SkyboxComponent() {
-			if (mCubemap)
-				mCubemap->Release();
-			mPipeline->Release();
 		}
 
 		void SetCubemap(TextureResource* resource);
 
 		inline TextureResource* GetCubemap() {
-			return mCubemap;
+			return mCubemap.RawPtr();
 		}
 
 		inline PipelineResource* GetPipeline() {
-			return mPipeline;
+			return mPipeline.RawPtr();
 		}
 
 		inline DG::IShaderResourceBinding* GetResourceBinding() {

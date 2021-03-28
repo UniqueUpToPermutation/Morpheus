@@ -2,15 +2,13 @@
 
 #include <Engine/SpriteBatch.hpp>
 #include <Engine/Resources/Resource.hpp>
+#include <Engine/Engine2D/Base2D.hpp>
 
 namespace DG = Diligent;
-
-#define RENDER_LAYER_NONE -1
-
 namespace Morpheus {
 	struct SpriteComponent {
 		TextureResource* mTextureResource;
-		int mRenderLayer;
+		RenderLayerId mRenderLayerId;
 		DG::float2 mOrigin;
 		DG::float4 mColor;
 		SpriteRect mRect;
@@ -20,7 +18,7 @@ namespace Morpheus {
 			mOrigin(0.0f, 0.0f),
 			mColor(1.0f, 1.0f, 1.0f, 1.0f),
 			mRect(0.0f, 0.0f, texture->GetWidth(), texture->GetHeight()),
-			mRenderLayer(RENDER_LAYER_NONE) {
+			mRenderLayerId(RENDER_LAYER_NONE) {
 			texture->AddRef();
 		}
 
@@ -29,7 +27,7 @@ namespace Morpheus {
 			mOrigin(other.mOrigin),
 			mColor(other.mColor),
 			mRect(other.mRect),
-			mRenderLayer(other.mRenderLayer) {
+			mRenderLayerId(other.mRenderLayerId) {
 			mTextureResource->AddRef();
 		}
 
@@ -38,7 +36,7 @@ namespace Morpheus {
 			mOrigin(other.mOrigin),
 			mColor(other.mColor),
 			mRect(other.mRect),
-			mRenderLayer(other.mRenderLayer) {
+			mRenderLayerId(other.mRenderLayerId) {
 			mTextureResource->AddRef();
 		}
 
@@ -50,7 +48,7 @@ namespace Morpheus {
 			mOrigin = other.mOrigin;
 			mColor = other.mColor;
 			mRect = other.mRect;
-			mRenderLayer = other.mRenderLayer;
+			mRenderLayerId = other.mRenderLayerId;
 
 			mTextureResource->AddRef();
 			return *this;
@@ -64,7 +62,7 @@ namespace Morpheus {
 			mOrigin = other.mOrigin;
 			mColor = other.mColor;
 			mRect = other.mRect;
-			mRenderLayer = other.mRenderLayer;
+			mRenderLayerId = other.mRenderLayerId;
 
 			mTextureResource->AddRef();
 			return *this;

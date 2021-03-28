@@ -4,18 +4,62 @@
 #include <Engine/DynamicGlobalsBuffer.hpp>
 #include <Engine/SpriteBatch.hpp>
 #include <Engine/RendererGlobalsData.hpp>
+#include <Engine/Engine2D/Base2D.hpp>
 
 namespace Morpheus {
 	enum class LayerSorting2D {
 		NO_SORTING,
-		SORT_BY_TEXTURE
+		SORT_BY_TEXTURE,
+		SORT_BY_Y_INCREASING,
+		SORT_BY_Y_DECREASING
 	};
 	
 	struct RenderLayer2DComponent {
-		int mId;
+		RenderLayerId mId;
 		int mOrder;
 		LayerSorting2D mSorting;
 		std::string mName;
+	};
+
+	struct Transform2D {
+		DG::float3 mPosition;
+		DG::float2 mScale;
+		float mRotation;
+
+		void From(const DG::float4x4& matrix);
+		DG::float4 Apply(const DG::float4& vec) const;
+		DG::float4 ApplyInverse(const DG::float4& vec) const;
+
+		Transform2D() {
+		}
+
+		Transform2D(const DG::float4x4& matrix) {
+			From(matrix);
+		}
+	};
+
+	struct SpriteComponent;
+	struct TilemapComponent;
+
+	struct SpriteRenderRequest {
+		Transform2D mTransform;
+		SpriteComponent* mSprite;
+		RenderLayer2DComponent* mRenderLayer;
+	};
+
+	struct TilemapLayerRenderRequest {
+		TilemapComponent* mTilemap;
+		int mTilemapLayerId;
+		RenderLayer2DComponent* mRenderLayer;
+		Transform2D mTransform;
+	};
+
+	struct Layer2DRenderParams {
+		std::vector<SpriteRenderRequest>::iterator mSpriteBegin;
+		std::vector<SpriteRenderRequest>::iterator mSpriteEnd;
+		std::vector<TilemapLayerRenderRequest>::iterator mTilemapLayerBegin;
+		std::vector<TilemapLayerRenderRequest>::iterator mTilemapLayerEnd;
+		RenderLayer2DComponent* mRenderLayer;
 	};
 
 	class Renderer2D : public IRenderer {
@@ -23,6 +67,9 @@ namespace Morpheus {
 		DynamicGlobalsBuffer<RendererGlobalData> mGlobals;
 		Engine* mEngine;
 		std::unique_ptr<SpriteBatch> mDefaultSpriteBatch;
+
+		void RenderLayer(DG::IDeviceContext* context, const Layer2DRenderParams& params);
+		void ConvertTilemapLayerToSpriteCalls(const TilemapLayerRenderRequest& layer, std::vector<SpriteBatchCall3D>& sbCalls);
 
 	public:
 		void RequestConfiguration(DG::EngineD3D11CreateInfo* info) override;

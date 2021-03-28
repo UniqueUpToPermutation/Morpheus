@@ -59,7 +59,7 @@ namespace Morpheus {
 				}
 				
 				// Add light probe to skybox
-				registry->emplace<LightProbe>(entity, newProbe);
+				registry->emplace<LightProbe>(entity, std::move(newProbe));
 			}
 		}
 	}

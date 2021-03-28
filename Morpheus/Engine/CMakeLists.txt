@@ -132,8 +132,10 @@ list(APPEND SOURCE
 	src/Im3d.cpp
 	src/Renderer.cpp
 	src/RendererGlobalsData.cpp
+	src/LightProbe.cpp
 
 	src/Engine2D/Renderer2D.cpp
+	src/Engine2D/Tilemap.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -213,6 +215,13 @@ list(APPEND INCLUDE
 
     include/Engine/Pipelines/PipelineFactory.hpp
 	include/Engine/Pipelines/ImageBasedLightingView.hpp
+
+	include/Engine/Components/PhysicsComponents.hpp
+	include/Engine/Components/ResourceComponents.hpp
+	include/Engine/Components/ScriptComponent.hpp
+	include/Engine/Components/SkyboxComponent.hpp
+	include/Engine/Components/Transform.hpp
+	include/Engine/Components/UniquePointerComponent.hpp
 
     include/Engine/Resources/CollisionShapeResource.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp

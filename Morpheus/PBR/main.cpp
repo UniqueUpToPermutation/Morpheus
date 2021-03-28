@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
 	// Create a controller 
 	auto cameraNode = scene->GetCameraNode();
 	cameraNode.Add<Transform>().SetTranslation(0.0f, 0.0f, -5.0f);
-	cameraNode.Add<ScriptComponent>().AddScript<EditorCameraController>();
+	cameraNode.Add<ScriptComponent>().AddScript<EditorCameraControllerFirstPerson>();
 
 	en.InitializeDefaultSystems(scene);
 	scene->Begin();
