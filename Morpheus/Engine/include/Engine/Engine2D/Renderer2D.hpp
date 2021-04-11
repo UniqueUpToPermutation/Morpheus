@@ -4,6 +4,7 @@
 #include <Engine/DynamicGlobalsBuffer.hpp>
 #include <Engine/SpriteBatch.hpp>
 #include <Engine/RendererGlobalsData.hpp>
+#include <Engine/Components/Transform.hpp>
 #include <Engine/Engine2D/Base2D.hpp>
 
 namespace Morpheus {
@@ -27,14 +28,19 @@ namespace Morpheus {
 		float mRotation;
 
 		void From(const DG::float4x4& matrix);
+		void From(const Transform& transform);
 		DG::float4 Apply(const DG::float4& vec) const;
 		DG::float4 ApplyInverse(const DG::float4& vec) const;
 
-		Transform2D() {
+		inline Transform2D() {
 		}
 
-		Transform2D(const DG::float4x4& matrix) {
+		inline Transform2D(const DG::float4x4& matrix) {
 			From(matrix);
+		}
+
+		inline Transform2D(const Transform& transform) {
+			From(transform);
 		}
 	};
 

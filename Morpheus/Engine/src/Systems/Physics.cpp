@@ -32,7 +32,8 @@ namespace Morpheus {
 
 				auto transform = registry->try_get<Transform>(e);
 				if (transform) {
-					btTransform bulletTransform = transform->ToBullet();
+					btTransform bulletTransform;
+					transform->ToBullet(bulletTransform);
 					auto ms = rb->getMotionState();
 					if (ms) {
 						ms->setWorldTransform(bulletTransform);
@@ -98,7 +99,8 @@ namespace Morpheus {
 		auto& transform = reg.get<Transform>(e);
 		auto& rb = reg.get<RigidBodyComponent>(e);
 
-		btTransform btTrans = transform.ToBullet();
+		btTransform btTrans;
+		transform.ToBullet(btTrans);
 
 		auto motionState = rb->getMotionState();
 		if (motionState) {

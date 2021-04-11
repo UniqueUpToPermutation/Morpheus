@@ -1,5 +1,6 @@
 #include <Engine/Components/Transform.hpp>
 
+#include "btBulletDynamicsCommon.h"
 namespace Morpheus {
 	DG::float4x4 Transform::ToMatrix() const {
 		DG::float4x4 result = mRotation.ToMatrix();
@@ -23,19 +24,7 @@ namespace Morpheus {
 		return result;
 	}
 
-	btTransform Transform::ToBullet() const {
-		DG::float4x4 mat = ToMatrix();
-
-		btMatrix3x3 btMat(
-			mat.m00, mat.m01, mat.m02,
-			mat.m10, mat.m11, mat.m12,
-			mat.m20, mat.m21, mat.m22);
-
-		btVector3 btTransl(
-			mat.m30, 
-			mat.m31, 
-			mat.m32);
-
-		return btTransform(btMat, btTransl);
+	void Transform::ToBullet(btTransform& output) const {
+		output.setFromOpenGLMatrix(ToMatrix().Data());
 	}
 }

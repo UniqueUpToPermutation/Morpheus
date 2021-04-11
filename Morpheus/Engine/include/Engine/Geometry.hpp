@@ -11,6 +11,11 @@ namespace Morpheus {
 		DG::float3 mUpper;
 	};
 
+	struct BoundingBox2D {
+		DG::float2 mLower;
+		DG::float2 mUpper;
+	};
+
 	struct SpriteRect {
 		DG::float2 mPosition;
 		DG::float2 mSize;

@@ -2,12 +2,12 @@
 
 #include "BasicMath.hpp"
 
-#include "btBulletDynamicsCommon.h"
-
 #include <Engine/Entity.hpp>
 #include <Engine/Scene.hpp>
 
 namespace DG = Diligent;
+
+struct btTransform;
 
 namespace Morpheus {
 	class MatrixTransformCache {
@@ -96,6 +96,7 @@ namespace Morpheus {
 		}
 
 		DG::float4x4 ToMatrix() const;
-		btTransform ToBullet() const;
+
+		void ToBullet(btTransform& output) const;
 	};
 }

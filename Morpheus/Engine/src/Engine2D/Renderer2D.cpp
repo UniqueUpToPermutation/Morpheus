@@ -20,6 +20,10 @@ namespace Morpheus {
 		mRotation = atan2(sintheta, costheta);
 	}
 
+	void Transform2D::From(const Transform& transform) {
+		From(transform.ToMatrix());
+	}
+
 	DG::float4 Transform2D::Apply(const DG::float4& vec) const {
 		DG::float4 result = vec;
 		result.x *= mScale.x;

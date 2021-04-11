@@ -20,12 +20,12 @@ namespace Morpheus {
 		void CopyBulletTransformFromTransform(entt::registry& reg, entt::entity e);
 		void CopyBulletTransformToCache(RigidBodyComponent& rb, entt::registry& reg, entt::entity e);
 
+		void OnDestroyRigidBody(entt::registry& reg, entt::entity e);
+		void OnConstructRigidBody(entt::registry& reg, entt::entity e);
+
 	public:
 		void Startup(Scene* scene) override;
 		void Shutdown(Scene* scene) override;
-
-		void OnDestroyRigidBody(entt::registry& reg, entt::entity e);
-		void OnConstructRigidBody(entt::registry& reg, entt::entity e);
 
 		void OnSceneBegin(const SceneBeginEvent& args) override;
 		void OnFrameBegin(const FrameBeginEvent& args) override;

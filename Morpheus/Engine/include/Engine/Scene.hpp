@@ -7,7 +7,6 @@
 #include <Engine/Entity.hpp>
 #include <Engine/ImGuiObject.hpp>
 
-#include "btBulletDynamicsCommon.h"
 #include "BasicMath.hpp"
 
 namespace DG = Diligent;

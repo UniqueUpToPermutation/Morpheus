@@ -55,6 +55,9 @@ using namespace Diligent;
 
 namespace Morpheus
 {
+	void IEngineComponent::RenderUI() {
+	}
+
 	IRenderer* IEngineComponent::ToRenderer() {
 		return nullptr;
 	}
@@ -89,6 +92,22 @@ namespace Morpheus
 
 		for (auto component : mComponents) {
 			component->Initialize(this);
+		}
+
+		if (mImGui) {
+			SetImGuiDefaults(params);
+		}
+	}
+
+	void Engine::SetImGuiDefaults(const EngineParams& params) {
+		// Load external fonts if necessary
+		if (params.mImGui.mExternalFonts.size() > 0) {
+			for (auto& font : params.mImGui.mExternalFonts) {
+				std::cout << "Loading " << font.mFile << std::endl;
+				ImGui::GetIO().Fonts->AddFontFromFileTTF(font.mFile.c_str(), font.mFontSize);
+			};
+
+			mImGui->UpdateFontsTexture();
 		}
 	}
 
@@ -716,7 +735,6 @@ namespace Morpheus
 	#endif
 	}
 
-
 	std::string GetArgument(const char*& pos, const char* ArgName)
 	{
 		size_t      ArgNameLen = 0;
@@ -740,14 +758,6 @@ namespace Morpheus
 		}
 	}
 
-	// Command line example to capture frames:
-	//
-	//     -mode d3d11 -adapters_dialog 0 -capture_path . -capture_fps 15 -capture_name frame -width 640 -height 480 -capture_format jpg -capture_quality 100 -capture_frames 3 -capture_alpha 0
-	//
-	// Image magick command to create animated gif:
-	//
-	//     magick convert  -delay 6  -loop 0 -layers Optimize -compress LZW -strip -resize 240x180   frame*.png   Animation.gif
-	//
 	void Engine::ProcessConfigParams(const EngineParams& params)
 	{
 		mDeviceType = 			params.mRenderer.mBackendType;
@@ -846,9 +856,6 @@ namespace Morpheus
 		if (mImGui) {
 			const auto& SCDesc = mSwapChain->GetDesc();
 			mImGui->NewFrame(SCDesc.Width, SCDesc.Height, SCDesc.PreTransform);
-			if (bShowAdaptersDialog) {
-				UpdateAdaptersDialog();
-			}
 		}
 		
 		if (mDevice) {
@@ -877,6 +884,12 @@ namespace Morpheus
 		{
 			if (GetShowUI())
 			{
+				for (auto component : mComponents) {
+					if (component->GetShowUI()) {
+						component->RenderUI();
+					}
+				}
+
 				// No need to call EndFrame as ImGui::Render calls it automatically
 				imGui->Render(mImmediateContext);
 			}
@@ -960,7 +973,8 @@ namespace Morpheus
 			LinuxWindow.WindowId = window;
 			InitializeDiligentEngine(&LinuxWindow);
 			const auto& SCDesc = mSwapChain->GetDesc();
-			mImGui.reset(new ImGuiImplLinuxX11(mDevice, SCDesc.ColorBufferFormat, SCDesc.DepthBufferFormat, SCDesc.Width, SCDesc.Height));
+			mImGui.reset(new ImGuiImplLinuxX11(mDevice, SCDesc.ColorBufferFormat, 
+				SCDesc.DepthBufferFormat, SCDesc.Width, SCDesc.Height));
 			return true;
 		}
 		catch (...)
@@ -991,7 +1005,8 @@ namespace Morpheus
 			LinuxWindow.pXCBConnection = connection;
 			InitializeDiligentEngine(&LinuxWindow);
 			const auto& SCDesc = mSwapChain->GetDesc();
-			mImGui.reset(new ImGuiImplLinuxXCB(connection, mDevice, SCDesc.ColorBufferFormat, SCDesc.DepthBufferFormat, SCDesc.Width, SCDesc.Height));
+			mImGui.reset(new ImGuiImplLinuxXCB(connection, mDevice, 
+				SCDesc.ColorBufferFormat, SCDesc.DepthBufferFormat, SCDesc.Width, SCDesc.Height));
 			mInputController.InitXCBKeysms(connection);
 			return true;
 		}

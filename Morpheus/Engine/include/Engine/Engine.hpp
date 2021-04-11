@@ -51,6 +51,20 @@ namespace Morpheus {
 		bool bVSync = false;
 	};
 
+	struct ImFontLoad {
+		std::string mFile;
+		float mFontSize;
+
+		ImFontLoad(const std::string& file, float fontSize) : 
+			mFile(file), mFontSize(fontSize) {
+		}
+	};
+
+	struct ImGuiParams {
+		float mUIScale = 1.0f;
+		std::vector<ImFontLoad> mExternalFonts;
+	};
+
 	struct RendererParams {
 		DG::RENDER_DEVICE_TYPE 	mBackendType		= DG::RENDER_DEVICE_TYPE_UNDEFINED;
 		DG::ADAPTER_TYPE 		mAdapterType 		= DG::ADAPTER_TYPE_UNKNOWN;
@@ -63,12 +77,26 @@ namespace Morpheus {
 		ThreadParams mThreads;
 		WindowParams mWindow;
 		RendererParams mRenderer;
+		ImGuiParams mImGui;
 	};
 
 	class IEngineComponent {
+	private:
+		bool bShowUI = true;
+	
 	public:
 		virtual void Initialize(Engine* engine) = 0;
 		virtual void InitializeSystems(Scene* scene) = 0;
+
+		virtual void RenderUI();
+
+		inline bool GetShowUI() const {
+			return bShowUI;
+		}
+
+		inline void SetShowUI(bool value) {
+			bShowUI = value;
+		}
 
 		virtual IRenderer* ToRenderer();
 		virtual const IRenderer* ToRenderer() const;
@@ -128,6 +156,7 @@ namespace Morpheus {
 			DG::EngineCreateInfo& EngineCI, DG::SwapChainDesc& SCDesc);
 		void InitializeDiligentEngine(const DG::NativeWindow* pWindow);
 		void UpdateAdaptersDialog();
+		void SetImGuiDefaults(const EngineParams& params);
 
 		virtual void SetFullscreenMode(const DG::DisplayModeAttribs& DisplayMode)
 		{
@@ -252,6 +281,9 @@ namespace Morpheus {
 			return mPlatform;
 		}
 		inline IRenderer* GetRenderer() {
+			return mRenderer;
+		}
+		inline const IRenderer* GetRenderer() const {
 			return mRenderer;
 		}
 		inline ResourceManager* GetResourceManager() {

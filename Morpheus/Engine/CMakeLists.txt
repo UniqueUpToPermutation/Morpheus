@@ -6,13 +6,23 @@ project(Morpheus-Engine)
 INCLUDE_DIRECTORIES(
 ${BULLET_PHYSICS_SOURCE_DIR}/src
 )
+
 LINK_LIBRARIES(
 	BulletDynamics BulletCollision LinearMath
 )
 
+# Include the Box2D physics engine
+LINK_LIBRARIES(
+	box2d
+)
+
+INCLUDE_DIRECTORIES(
+	${CMAKE_SOURCE_DIR}/box2d/include/
+)
+
 # Include package for embedding shaders in source code
 add_subdirectory(shaders/cpp)
-# Embed shaders
+# Embed shaders (LINUX)
 add_custom_command(
 	OUTPUT shader_rc.cpp
 	COMMAND embedfile ${CMAKE_CURRENT_SOURCE_DIR}/shaders shader_rc.cpp
@@ -136,6 +146,8 @@ list(APPEND SOURCE
 
 	src/Engine2D/Renderer2D.cpp
 	src/Engine2D/Tilemap.cpp
+	src/Engine2D/Editor2D.cpp
+	src/Engine2D/Physics2D.cpp
 
 	src/Resources/ShaderResource.cpp
 	src/Resources/Resource.cpp
@@ -207,6 +219,9 @@ list(APPEND INCLUDE
 	include/Engine/Engine2D/Renderer2D.hpp
 	include/Engine/Engine2D/Sprite.hpp
 	include/Engine/Engine2D/Tilemap.hpp
+	include/Engine/Engine2D/Base2D.hpp
+	include/Engine/Engine2D/Editor2D.hpp
+	include/Engine/Engine2D/Physics2D.hpp
 
     include/Engine/Materials/BasicTexturedMaterial.hpp
     include/Engine/Materials/MaterialPrototypes.hpp
