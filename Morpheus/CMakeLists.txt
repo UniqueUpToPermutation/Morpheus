@@ -136,3 +136,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(Editor2DTest)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(HelloWorld)
+endif()

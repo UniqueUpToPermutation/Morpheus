@@ -102,11 +102,8 @@ namespace Morpheus {
 		}
 	};
 
-	struct AsyncResourceParams {
-		bool bUseAsync;
-		TaskBarrierCallback mCallback;
-		ThreadPool* mThreadPool;	
-	};
+	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
+
 	using resource_type = 
 		entt::identifier<
 			TextureResource,
@@ -119,31 +116,8 @@ namespace Morpheus {
 	class IResource;
 	class IResourceCache {
 	public:
-		// Loads resource on the current thread with no async
-		virtual IResource* Load(const void* params) = 0;
 		// Returns a task desc that the caller must then trigger with the thread pool
-		virtual TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) = 0;
-		
-		inline IResource* AsyncLoad(const void* params, 
-			ThreadPool* threadPool,
-			const TaskBarrierCallback& callback = nullptr) {
-
-			// Create a task for the thread pool and a resource to load into
-			IResource* result = nullptr;
-			TaskId task = AsyncLoadDeferred(params, threadPool, &result, callback);
-
-			// Emplace task into the thread pool queue
-			if (task.IsValid()) {
-				auto queue = threadPool->GetQueue();
-				queue.Schedule(task);
-			}
-
-			return result;
-		}
-			
+		virtual Task LoadTask(const void* params, IResource** output) = 0;
 		virtual void Add(IResource* resource, const void* params) = 0;
 		virtual void Unload(IResource* resource) = 0;
 		virtual void Clear() = 0;
@@ -166,7 +140,7 @@ namespace Morpheus {
 		ResourceManager* mManager;
 
 	protected:
-		TaskBarrier mLoadBarrier;
+		TaskSyncPoint mLoadSync;
 
 	public:
 		IResource(ResourceManager* manager) : 
@@ -201,12 +175,12 @@ namespace Morpheus {
 		virtual ShaderResource* ToShader();
 
 		inline bool IsLoaded() const {
-			return mLoadBarrier.ActiveTaskCount() == 0;
+			return mLoadSync.IsFinished();
 		}
 
 		// A barrier that is invoked when the resource is loaded.
-		inline TaskBarrier* GetLoadBarrier() {
-			return &mLoadBarrier;
+		inline TaskSyncPoint* GetLoadBarrier() {
+			return &mLoadSync;
 		}
 		inline ResourceManager* GetManager() {
 			return mManager;

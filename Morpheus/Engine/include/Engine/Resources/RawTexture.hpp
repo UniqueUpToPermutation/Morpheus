@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include <Engine/Resources/Resource.hpp>
 
 #include "RenderDevice.h"
@@ -46,13 +48,13 @@ namespace Morpheus {
 		// The intensity of the texture
 		float mIntensity = 1.0f;
 
-		TaskBarrier mBarrier;
+		TaskSyncPoint mBarrier;
 
-		TaskId LoadAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		TaskId LoadPngAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		TaskId LoadGliAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		TaskId LoadStbAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		TaskId LoadArchiveAsyncDeferred(const std::string& source, ThreadPool* pool);
+		Task LoadAsyncDeferred(const LoadParams<TextureResource>& params);
+		Task LoadPngAsyncDeferred(const LoadParams<TextureResource>& params);
+		Task LoadGliAsyncDeferred(const LoadParams<TextureResource>& params);
+		Task LoadStbAsyncDeferred(const LoadParams<TextureResource>& params);
+		Task LoadArchiveAsyncDeferred(const std::string& source);
 
 		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& desc);
 
@@ -75,7 +77,7 @@ namespace Morpheus {
 			return mDesc.Depth;
 		}
 
-		inline TaskBarrier* GetLoadBarrier() {
+		inline TaskSyncPoint* GetLoadBarrier() {
 			return &mBarrier;
 		}
 
@@ -139,26 +141,49 @@ namespace Morpheus {
 			mSubDescs = subDescs;
 		}
 
-		void Load(const LoadParams<TextureResource>& params);
-		void LoadAsync(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		void LoadPng(const LoadParams<TextureResource>& params, 
-			const uint8_t* rawData, const size_t length);
-		void LoadPng(const LoadParams<TextureResource>& params);
-		void LoadPngAsync(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		void LoadGli(const LoadParams<TextureResource>& params, 
-			const uint8_t* rawData, const size_t length);
-		void LoadGli(const LoadParams<TextureResource>& params);
-		void LoadGliAsync(const LoadParams<TextureResource>& params,
-			 ThreadPool* pool);
+		Task LoadTask(const LoadParams<TextureResource>& params);
+		Task LoadPngTask(const LoadParams<TextureResource>& params);
+		Task LoadGliTask(const LoadParams<TextureResource>& params);
+		Task LoadStbTask(const LoadParams<TextureResource>& params);
+		Task LoadArchiveTask(const std::string& path);
+
+		inline void Load(const LoadParams<TextureResource>& params) {
+			LoadTask(params)();
+		}
+
+		void LoadPng(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
+		inline void LoadPng(const LoadParams<TextureResource>& params) {
+			LoadPngTask(params)();
+		}
+
+		void LoadGli(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
+		inline void LoadGli(const LoadParams<TextureResource>& params) {
+			LoadGliTask(params)();
+		}
+
 		void LoadArchive(const uint8_t* rawArchive, const size_t length);
-		void LoadArchive(const std::string& source);
-		void LoadArchiveAsync(const std::string& source, ThreadPool* pool);
-		void LoadStb(const LoadParams<TextureResource>& params);
+		void LoadArchive(const std::string& source) {
+			LoadArchiveTask(source)();
+		}
+
 		void LoadStb(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
-		void LoadStbAsync(const LoadParams<TextureResource>& params, ThreadPool* pool);
-		void Save(const std::string& path);
-		void SaveGli(const std::string& path);
-		void SavePng(const std::string& path, bool bSaveMips = false);
+		void LoadStb(const LoadParams<TextureResource>& params) {
+			LoadStbTask(params)();
+		}
+
+		Task SaveTask(const std::string& path);
+		inline void Save(const std::string& path) {
+			SaveTask(path)();
+		}
+		Task SaveGliTask(const std::string& path);
+		inline void SaveGli(const std::string& path) {
+			SaveGliTask(path)();
+		}
+		Task SavePngTask(const std::string& path, bool bSaveMips = false);
+		inline void SavePng(const std::string& path, bool bSaveMips = false) {
+			SavePngTask(path, bSaveMips)();
+		}
+
 		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context);
 
 		// Retrieves data from a GPU texture

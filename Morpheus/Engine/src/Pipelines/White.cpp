@@ -5,146 +5,121 @@
 #include <Engine/Renderer.hpp>
 
 namespace Morpheus {
-	TaskId CreateWhitePipeline(DG::IRenderDevice* device,
+	Task CreateWhitePipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		const AsyncResourceParams* asyncParams) {
+		const ShaderPreprocessorConfig* overrides) {
 
-		LoadParams<ShaderResource> vsParams(
-			"internal/StaticMesh.vsh",
-			DG::SHADER_TYPE_VERTEX,
-			"Static Mesh VS",
-			overrides,
-			"main"
-		);
+		ShaderPreprocessorConfig overridesCopy;
+		if (overrides)
+			overridesCopy = *overrides;
 
-		LoadParams<ShaderResource> psParams(
-			"internal/White.psh",
-			DG::SHADER_TYPE_PIXEL,
-			"Basic Textured PS",
-			overrides,
-			"main"
-		);
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = into->GetLoadBarrier();
+		task.mFunc = [device, manager, renderer, into, 
+			overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
+			LoadParams<ShaderResource> vsParams(
+				"internal/StaticMesh.vsh",
+				DG::SHADER_TYPE_VERTEX,
+				"Static Mesh VS",
+				&overrides,
+				"main"
+			);
 
-		ShaderResource* whiteVSResource = nullptr;
-		ShaderResource* whitePSResource = nullptr;
+			LoadParams<ShaderResource> psParams(
+				"internal/White.psh",
+				DG::SHADER_TYPE_PIXEL,
+				"Basic Textured PS",
+				&overrides,
+				"main"
+			);
 
-		TaskBarrier* postLoadBarrier = into->GetLoadBarrier();
-		TaskId loadVSTask;
-		TaskId loadPSTask;
+			ShaderResource* whiteVSResource = nullptr;
+			ShaderResource* whitePSResource = nullptr;
 
-		if (!asyncParams->bUseAsync) {
-			whiteVSResource = manager->Load<ShaderResource>(vsParams);
-			whitePSResource = manager->Load<ShaderResource>(psParams);
-		} else {
-		
-			loadVSTask = manager->AsyncLoadDeferred<ShaderResource>(vsParams, 
-				&whiteVSResource);
-			loadPSTask = manager->AsyncLoadDeferred<ShaderResource>(psParams, 
-				&whitePSResource);
-		}
+			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &whiteVSResource));
+			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &whitePSResource));
 
-		std::function<void()> buildPipeline = [=]() {
-			auto whiteVS = whiteVSResource->GetShader();
-			auto whitePS = whitePSResource->GetShader();
+			e.mQueue->YieldUntil(whiteVSResource->GetLoadBarrier());
+			e.mQueue->YieldUntil(whitePSResource->GetLoadBarrier());
 
-			DG::IPipelineState* result = nullptr;
+			e.mQueue->Submit([=](const TaskParams& e) {
+				auto whiteVS = whiteVSResource->GetShader();
+				auto whitePS = whitePSResource->GetShader();
 
-			// Create Irradiance Pipeline
-			DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
-			DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
-			DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+				DG::IPipelineState* result = nullptr;
 
-			PSODesc.Name         = "Basic White Pipeline";
-			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+				// Create Irradiance Pipeline
+				DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+				DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+				DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
 
-			GraphicsPipeline.NumRenderTargets             = 1;
-			GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
-			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
-			GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
-			GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
+				PSODesc.Name         = "Basic White Pipeline";
+				PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
 
-			// Number of MSAA samples
-			GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
+				GraphicsPipeline.NumRenderTargets             = 1;
+				GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
+				GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+				GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
+				GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
+				GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
 
-			uint stride = 12 * sizeof(float);
+				// Number of MSAA samples
+				GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
 
-			std::vector<DG::LayoutElement> layoutElements = {
-				DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, 
-					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-				DG::LayoutElement(1, 0, 3, DG::VT_FLOAT32, false, 
-					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-				DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
-					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-				DG::LayoutElement(3, 0, 3, DG::VT_FLOAT32, false, 
-					DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+				uint stride = 12 * sizeof(float);
 
-				DG::LayoutElement(4, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-				DG::LayoutElement(5, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-				DG::LayoutElement(6, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
-				DG::LayoutElement(7, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE)
-			};
+				std::vector<DG::LayoutElement> layoutElements = {
+					DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, 
+						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+					DG::LayoutElement(1, 0, 3, DG::VT_FLOAT32, false, 
+						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+					DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
+						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+					DG::LayoutElement(3, 0, 3, DG::VT_FLOAT32, false, 
+						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
 
-			GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
-			GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
+					DG::LayoutElement(4, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+					DG::LayoutElement(5, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+					DG::LayoutElement(6, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
+					DG::LayoutElement(7, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE)
+				};
 
-			PSOCreateInfo.pVS = whiteVS;
-			PSOCreateInfo.pPS = whitePS;
+				GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
+				GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
 
-			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+				PSOCreateInfo.pVS = whiteVS;
+				PSOCreateInfo.pPS = whitePS;
 
-			device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
-			result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
+				PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 
-			whiteVSResource->Release();
-			whitePSResource->Release();
+				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
+				result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
 
-			VertexLayout layout;
-			layout.mElements = std::move(layoutElements);
-			layout.mPosition = 0;
-			layout.mNormal = 1;
-			layout.mUV = 2;
-			layout.mTangent = 3;
-			layout.mStride = 12 * sizeof(float);
+				whiteVSResource->Release();
+				whitePSResource->Release();
 
-			// Create shader resource bindings (one per render thread)
-			renderer->GetMaxRenderThreadCount();
+				VertexLayout layout;
+				layout.mElements = std::move(layoutElements);
+				layout.mPosition = 0;
+				layout.mNormal = 1;
+				layout.mUV = 2;
+				layout.mTangent = 3;
+				layout.mStride = 12 * sizeof(float);
 
-			into->SetAll(
-				result,
-				GenerateSRBs(result, renderer),
-				layout,
-				InstancingType::INSTANCED_STATIC_TRANSFORMS);
+				// Create shader resource bindings (one per render thread)
+				renderer->GetMaxRenderThreadCount();
+
+				into->SetAll(
+					result,
+					GenerateSRBs(result, renderer),
+					layout,
+					InstancingType::INSTANCED_STATIC_TRANSFORMS);
+			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
 		};
 
-		if (!asyncParams->bUseAsync) {
-			buildPipeline(); // Build pipeline on the current thread
-			return TASK_NONE;
-		} else {
-			auto queue = asyncParams->mThreadPool->GetQueue();
-
-			TaskId buildPipelineTask = queue.MakeTask([buildPipeline](const TaskParams& params) { 
-				buildPipeline();
-			}, postLoadBarrier, 0);
-
-			// Schedule the loading of the build pipeline task
-			queue.Dependencies(buildPipelineTask)
-				.After(whiteVSResource->GetLoadBarrier())
-				.After(whitePSResource->GetLoadBarrier());
-		
-			postLoadBarrier->SetCallback(asyncParams->mCallback);
-
-			// Create a deferred task to trigger the loading of the vertex and pixel shaders
-			return queue.MakeTask([loadVSTask, loadPSTask](const TaskParams& params) {
-				auto queue = params.mPool->GetQueue();
-
-				// Load vertex and pixel shaders
-				queue.Schedule(loadVSTask);
-				queue.Schedule(loadPSTask);
-			});
-		}
+		return task;
 	}
 }

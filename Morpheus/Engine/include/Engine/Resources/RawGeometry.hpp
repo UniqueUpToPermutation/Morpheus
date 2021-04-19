@@ -51,7 +51,7 @@ namespace Morpheus {
 		BoundingBox mAabb;
 		bool bHasIndexBuffer;
 
-		TaskBarrier mLoadBarrier;
+		TaskSyncPoint mBarrier;
 
 		void LoadAssimp(const aiScene* scene, const VertexLayout& vertexLayout);
 
@@ -139,33 +139,31 @@ namespace Morpheus {
 		void SpawnOnGPU(DG::IRenderDevice* device,
 			GeometryResource* writeTo);
 
-		TaskId LoadArchiveAsyncDeferred(const std::string& path, ThreadPool* pool);
-		TaskId LoadAssimpAsyncDeferred(ThreadPool* pool, const LoadParams<GeometryResource>& params);
-
-		void LoadAssimp(const LoadParams<GeometryResource>& params);
-		void LoadAssimpAsync(ThreadPool* pool, const LoadParams<GeometryResource>& params);
+		Task LoadAssimpTask(const LoadParams<GeometryResource>& params);
+		inline void LoadAssimp(const LoadParams<GeometryResource>& params) {
+			LoadAssimpTask(params)();
+		}
 
 		void LoadArchive(const uint8_t* rawArchive, const size_t length);
-		void LoadArchive(const std::string& source);
-		void LoadArchiveAsync(const std::string& source, ThreadPool* pool);
+		Task LoadArchiveTask(const std::string& source);
+		inline void LoadArchive(const std::string& source) {
+			LoadArchiveTask(source)();
+		}
 
-		void Load(const LoadParams<GeometryResource>& params);
-		void LoadAsync(const LoadParams<GeometryResource>& params, ThreadPool* pool);
-		TaskId LoadAsyncDeferred(const LoadParams<GeometryResource>& params, ThreadPool* pool);
+		Task LoadTask(const LoadParams<GeometryResource>& params);
+		inline void Load(const LoadParams<GeometryResource>& params) {
+			LoadTask(params)();
+		}
 
 		inline void Load(const std::string& source) {
 			Load(LoadParams<GeometryResource>::FromString(source));
 		}
 
-		inline void LoadAsync(const std::string& source, ThreadPool* pool) {
-			LoadAsync(LoadParams<GeometryResource>::FromString(source), pool);
+		Task SaveTask(const std::string& destination);
+		inline void Save(const std::string& destination) {
+			SaveTask(destination)();
 		}
-
-		inline TaskId LoadAsyncDeferred(const std::string& source, ThreadPool* pool) {
-			return LoadAsyncDeferred(LoadParams<GeometryResource>::FromString(source), pool);
-		}
-
-		void Save(const std::string& destination);
+		
 		void Clear();
 
 		inline RawGeometry(const std::string& source) {
@@ -183,8 +181,8 @@ namespace Morpheus {
 			Load(params);
 		}
 
-		TaskBarrier* GetLoadBarrier() {
-			return &mLoadBarrier;
+		TaskSyncPoint* GetLoadBarrier() {
+			return &mBarrier;
 		}
 	};
 }

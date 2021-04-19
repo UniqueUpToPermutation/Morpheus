@@ -26,12 +26,11 @@ namespace Morpheus {
 		ThreadPool* mPool;
 	};
 
-	typedef std::function<void(
+	typedef std::function<Task(
 		ResourceManager*,
 		const std::string&,
 		const std::string&,
 		const nlohmann::json&,
-		const MaterialAsyncParams&,
 		MaterialResource*)> material_prototype_t;
 
 	class MaterialFactory {
@@ -40,21 +39,12 @@ namespace Morpheus {
 
 	public:
 		MaterialFactory();
-		void Spawn(
+		Task SpawnTask(
 			const std::string& type,
 			ResourceManager* manager,
 			const std::string& source, 
 			const std::string& path,
 			const nlohmann::json& config,
-			MaterialResource* materialOut) const;
-
-		void SpawnAsync(
-			const std::string& type,
-			ResourceManager* mananager,
-			const std::string& source, 
-			const std::string& path,
-			const nlohmann::json& config,
-			ThreadPool* pool,
 			MaterialResource* materialOut) const;
 	};
 

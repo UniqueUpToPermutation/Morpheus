@@ -99,14 +99,8 @@ namespace Morpheus {
 
 	class GeometryLoader {
 	public:
-		static void Load(DG::IRenderDevice* device, 
+		static Task LoadTask(DG::IRenderDevice* device, 
 			const LoadParams<GeometryResource>& params,
-			GeometryResource* loadinto);
-
-		static TaskId LoadAsync(DG::IRenderDevice* device, 
-			ThreadPool* pool,
-			const LoadParams<GeometryResource>& params,
-			const TaskBarrierCallback& callback,
 			GeometryResource* loadinto);
 	};
 
@@ -123,11 +117,7 @@ namespace Morpheus {
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
-		IResource* Load(const void* params) override;
-		TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) override;
+		Task LoadTask(const void* params, IResource** output) override;
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

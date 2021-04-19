@@ -873,7 +873,26 @@ namespace Morpheus
 		if (mRenderer) {
 			mRenderer->Render(activeScene, camera, GetSwapChain());
 		} else {
-			throw std::runtime_error("Engine does not have renderer!");
+			if (!bRendererWarningGiven) {
+				std::cout << "NOTE: Engine does not have renderer!" << std::endl;
+				bRendererWarningGiven = true;
+			}
+
+			float rgba[4] = {0.5, 0.5, 0.5, 1.0};
+
+			auto pRTV = mSwapChain->GetCurrentBackBufferRTV();
+			auto pDSV = mSwapChain->GetDepthBufferDSV();
+
+			mImmediateContext->SetRenderTargets(1, &pRTV, pDSV, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			mImmediateContext->ClearRenderTarget(pRTV, rgba,
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			mImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, 
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Restore default render target in case the sample has changed it
+		 	mImmediateContext->SetRenderTargets(1, &pRTV, pDSV,
+				RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		}
 	}
 

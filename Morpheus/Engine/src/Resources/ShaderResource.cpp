@@ -45,27 +45,11 @@ namespace Morpheus {
 		return raw.SpawnOnGPU(device);
 	}
 
-	// Loads resource and blocks until the resource is loaded
-	IResource* ResourceCache<ShaderResource>::Load(const void* params) {
-		auto params_cast = reinterpret_cast<const LoadParams<ShaderResource>*>(params);
-		std::cout << "Loading " << params_cast->mSource << "..." << std::endl;
-
-		ShaderPreprocessorOutput output;
-		mLoader.Load(params_cast->mSource, mManager->GetEmbededFileLoader(), &output, params_cast->mOverrides);
-		RawShader raw(output, params_cast->mShaderType, params_cast->mName, params_cast->mEntryPoint);
-
-		auto shader = raw.SpawnOnGPU(mManager->GetParent()->GetDevice());
-		return new ShaderResource(mManager, shader);
-	}
-
 	// Loads resource and adds resulting task to the specified barrier
-	TaskId ResourceCache<ShaderResource>::AsyncLoadDeferred(const void* params,
-			ThreadPool* pool,
-			IResource** output,
-			const TaskBarrierCallback& callback) {
+	Task ResourceCache<ShaderResource>::LoadTask(const void* params,
+		IResource** output) {
 		auto params_cast = reinterpret_cast<const LoadParams<ShaderResource>*>(params);
 
-		LoadParams<ShaderResource> paramsCopy = *params_cast;
 		ShaderPreprocessorConfig overrides;
 		EmbeddedFileLoader* fileLoader = mManager->GetEmbededFileLoader();
 		ShaderLoader* shaderLoader = &mLoader;
@@ -74,38 +58,25 @@ namespace Morpheus {
 
 		auto resource = new ShaderResource(mManager, nullptr);
 		DG::IRenderDevice* renderDevice = mManager->GetParent()->GetDevice();
-		TaskBarrier* barrier = resource->GetLoadBarrier();
-		barrier->SetCallback(callback);
 
-		TaskId preprocessShader;
+		Task task;
+		task.mSyncPoint = resource->GetLoadBarrier();
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [params = *params_cast, renderDevice, overrides, fileLoader, shaderLoader, resource](const TaskParams& e) {
+			ShaderPreprocessorOutput output;
+			shaderLoader->Load(params.mSource, fileLoader, &output, &overrides);
 
-		{
-			auto queue = pool->GetQueue();
-			
-			PipeId pipe = queue.MakePipe();
-			preprocessShader = queue.MakeTask([pipe, paramsCopy, overrides, fileLoader, shaderLoader](const TaskParams& params) {
-				ShaderPreprocessorOutput output;
-				shaderLoader->Load(paramsCopy.mSource, fileLoader, &output, &overrides);
-				params.mPool->WritePipe(pipe, new RawShader(output, paramsCopy.mShaderType, paramsCopy.mName, paramsCopy.mEntryPoint));
-			});
+			auto raw = std::make_unique<RawShader>(output, params.mShaderType, params.mName, params.mEntryPoint);
 
-			TaskId createShader = queue.MakeTask([pipe, renderDevice, resource](const TaskParams& params) {
-				auto& value = params.mPool->ReadPipe(pipe);
-
-				RawShader* shaderRaw = value.cast<RawShader*>();
-				DG::IShader* shader = shaderRaw->SpawnOnGPU(renderDevice);
-				delete shaderRaw;
-
+			e.mQueue->Submit([raw = std::move(raw), renderDevice, resource](const TaskParams& e) mutable {
+				DG::IShader* shader = raw->SpawnOnGPU(renderDevice);
 				resource->SetShader(shader);
-			}, barrier, ASSIGN_THREAD_MAIN);
-
-			queue.Dependencies(pipe).After(preprocessShader);
-			queue.Dependencies(createShader).After(pipe);
-		}
+			}, TaskType::RENDER, resource->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		};
 
 		*output = resource;
 		
-		return preprocessShader;
+		return task;
 	}
 
 	void ResourceCache<ShaderResource>::Add(IResource* resource, const void* params) {

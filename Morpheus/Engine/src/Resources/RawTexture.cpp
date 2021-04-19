@@ -1,7 +1,6 @@
 #include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Engine.hpp>
-#include <Engine/ThreadTasks.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 #include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ImageCopy.hpp>
@@ -454,170 +453,188 @@ namespace Morpheus {
 		Alloc(desc);		
 	}
 
-	void RawTexture::Save(const std::string& path) {
-		std::ofstream f(path, std::ios::binary);
+	Task RawTexture::SaveTask(const std::string& path) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [this, path](const TaskParams& e) {
+			std::ofstream f(path, std::ios::binary);
 
-		if (f.is_open()) {
-			cereal::PortableBinaryOutputArchive ar(f);
-			Morpheus::Save(ar, this);
-			f.close();
-		} else {
-			throw std::runtime_error("Could not open file for writing!");
-		}
+			if (f.is_open()) {
+				cereal::PortableBinaryOutputArchive ar(f);
+				Morpheus::Save(ar, this);
+				f.close();
+			} else {
+				throw std::runtime_error("Could not open file for writing!");
+			}
+		};
+		return task;
 	}
 
-	void RawTexture::SaveGli(const std::string& path) {
-		auto target = DGToGli(mDesc.Type);
-		auto format = DGToGli(mDesc.Format);
-		auto desc = mDesc;
+	Task RawTexture::SaveGliTask(const std::string& path) {
 
-		std::unique_ptr<gli::texture> tex;
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [this, path](const TaskParams& e) {
 
-		size_t mip_count = GetMipCount();
+			auto target = DGToGli(mDesc.Type);
+			auto format = DGToGli(mDesc.Format);
+			auto desc = mDesc;
 
-		switch (target) {
-		case gli::TARGET_1D: {
-			gli::extent1d ex;
-			ex.x = desc.Width;
-			tex.reset(new gli::texture1d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_1D_ARRAY: {
-			gli::extent1d ex;
-			ex.x = desc.Width;
-			tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, mip_count));
-			break;
-		}
-		case gli::TARGET_2D: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture2d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_2D_ARRAY: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, mip_count));
-			break;
-		}
-		case gli::TARGET_3D: {
-			gli::extent3d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			ex.z = desc.Depth;
-			tex.reset(new gli::texture3d(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_CUBE: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			tex.reset(new gli::texture_cube(format, ex, mip_count));
-			break;
-		}
-		case gli::TARGET_CUBE_ARRAY: {
-			gli::extent2d ex;
-			ex.x = desc.Width;
-			ex.y = desc.Height;
-			size_t faces = 6;
-			size_t array_size = desc.ArraySize / faces;
-			tex.reset(new gli::texture_cube_array(format, ex, array_size, mip_count));
-			break;
-		}
-		}
+			std::unique_ptr<gli::texture> tex;
 
-		uint pixel_size = GetPixelByteSize();
+			size_t mip_count = GetMipCount();
 
-		size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
+			switch (target) {
+			case gli::TARGET_1D: {
+				gli::extent1d ex;
+				ex.x = desc.Width;
+				tex.reset(new gli::texture1d(format, ex, mip_count));
+				break;
+			}
+			case gli::TARGET_1D_ARRAY: {
+				gli::extent1d ex;
+				ex.x = desc.Width;
+				tex.reset(new gli::texture1d_array(format, ex, desc.ArraySize, mip_count));
+				break;
+			}
+			case gli::TARGET_2D: {
+				gli::extent2d ex;
+				ex.x = desc.Width;
+				ex.y = desc.Height;
+				tex.reset(new gli::texture2d(format, ex, mip_count));
+				break;
+			}
+			case gli::TARGET_2D_ARRAY: {
+				gli::extent2d ex;
+				ex.x = desc.Width;
+				ex.y = desc.Height;
+				tex.reset(new gli::texture2d_array(format, ex, desc.ArraySize, mip_count));
+				break;
+			}
+			case gli::TARGET_3D: {
+				gli::extent3d ex;
+				ex.x = desc.Width;
+				ex.y = desc.Height;
+				ex.z = desc.Depth;
+				tex.reset(new gli::texture3d(format, ex, mip_count));
+				break;
+			}
+			case gli::TARGET_CUBE: {
+				gli::extent2d ex;
+				ex.x = desc.Width;
+				ex.y = desc.Height;
+				tex.reset(new gli::texture_cube(format, ex, mip_count));
+				break;
+			}
+			case gli::TARGET_CUBE_ARRAY: {
+				gli::extent2d ex;
+				ex.x = desc.Width;
+				ex.y = desc.Height;
+				size_t faces = 6;
+				size_t array_size = desc.ArraySize / faces;
+				tex.reset(new gli::texture_cube_array(format, ex, array_size, mip_count));
+				break;
+			}
+			}
 
-		for (size_t subResource = 0; subResource < mSubDescs.size(); ++subResource) {
-			size_t Level = subResource % mip_count;
-			size_t Slice = subResource / mip_count;
-			size_t Face = subResource % face_count;
-			size_t Layer = subResource / face_count;
-			
-			size_t subresource_width = std::max(1u, desc.Width >> Level);
-			size_t subresource_height = std::max(1u, desc.Width >> Level);
-			size_t subresource_depth = std::max(1u, desc.Depth >> Level);
+			uint pixel_size = GetPixelByteSize();
 
-			size_t subresource_data_size = subresource_width * subresource_height * 
-					subresource_depth * pixel_size;
+			size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
 
-			size_t array_slice = Layer * tex->faces() + Face;
+			for (size_t subResource = 0; subResource < mSubDescs.size(); ++subResource) {
+				size_t Level = subResource % mip_count;
+				size_t Slice = subResource / mip_count;
+				size_t Face = subResource % face_count;
+				size_t Layer = subResource / face_count;
+				
+				size_t subresource_width = std::max(1u, desc.Width >> Level);
+				size_t subresource_height = std::max(1u, desc.Width >> Level);
+				size_t subresource_depth = std::max(1u, desc.Depth >> Level);
 
-			std::memcpy(tex->data(Layer, Face, Level), &mData[mSubDescs[subResource].mSrcOffset], subresource_data_size);
-		}
+				size_t subresource_data_size = subresource_width * subresource_height * 
+						subresource_depth * pixel_size;
 
-		gli::save_ktx(*tex, path);
+				size_t array_slice = Layer * tex->faces() + Face;
+
+				std::memcpy(tex->data(Layer, Face, Level), &mData[mSubDescs[subResource].mSrcOffset], subresource_data_size);
+			}
+
+			gli::save_ktx(*tex, path);
+		};
+
+		return task;
 	}
 
-	void RawTexture::SavePng(const std::string& path, bool bSaveMips) {
-		std::vector<uint8_t> buf;
-
-		if (mDesc.Type == DG::RESOURCE_DIM_TEX_3D) {
-			throw std::runtime_error("Cannot have 3D textures as PNG!");
-		}
-
-		auto type = GetComponentType();
-
-		if (type == DG::VT_NUM_TYPES) {
-			throw std::runtime_error("Invalid texture format!");
-		}
-
-		size_t mip_count = GetMipCount();
-
-		size_t increment = bSaveMips ? 1 : mip_count;
-		size_t channel_count = GetComponentCount();
-		size_t face_count = mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
-		
-		size_t slices = mSubDescs.size() / mip_count;
-
-		std::string path_base;
-
-		auto pos = path.find('.');
-		if (pos != std::string::npos) {
-			path_base = path.substr(0, pos);
-		} else {
-			path_base = path;
-		}
-
-		for (size_t subResource = 0; subResource < mSubDescs.size(); subResource += increment) {
-			size_t Level = subResource % mip_count;
-			size_t Slice = subResource / mip_count;
-
-			size_t subresource_width = std::max(1u, mDesc.Width >> Level);
-			size_t subresource_height = std::max(1u, mDesc.Width >> Level);
-			size_t subresource_depth = std::max(1u, mDesc.Depth >> Level);
-			size_t buf_size = subresource_width * subresource_height * 
-				subresource_depth * 4;
-
+	Task RawTexture::SavePngTask(const std::string& path, bool bSaveMips) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [this, path, bSaveMips](const TaskParams& e) {
 			std::vector<uint8_t> buf;
-			buf.resize(buf_size);
 
-			auto& sub = mSubDescs[subResource];
-
-			ImageCopy<uint8_t, 4>(&buf[0], &mData[sub.mSrcOffset], 
-				subresource_width * subresource_height, channel_count, type);
-
-			std::stringstream ss;
-			ss << path_base;
-			if (slices > 1) {
-				ss << "_slice_" << Slice;
+			if (mDesc.Type == DG::RESOURCE_DIM_TEX_3D) {
+				throw std::runtime_error("Cannot have 3D textures as PNG!");
 			}
-			if (bSaveMips) {
-				ss << "_mip_" << Level;
-			}
-			ss << ".png";
 
-			auto err = lodepng::encode(ss.str(), &buf[0], subresource_width, subresource_height);
+			auto type = GetComponentType();
 
-			if (err) {
-				std::cout << "Encoder error " << err << ": " << lodepng_error_text(err) << std::endl;
-				throw std::runtime_error(lodepng_error_text(err));
+			if (type == DG::VT_NUM_TYPES) {
+				throw std::runtime_error("Invalid texture format!");
 			}
-		}
+
+			size_t mip_count = GetMipCount();
+
+			size_t increment = bSaveMips ? 1 : mip_count;
+			size_t channel_count = GetComponentCount();
+			size_t face_count = mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
+			
+			size_t slices = mSubDescs.size() / mip_count;
+
+			std::string path_base;
+
+			auto pos = path.find('.');
+			if (pos != std::string::npos) {
+				path_base = path.substr(0, pos);
+			} else {
+				path_base = path;
+			}
+
+			for (size_t subResource = 0; subResource < mSubDescs.size(); subResource += increment) {
+				size_t Level = subResource % mip_count;
+				size_t Slice = subResource / mip_count;
+
+				size_t subresource_width = std::max(1u, mDesc.Width >> Level);
+				size_t subresource_height = std::max(1u, mDesc.Width >> Level);
+				size_t subresource_depth = std::max(1u, mDesc.Depth >> Level);
+				size_t buf_size = subresource_width * subresource_height * 
+					subresource_depth * 4;
+
+				std::vector<uint8_t> buf;
+				buf.resize(buf_size);
+
+				auto& sub = mSubDescs[subResource];
+
+				ImageCopy<uint8_t, 4>(&buf[0], &mData[sub.mSrcOffset], 
+					subresource_width * subresource_height, channel_count, type);
+
+				std::stringstream ss;
+				ss << path_base;
+				if (slices > 1) {
+					ss << "_slice_" << Slice;
+				}
+				if (bSaveMips) {
+					ss << "_mip_" << Level;
+				}
+				ss << ".png";
+
+				auto err = lodepng::encode(ss.str(), &buf[0], subresource_width, subresource_height);
+
+				if (err) {
+					std::cout << "Encoder error " << err << ": " << lodepng_error_text(err) << std::endl;
+					throw std::runtime_error(lodepng_error_text(err));
+				}
+			}
+		};
+		return task;
 	}
 
 	void RawTexture::RetrieveData(DG::ITexture* texture, 
@@ -1006,18 +1023,6 @@ namespace Morpheus {
 			into->GenerateMips();
 	}
 
-	void RawTexture::LoadArchive(const std::string& path) {
-		std::ifstream f(path, std::ios::binary);
-
-		if (f.is_open()) {
-			cereal::PortableBinaryInputArchive ar(f);
-			Morpheus::Load(ar, this);
-			f.close();
-		} else {
-			throw std::runtime_error("Could not open file!");
-		}
-	}
-
 	void RawTexture::LoadArchive(const uint8_t* rawArchive, const size_t length) {
 		MemoryInputStream stream(rawArchive, length);
 		cereal::PortableBinaryInputArchive ar(stream);
@@ -1040,19 +1045,17 @@ namespace Morpheus {
 			LoadPngDataRaw(params, image, width, height, this);
 	}
 
-	void RawTexture::LoadPng(const LoadParams<TextureResource>& params) {
-		std::vector<uint8_t> image;
-		uint32_t width, height;
-		uint32_t error = lodepng::decode(image, width, height, params.mSource);
+	Task RawTexture::LoadPngTask(const LoadParams<TextureResource>& params) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = GetLoadBarrier();
+		task.mFunc = [this, params](const TaskParams& e) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
+			LoadPng(params, &data[0], data.size());
+		};
 
-		//if there's an error, display it
-		if (error)
-			throw std::runtime_error(lodepng_error_text(error));
-
-		//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
-		//State state contains extra information about the PNG such as text chunks, ...
-		else 
-			LoadPngDataRaw(params, image, width, height, this);
+		return task;
 	}
 
 	enum class LoadType {
@@ -1062,68 +1065,62 @@ namespace Morpheus {
 		ARCHIVE
 	};
 
-	TaskId LoadDeferred(RawTexture* texture, const LoadParams<TextureResource>& params, 
-		ThreadPool* pool, LoadType type) {
-		auto queue = pool->GetQueue();
+	Task LoadDeferred(RawTexture* texture, const LoadParams<TextureResource>& params, LoadType type) {
 
-		PipeId filePipe;
-		TaskId readFile = ReadFileToMemoryJobDeferred(params.mSource, &queue, &filePipe);
-
-		TaskId fileToSelf = queue.MakeTask([texture, filePipe, type, params](const TaskParams& taskParams) {
-			auto& val = taskParams.mPool->ReadPipe(filePipe);
-			std::unique_ptr<ReadFileToMemoryResult> result(val.cast<ReadFileToMemoryResult*>());
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [texture, type, params](const TaskParams& e) {
+		
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
 
 			switch (type) {
 				case LoadType::PNG:
-					texture->LoadPng(params, result->GetData(), result->GetSize());
+					texture->LoadPng(params, &data[0], data.size());
 					break;
 				case LoadType::STB:
-					texture->LoadStb(params, result->GetData(), result->GetSize());
+					texture->LoadStb(params, &data[0], data.size());
 					break;
 				case LoadType::GLI:
-					texture->LoadGli(params, result->GetData(), result->GetSize());
+					texture->LoadGli(params, &data[0], data.size());
 					break;
 				case LoadType::ARCHIVE:
-					texture->LoadArchive(result->GetData(), result->GetSize());
+					texture->LoadArchive(&data[0], data.size());
 					break;
 			}
-		}, texture->GetLoadBarrier());
+		};
+		task.mSyncPoint = texture->GetLoadBarrier();
 
-		queue.Dependencies(fileToSelf).After(filePipe);
-
-		return readFile;
+		return task;
 	}
 
-	TaskId RawTexture::LoadPngAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		return LoadDeferred(this, params, pool, LoadType::PNG);
+	Task RawTexture::LoadArchiveTask(const std::string& path) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = &mBarrier;
+		task.mFunc = [this, path](const TaskParams& e) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(path, data);
+			LoadArchive(&data[0], data.size());
+		};
+
+		return task;
 	}
 
-	TaskId RawTexture::LoadStbAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		return LoadDeferred(this, params, pool, LoadType::STB);
+	Task RawTexture::LoadStbTask(const LoadParams<TextureResource>& params) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = &mBarrier;
+		task.mFunc = [this, params](const TaskParams& e) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
+			LoadStb(params, &data[0], data.size());
+		};
+
+		return task;
 	}
 
-	TaskId RawTexture::LoadGliAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		return LoadDeferred(this, params, pool, LoadType::GLI);
-	}
-
-	TaskId RawTexture::LoadArchiveAsyncDeferred(const std::string& path, ThreadPool* pool) {
-		auto queue = pool->GetQueue();
-
-		PipeId filePipe;
-		TaskId readFile = ReadFileToMemoryJobDeferred(path, &queue, &filePipe);
-
-		TaskId fileToSelf = queue.MakeTask([this, filePipe](const TaskParams& taskParams) {
-			auto& val = taskParams.mPool->ReadPipe(filePipe);
-			std::unique_ptr<ReadFileToMemoryResult> result(val.cast<ReadFileToMemoryResult*>());
-			this->LoadArchive(result->GetData(), result->GetSize());
-		}, GetLoadBarrier());
-
-		queue.Dependencies(fileToSelf).After(filePipe);
-
-		return readFile;
-	}
-
-	TaskId RawTexture::LoadAsyncDeferred(const LoadParams<TextureResource>& params, ThreadPool* pool) {
+	Task RawTexture::LoadTask(const LoadParams<TextureResource>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -1131,63 +1128,13 @@ namespace Morpheus {
 		auto ext = params.mSource.substr(pos);
 
 		if (ext == ".ktx" || ext == ".dds") {
-			return LoadGliAsyncDeferred(params, pool);
+			return LoadGliTask(params);
 		} else if (ext == ".hdr") {
-			return LoadStbAsyncDeferred(params, pool);
+			return LoadStbTask(params);
 		} else if (ext == ".png") {
-			return LoadPngAsyncDeferred(params, pool);
+			return LoadPngTask(params);
 		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
-			return LoadArchiveAsyncDeferred(params.mSource, pool);
-		} else {
-			throw std::runtime_error("Texture file format not supported!");
-		}
-	}
-
-	void RawTexture::LoadPngAsync(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		TaskId task = LoadPngAsyncDeferred(params, pool);
-		auto queue = pool->GetQueue();
-		queue.Schedule(task);
-	}
-
-	void RawTexture::LoadStbAsync(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		TaskId task = LoadStbAsyncDeferred(params, pool);
-		auto queue = pool->GetQueue();
-		queue.Schedule(task);
-	}
-
-	void RawTexture::LoadGliAsync(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		TaskId task = LoadGliAsyncDeferred(params, pool);
-		auto queue = pool->GetQueue();
-		queue.Schedule(task);
-	}
-
-	void RawTexture::LoadArchiveAsync(const std::string& path, ThreadPool* pool) {
-		TaskId task = LoadArchiveAsyncDeferred(path, pool);
-		auto queue = pool->GetQueue();
-		queue.Schedule(task);
-	}
-
-	void RawTexture::LoadAsync(const LoadParams<TextureResource>& params, ThreadPool* pool) {
-		TaskId task = LoadAsyncDeferred(params, pool);
-		auto queue = pool->GetQueue();
-		queue.Schedule(task);
-	}
-
-	void RawTexture::Load(const LoadParams<TextureResource>& params) {
-		auto pos = params.mSource.rfind('.');
-		if (pos == std::string::npos) {
-			throw std::runtime_error("Source does not have file extension!");
-		}
-		auto ext = params.mSource.substr(pos);
-
-		if (ext == ".ktx" || ext == ".dds") {
-			LoadGli(params);
-		} else if (ext == ".hdr") {
-			LoadStb(params);
-		} else if (ext == ".png") {
-			LoadPng(params);
-		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
-			LoadArchive(params.mSource);
+			return LoadArchiveTask(params.mSource);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");
 		}
@@ -1205,40 +1152,17 @@ namespace Morpheus {
 		LoadGliDataRaw(params, &tex, this);
 	}
 
-	void RawTexture::LoadGli(const LoadParams<TextureResource>& params) {
-		gli::texture tex = gli::load(params.mSource);
+	Task RawTexture::LoadGliTask(const LoadParams<TextureResource>& params) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = GetLoadBarrier();
+		task.mFunc = [this, params](const TaskParams& e) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
+			LoadGli(params, &data[0], data.size());
+		};
 
-		if (tex.empty()) {
-			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
-			throw std::runtime_error("Failed to load texture!");
-		}
-
-		LoadGliDataRaw(params, &tex, this);
-	}
-
-	void RawTexture::LoadStb(const LoadParams<TextureResource>& params) {
-		unsigned char* pixel_data = nullptr;
-		bool b_hdr = false;
-		int comp;
-		int x;
-		int y;
-
-		if (stbi_is_hdr(params.mSource.c_str())) {
-			float* pixels = stbi_loadf(params.mSource.c_str(), &x, &y, &comp, 0);
-			if (pixels) {
-				pixel_data = reinterpret_cast<unsigned char*>(pixels);
-				b_hdr = true;
-			}
-		}
-		else {
-			unsigned char* pixels = stbi_load(params.mSource.c_str(), &x, &y, &comp, 0);
-			if (pixels) {
-				pixel_data = pixels;
-				b_hdr = false;
-			}
-		}
-
-		LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, this);
+		return task;
 	}
 
 	void RawTexture::LoadStb(const LoadParams<TextureResource>& params,

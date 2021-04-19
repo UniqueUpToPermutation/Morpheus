@@ -120,15 +120,9 @@ namespace Morpheus {
 			mManager(mananger) {
 		}
 
-		// Loads resource and blocks until the resource is loaded
-		IResource* Load(const void* params) override;
-		// Loads resource and adds resulting task to the specified barrier
-		TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) override;
-		virtual void Add(IResource* resource, const void* params) override;
-		virtual void Unload(IResource* resource) override;
-		virtual void Clear() override;
+		Task LoadTask(const void* params, IResource** output) override;
+		void Add(IResource* resource, const void* params) override;
+		void Unload(IResource* resource) override;
+		void Clear() override;
 	};
 }

@@ -187,6 +187,7 @@ namespace Morpheus {
 		ThreadPool			mThreadPool;
 		ScriptFactory		mScriptFactory;
 
+		bool 				bRendererWarningGiven 	= false;
 		int          		mInitialWindowWidth  	= 0;
 		int          		mInitialWindowHeight 	= 0;
 		int         		mValidationLevel     	= -1;
@@ -235,7 +236,10 @@ namespace Morpheus {
 		inline void YieldUntilFinished() {
 			mThreadPool.YieldUntilFinished();
 		}
-		inline void YieldUntil(TaskBarrier* barrier) {
+		inline void YieldUntil(const TaskSyncPoint* barrier) {
+			mThreadPool.YieldUntil(barrier);
+		}
+		inline void YieldUntil(const TaskSyncPoint& barrier) {
 			mThreadPool.YieldUntil(barrier);
 		}
 		inline void YieldFor(const std::chrono::high_resolution_clock::duration& duration) {

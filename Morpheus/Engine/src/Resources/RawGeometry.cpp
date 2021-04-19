@@ -1,7 +1,6 @@
 #include <Engine/Resources/RawGeometry.hpp>
 #include <Engine/Resources/GeometryResource.hpp>
 #include <Engine/Resources/ResourceSerialization.hpp>
-#include <Engine/ThreadTasks.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/MaterialResource.hpp>
@@ -110,118 +109,51 @@ namespace Morpheus {
 		}
 	}
 
-	void RawGeometry::LoadAssimpAsync(ThreadPool* pool, const LoadParams<GeometryResource>& params) {
-		auto taskId = LoadAssimpAsyncDeferred(pool, params);
-		pool->GetQueue().Schedule(taskId);
-	}
-
-	void RawGeometry::LoadAssimp(const LoadParams<GeometryResource>& params) {
+	Task RawGeometry::LoadAssimpTask(const LoadParams<GeometryResource>& params) {
 
 		if (params.mMaterial && params.mPipeline) {
 			throw std::runtime_error("Cannot specify both material and pipeline for raw geometry vertex layout!");
 		}
 
-		auto& source = params.mSource;
-		cout << "Loading geometry " << source << "..." << endl;
-		std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
-		const aiScene* pScene = importer->ReadFile(source.c_str(),
-			aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-			aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality);
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = GetLoadBarrier();
+		task.mFunc = [this, params](const TaskParams& e) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
 
-		if (!pScene) {
-			cout << "Error: failed to load " << source << endl;
-			throw std::runtime_error("Failed to load geometry!");
-		}
+			std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
 
-		if (!pScene->HasMeshes()) {
-			cout << "Error: " << source << " has no meshes!" << endl;
-			throw std::runtime_error("Geometry has no meshes!");
-		}
+			const aiScene* pScene = importer->ReadFileFromMemory(&data[0], data.size(), 
+				aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+				aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
+				params.mSource.c_str());
+			
+			if (!pScene) {
+				std::cout << importer->GetErrorString() << std::endl;
+				throw std::runtime_error("Failed to load geometry!");
+			}
 
-		if (pScene->mNumMeshes > 1) {
-			cout << "Warning: " << source << " has more than one mesh, we will just load the first." << endl;
-		}
+			if (!pScene->HasMeshes()) {
+				throw std::runtime_error("Geometry has no meshes!");
+			}
 
-		const VertexLayout* layout = &params.mVertexLayout;
+			const VertexLayout* layout = &params.mVertexLayout;
 
-		if (params.mMaterial) {
-			if (params.mMaterial->IsLoaded())
-				layout = &params.mMaterial->GetVertexLayout();
-			else 
-				throw std::runtime_error("Material has not loaded yet!");
-		}
-		
-		if (params.mPipeline) {
-			if (params.mPipeline->IsLoaded())
+			if (params.mPipeline) {
+				e.mQueue->YieldUntil(params.mPipeline->GetLoadBarrier());
 				layout = &params.mPipeline->GetVertexLayout();
-			else 
-				throw std::runtime_error("Pipeline has not loaded yet!");
-		}
-
-		LoadAssimp(pScene, *layout);
-	}
-
-	TaskId RawGeometry::LoadAssimpAsyncDeferred(ThreadPool* pool,
-		const LoadParams<GeometryResource>& params) {
-
-		if (params.mMaterial && params.mPipeline) {
-			throw std::runtime_error("Cannot specify both material and pipeline for raw geometry vertex layout!");
-		}
-
-		auto barrier = GetLoadBarrier();
-
-		auto queue = pool->GetQueue();
-
-		PipeId filePipe;
-		TaskId readFile = ReadFileToMemoryJobDeferred(params.mSource, &queue, &filePipe);
-		PipeId rawGeoPipe = queue.MakePipe();
-
-		TaskId convertToRaw = queue.MakeTask([this, filePipe, params, rawGeoPipe](const TaskParams& taskParams) {
-			try {
-				auto& value = taskParams.mPool->ReadPipe(filePipe);
-				std::unique_ptr<ReadFileToMemoryResult> contents(value.cast<ReadFileToMemoryResult*>());
-
-				std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
-
-				const aiScene* pScene = importer->ReadFileFromMemory(contents->GetData(), contents->GetSize(), 
-					aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-					aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
-					params.mSource.c_str());
-
-				if (!pScene) {
-					std::cout << importer->GetErrorString() << std::endl;
-					throw std::runtime_error("Failed to load geometry!");
-				}
-
-				if (!pScene->HasMeshes()) {
-					throw std::runtime_error("Geometry has no meshes!");
-				}
-
-				std::unique_ptr<RawGeometry> rawGeo(new RawGeometry());
-
-				const VertexLayout* layout = &params.mVertexLayout;
-				if (params.mPipeline)
-					layout = &params.mPipeline->GetVertexLayout();
-				if (params.mMaterial)
-					layout = &params.mMaterial->GetVertexLayout();
-
-				LoadAssimp(pScene, *layout);
-
-				taskParams.mPool->WritePipe(rawGeoPipe, rawGeo.release());
 			}
-			catch (...) {
-				taskParams.mPool->WritePipeException(rawGeoPipe, std::current_exception());
+
+			if (params.mMaterial) {
+				e.mQueue->YieldUntil(params.mMaterial->GetLoadBarrier());
+				layout = &params.mMaterial->GetVertexLayout();
 			}
-		}, GetLoadBarrier());
 
-		queue.Dependencies(convertToRaw).After(filePipe);
+			LoadAssimp(pScene, *layout);
+		};
 
-		if (params.mPipeline)
-			queue.Dependencies(readFile).After(params.mPipeline->GetLoadBarrier());
-		if (params.mMaterial)
-			queue.Dependencies(readFile).After(params.mMaterial->GetLoadBarrier());
-
-		return readFile;
+		return task;
 	}
 
 	void RawGeometry::LoadArchive(const uint8_t* rawArchive, const size_t length) {
@@ -230,38 +162,17 @@ namespace Morpheus {
 		Morpheus::Load(ar, this);
 	}
 
-	void RawGeometry::LoadArchive(const std::string& source) {
-		std::ifstream f(source, std::ios::binary);
+	Task RawGeometry::LoadArchiveTask(const std::string& path) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = GetLoadBarrier();
+		task.mFunc = [this, path](const TaskParams& taskParams) {
+			std::vector<uint8_t> data;
+			ReadBinaryFile(path, data);
+			LoadArchive(&data[0], data.size());
+		};
 
-		if (f.is_open()) {
-			cereal::PortableBinaryInputArchive ar(f);
-			Morpheus::Load(ar, this);
-			f.close();
-		} else {
-			throw std::runtime_error("Could not open file!");
-		}
-	}
-
-	TaskId RawGeometry::LoadArchiveAsyncDeferred(const std::string& path, ThreadPool* pool) {
-		auto queue = pool->GetQueue();
-
-		PipeId filePipe;
-		TaskId readFile = ReadFileToMemoryJobDeferred(path, &queue, &filePipe);
-
-		TaskId fileToSelf = queue.MakeTask([this, filePipe](const TaskParams& taskParams) {
-			auto& val = taskParams.mPool->ReadPipe(filePipe);
-			std::unique_ptr<ReadFileToMemoryResult> result(val.cast<ReadFileToMemoryResult*>());
-			this->LoadArchive(result->GetData(), result->GetSize());
-		}, GetLoadBarrier());
-
-		queue.Dependencies(fileToSelf).After(filePipe);
-
-		return readFile;
-	}
-
-	void RawGeometry::LoadArchiveAsync(const std::string& source, ThreadPool* pool) {
-		TaskId task = LoadArchiveAsyncDeferred(source, pool);
-		pool->GetQueue().Schedule(task);
+		return task;
 	}
 
 	void RawGeometry::LoadAssimp(const aiScene* scene, const VertexLayout& layout) {
@@ -496,7 +407,7 @@ namespace Morpheus {
 			indexedAttribs, aabb);
 	}
 
-	void RawGeometry::Load(const LoadParams<GeometryResource>& params) {
+	Task RawGeometry::LoadTask(const LoadParams<GeometryResource>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -504,41 +415,28 @@ namespace Morpheus {
 		auto ext = params.mSource.substr(pos);
 
 		if (ext == GEOMETRY_ARCHIVE_EXTENSION) {
-			LoadArchive(params.mSource);
+			return LoadArchiveTask(params.mSource);
 		} else {
-			LoadAssimp(params);
+			return LoadAssimpTask(params);
 		}
 	}
 
-	TaskId RawGeometry::LoadAsyncDeferred(const LoadParams<GeometryResource>& params, ThreadPool* pool) {
-		auto pos = params.mSource.rfind('.');
-		if (pos == std::string::npos) {
-			throw std::runtime_error("Source does not have file extension!");
-		}
-		auto ext = params.mSource.substr(pos);
+	Task RawGeometry::SaveTask(const std::string& destination) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mFunc = [this, destination](const TaskParams& e) {
+			std::ofstream f(destination, std::ios::binary);
 
-		if (ext == GEOMETRY_ARCHIVE_EXTENSION) {
-			return LoadArchiveAsyncDeferred(params.mSource, pool);
-		} else {
-			return LoadAssimpAsyncDeferred(pool, params);
-		}
-	}
+			if (f.is_open()) {
+				cereal::PortableBinaryOutputArchive ar(f);
+				Morpheus::Save(ar, this);
+				f.close();
+			} else {
+				throw std::runtime_error("Could not open file for writing!");
+			}
+		};
 
-	void RawGeometry::LoadAsync(const LoadParams<GeometryResource>& params, ThreadPool* pool) {
-		TaskId task = LoadAsyncDeferred(params, pool);
-		pool->GetQueue().Schedule(task);
-	}
-
-	void RawGeometry::Save(const std::string& destination) {
-		std::ofstream f(destination, std::ios::binary);
-
-		if (f.is_open()) {
-			cereal::PortableBinaryOutputArchive ar(f);
-			Morpheus::Save(ar, this);
-			f.close();
-		} else {
-			throw std::runtime_error("Could not open file for writing!");
-		}
+		return task;
 	}
 
 	void RawGeometry::Clear() {

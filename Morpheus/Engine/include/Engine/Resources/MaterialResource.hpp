@@ -101,16 +101,9 @@ namespace Morpheus {
 
 	class MaterialLoader {
 	public:
-		static void Load(ResourceManager* manager,
+		static Task Load(ResourceManager* manager,
 			const std::string& source,
 			const MaterialFactory& prototypeFactory,
-			MaterialResource* loadinto);
-
-		static TaskId AsyncLoad(ResourceManager* manager,
-			const std::string& source,
-			const MaterialFactory& prototypeFactory,
-			ThreadPool* pool,
-			TaskBarrierCallback barrierCallback,
 			MaterialResource* loadInto);
 	};
 
@@ -128,11 +121,7 @@ namespace Morpheus {
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
 
-		IResource* Load(const void* params) override;
-		TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) override;
+		Task LoadTask(const void* params, IResource** output) override;
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

@@ -1,6 +1,8 @@
 #include <Engine/Core.hpp>
 #include <Engine/Engine2D/Renderer2D.hpp>
 
+#include <random>
+
 using namespace Morpheus;
 
 #if PLATFORM_WIN32

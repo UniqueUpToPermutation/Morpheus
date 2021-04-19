@@ -112,10 +112,6 @@ namespace Morpheus {
 
 		std::shared_mutex mMutex;
 
-		TaskId ActuallyLoad(const void* params,
-			const AsyncResourceParams& asyncParams,
-			IResource** output);
-
 	public:
 		ResourceCache(ResourceManager* manager);
 		~ResourceCache();
@@ -123,11 +119,8 @@ namespace Morpheus {
 		TextureResource* MakeResource(DG::ITexture* texture, const std::string& source);
 		TextureResource* MakeResource(DG::ITexture* texture);
 
-		IResource* Load(const void* params) override;
-		TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) override;
+		Task LoadTask(const void* params, IResource** output) override;
+
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

@@ -6,398 +6,278 @@
 #include <vector>
 #include <queue>
 #include <atomic>
-#include <random>
-#include <unordered_map>
 #include <future>
 
-#include <Engine/Defines.hpp>
-#include <Engine/Graph.hpp>
-#include <Engine/Entity.hpp>
-
-#define ASSIGN_THREAD_IO -2
 #define ASSIGN_THREAD_ANY -1
 #define ASSIGN_THREAD_MAIN 0
 
-#define TASK_NONE -1 
-#define PIPE_NONE -1
-#define BARRIER_NONE -1
-
 namespace Morpheus {
-	typedef int TaskNodeId;
-
-	enum class TaskNodeType {
-		UNKNOWN_NODE,
-		TASK_NODE,
-		PIPE_NODE,
-		BARRIER_NODE
-	};
-
-	struct TaskId {
-		TaskNodeId mId;
-
-		inline TaskId() :
-			mId(TASK_NONE) {	
-		}
-
-		inline TaskId(TaskNodeId id) :
-			mId(id) {
-		}
-
-		inline bool IsValid() const {
-			return mId >= 0;
-		}
-	};
-
-	struct PipeId {
-		TaskNodeId mId;
-
-		inline PipeId() :
-			mId(PIPE_NONE) {
-		}
-
-		inline PipeId(TaskNodeId id) :
-			mId(id) {
-		}
-
-		inline bool IsValid() const {
-			return mId >= 0;
-		}
-	};
-
-	struct BarrierId {
-		TaskNodeId mId;
-
-		inline BarrierId() :
-			mId(BARRIER_NONE) {
-		}
-
-		inline BarrierId(TaskNodeId id) :
-			mId(id) {
-		}
-
-		inline bool IsValid() const {
-			return mId >= 0;
-		}
-	};
-
 	class ThreadPool;
-	class TaskBarrier;
+	class TaskSyncPoint;
+	struct TaskParams;
+
+	enum class TaskType {
+		UNSPECIFIED,
+		RENDER,
+		UPDATE,
+		FILE_IO
+	};
+
+	inline int GetTaskPriority(TaskType type) {
+		switch (type) {
+			case TaskType::RENDER:
+				return 2;
+			case TaskType::UPDATE:
+				return 1;
+			case TaskType::FILE_IO:
+				return -1;
+			default:
+				return 0;
+		}
+	}
+
+	// declare a non-polymorphic container for any function object that takes zero args and returns an int
+	// in addition, the contained function need not be copyable
+	class TaskFunc
+	{
+		// define the concept of being callable while mutable
+		struct concept
+		{
+			concept() = default;
+			concept(concept&&) = default;
+			concept& operator=(concept&&) = default;
+			concept(const concept&) = delete;
+			concept& operator=(const concept&) = default;
+			virtual ~concept() = default;
+
+			virtual void call(const TaskParams& e) = 0;
+		};
+
+		// model the concept for any given function object
+		template<class F>
+		struct model : concept
+		{
+			model(F&& f)
+			: _f(std::move(f))
+			{}
+
+			void call(const TaskParams& e) override
+			{
+				_f(e);
+			}
+
+			F _f;
+		};
+
+	public:
+		// provide a public interface
+		void operator()(const TaskParams& e)  // note: not const
+		{
+			return _ptr->call(e);
+		}
+
+		// provide a constructor taking any appropriate object
+		template<class FI>
+		TaskFunc(FI&& f)
+		: _ptr(std::make_unique<model<FI>>(std::move(f)))
+		{}
+
+		TaskFunc(nullptr_t ptr) {
+		}
+
+		TaskFunc() {
+		}
+
+		inline bool valid() const {
+			return _ptr != nullptr;
+		}
+
+	private:
+		std::unique_ptr<concept> _ptr;
+	};
+
+	class ITaskQueue;
 
 	struct TaskParams {
-		ThreadPool* mPool;
-		TaskBarrier* mBarrier;
+		ITaskQueue* mQueue;
 		uint mThreadId;
-		TaskNodeId mTaskId;
 	};
 
-	typedef std::function<void(const TaskParams&)> TaskFunc;
-	typedef std::function<void(ThreadPool*)> TaskBarrierCallback;
-
-	class TaskDesc {
+	struct Task {
 	public:
-		TaskBarrier* mBarrier;
+		TaskSyncPoint* mSyncPoint;
 		int mAssignedThread;
 		TaskFunc mFunc;
+		TaskType mType;
 
-		TaskDesc(TaskFunc func, TaskBarrier* barrier = nullptr, int assignedThread = ASSIGN_THREAD_ANY) :
-			mFunc(func),
-			mBarrier(barrier),
-			mAssignedThread(assignedThread) {
-		}
-	};
-
-	struct TaskNodeData {
-		TaskNodeType mType;
-		int mInputsLeftToCollect;
-		int mOutputsLeftToTrigger;
-
-		inline TaskNodeData(TaskNodeType type) :
-			mType(type),
-			mInputsLeftToCollect(0),
-			mOutputsLeftToTrigger(0) {
-		}
-
-		inline TaskNodeData() : TaskNodeData(TaskNodeType::UNKNOWN_NODE) {
-		}
-	};
-
-	class TaskNodeDependencies {
-	private:
-		std::unordered_map<TaskNodeId, TaskNodeData>::iterator mIterator;
-		ThreadPool* mPool;
-		TaskNodeId mId;
-
-		void After(TaskNodeId other);
-
-	public:
-		TaskNodeDependencies(TaskNodeId id, 
-			ThreadPool* pool, 
-			const std::unordered_map<TaskNodeId, TaskNodeData>::iterator& it) :
-			mId(id),
-			mPool(pool),
-			mIterator(it) {
-		}
-
-		inline TaskNodeDependencies& After(TaskId other) {
-			if (other.IsValid())
-				After(other.mId);
-			return *this;
-		}
-		inline TaskNodeDependencies& After(PipeId other) {
-			if (other.IsValid())
-				After(other.mId);
-			return *this;
-		}
-		TaskNodeDependencies& After(TaskBarrier* barrier);
-	};
-
-	class Task {
-	private:
-		TaskBarrier* mBarrier;
-
-	public:
-		int mAssignedThread;
-		TaskNodeId mId;
-		TaskFunc mFunc;
-
-		inline Task(TaskFunc func, TaskNodeId id, TaskBarrier* barrier = nullptr, 
+		Task(TaskFunc&& func, 
+			TaskType type = TaskType::UNSPECIFIED,
+			TaskSyncPoint* syncPoint = nullptr, 
 			int assignedThread = ASSIGN_THREAD_ANY) :
-			mFunc(func),
-			mId(id),
-			mBarrier(barrier),
+			mFunc(std::move(func)),
+			mType(type),
+			mSyncPoint(syncPoint),
 			mAssignedThread(assignedThread) {
 		}
 
-		inline Task(const TaskDesc& task, TaskNodeId id) :
-			mFunc(task.mFunc),
-			mId(id),
-			mBarrier(task.mBarrier),
-			mAssignedThread(task.mAssignedThread) {
-		}
-
-		inline Task() :
-			mFunc(nullptr),
-			mId(0),
-			mBarrier(nullptr),
+		Task() :
+			mFunc(),
+			mType(TaskType::UNSPECIFIED),
+			mSyncPoint(nullptr),
 			mAssignedThread(ASSIGN_THREAD_ANY) {
 		}
 
-		friend class ThreadPool;
-		friend class TaskQueueInterface;
+		inline bool IsValid() const {
+			return mFunc.valid();
+		}
+
+		void operator()();
+		void operator()(const TaskParams& e);
 	};
 
-	class ThreadPipe {
+
+	struct TaskSyncPoint {
 	private:
-		TaskNodeId mId;
-		std::promise<entt::meta_any> mPromise;
-		std::shared_future<entt::meta_any> mFuture;
+		std::atomic<uint> mAwaiting;
+		Task mCallback;
 
 	public:
-		inline ThreadPipe(TaskNodeId id) :
-			mId(id) {
-			mFuture = mPromise.get_future();
+		TaskSyncPoint() :
+			mCallback(nullptr) {
+			mAwaiting = 0;
 		}
 
-		inline ThreadPipe(ThreadPipe&& other) noexcept :
-			mId(other.mId),
-			mPromise(std::move(other.mPromise)),
-			mFuture(std::move(other.mFuture)) {
+		inline void SetCallback(Task&& callback) {
+			mCallback = std::move(callback);
 		}
 
-		inline void Write(entt::meta_any&& any) {
-			mPromise.set_value(std::move(any));
+		inline bool IsFinished() const {
+			return mAwaiting == 0;
 		}
 
-		inline void WriteException(std::exception_ptr ex) {
-			mPromise.set_exception(ex);
+		inline uint StartNewTask() {
+			return mAwaiting.fetch_add(1) + 1;
 		}
 
-		inline const entt::meta_any& Read() const {
-			return mFuture.get();
-		}
-
-		friend class ThreadPool;
-		friend class TaskQueueInterface;
+		inline uint EndTask(const TaskParams& params);
 	};
 
-	class TaskQueueInterface {
-	private:
-		std::unique_lock<std::mutex> mLock;
-		std::unique_lock<std::mutex> mIOLock;
-		ThreadPool* mPool;
-
+	class ITaskQueue {
 	public:
-		inline TaskQueueInterface(std::unique_lock<std::mutex>&& lock,
-			std::unique_lock<std::mutex>&& ioLock,
-			ThreadPool* pool) :
-			mLock(std::move(lock)),
-			mIOLock(std::move(ioLock)),
-			mPool(pool) {
-		}
-
-		TaskQueueInterface(const TaskQueueInterface& other) = delete;
-
-		inline TaskQueueInterface(TaskQueueInterface&& other) noexcept {
-			std::swap(mLock, other.mLock);
-			std::swap(mPool, other.mPool);
-			std::swap(mIOLock, other.mIOLock);
-		}
-
-		PipeId MakePipe();
-		TaskId MakeTask(const TaskDesc& desc);
-
-		inline TaskId MakeTask(const TaskFunc& func, 
-			TaskBarrier* barrier = nullptr, 
+		virtual void Submit(Task&& taskDesc) = 0;
+		
+		inline void Submit(TaskFunc&& task,
+			TaskType taskType = TaskType::UNSPECIFIED,
+			TaskSyncPoint* syncPoint = nullptr, 
 			int assignedThread = ASSIGN_THREAD_ANY) {
-			return MakeTask(TaskDesc(func, barrier, assignedThread));
+			Submit(Task(std::move(task), taskType, syncPoint, assignedThread));
 		}
 
-		inline TaskId MakeIOTask(const TaskFunc& func, TaskBarrier* barrier = nullptr) {
-			return MakeTask(TaskDesc(func, barrier, ASSIGN_THREAD_IO));
+		virtual void YieldUntilCondition(const std::function<bool()>& predicate) = 0;
+
+		inline void YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
+			auto start = std::chrono::high_resolution_clock::now();
+			
+			YieldUntilCondition([start, duration]() {
+				auto now = std::chrono::high_resolution_clock::now();
+				return (now - start) > duration;
+			});
 		}
 
-		TaskNodeDependencies Dependencies(TaskId task);
-		TaskNodeDependencies Dependencies(PipeId pipe);
+		inline void YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
+			YieldUntilCondition([time]() {
+				auto now = std::chrono::high_resolution_clock::now();
+				return now > time;
+			});
+		}
+		
+		inline void YieldUntil(const TaskSyncPoint& syncPoint) {
+			YieldUntilCondition([&]() {
+				return syncPoint.IsFinished();
+			});
+		}
 
-		void Schedule(TaskId task);
+		inline void YieldUntil(const TaskSyncPoint* syncPoint) {
+			YieldUntilCondition([=]() {
+				return syncPoint->IsFinished();
+			});
+		}
+
+		template <typename T>
+		inline void YieldUntil(const std::future<T>& future) {
+			YieldUntilCondition([&]() {
+				return future.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+			});
+		}
 	};
 
-	class TaskBarrier {
-	private:
-		std::atomic<uint> mTaskCount = 0;
-		TaskBarrierCallback mOnReached;
-		BarrierId mNodeId = -1;
-
+	class ImmediateJobQueue : public ITaskQueue {
 	public:
-		inline TaskBarrier() {
-		}
-
-		inline TaskBarrier(const TaskBarrierCallback& onReachedCallback) :
-			mOnReached(onReachedCallback) {
-		}
-
-		inline bool HasSchedulingNode() const {
-			return mNodeId.mId >= 0;
-		}
-
-		inline void Increment() {
-			++mTaskCount;
-		}
-
-		inline void Increment(uint count) {
-			mTaskCount += count;
-		}
-
-		inline uint ActiveTaskCount() const {
-			return mTaskCount;
-		}
-
-		void OnReached(ThreadPool* pool, bool acquireMutex = true);
-
-		inline void Decrement(ThreadPool* pool, bool acquireMutex = true) {
-			uint count = mTaskCount.fetch_sub(1);
-			if (count == 1) {
-				OnReached(pool, acquireMutex);
-			}
-		}
-
-		// Warning: not thread safe
-		inline void SetCallback(TaskBarrierCallback callback) {
-			mOnReached = callback;
-		}
-
-		friend class ThreadPool;
-		friend class TaskQueueInterface;
-		friend class TaskNodeDependencies;
+		void Submit(Task&& taskDesc) override;
+		void YieldUntilCondition(const std::function<bool()>& predicate) override;
 	};
 
-	class ThreadPool {
+	struct TaskCompare
+	{
+		inline bool operator()(const Task& lhs, const Task& rhs)
+		{
+			auto lhs_val = GetTaskPriority(lhs.mType);
+			auto rhs_val = GetTaskPriority(rhs.mType);
+
+			return lhs_val > rhs_val;
+		}
+	};
+
+	class ThreadPool : public ITaskQueue {
+	public:
+		using queue_t = std::priority_queue<Task, std::vector<Task>, TaskCompare>;
+
 	private:
 		bool bInitialized;
 		std::vector<std::thread> mThreads;
-		std::vector<std::queue<Task>> mIndividualImmediateQueues;
-		std::thread mIOThread;
-		std::unordered_map<TaskNodeId, Task> mDeferredTasks;
-		std::unordered_map<TaskNodeId, ThreadPipe> mPipes;
-		std::unordered_map<TaskNodeId, TaskNodeData> mNodeData;
+	
 		std::mutex mMutex;
+
 		std::atomic<bool> bExit;
-		std::queue<Task> mSharedImmediateTasks;
-		std::queue<Task> mIOTasks;
-		std::condition_variable mIOCondition;
-		std::mutex mIOConditionMutex;
-		std::mutex mIOQueueMutex;
-		std::atomic<TaskNodeId> mCurrentId;
-		NGraph::Graph mTaskGraph;
+		std::vector<queue_t> mIndividualImmediateQueues;
+		queue_t mSharedImmediateTasks;
 
-		void FinalizeBarrier(TaskBarrier* barrier, bool acquireMutex = true);
-
-		TaskNodeId CreateNode(TaskNodeType type);
-		void DestroyNode(TaskNodeId id);
-		void TriggerOutgoing(TaskNodeId id);
-		void Trigger(TaskNodeId id);
-		void RepoIncomming(TaskNodeId id);
-		void EnqueueTask(TaskNodeId id);
+		void ThreadProc(bool bIsMainThread, uint threadNumber, const std::function<bool()>* finishPredicate);
 
 	public:
 		inline uint ThreadCount() const {
 			return mThreads.size() + 1;
 		}
 
-		inline uint RemainingTaskCount() const {
-			return mDeferredTasks.size() + mSharedImmediateTasks.size() + mIOTasks.size();
-		}
-
-		inline uint RemainingPipeCount() const {
-			return mPipes.size();
-		}
-
 		inline ThreadPool() : 
 			bInitialized(false),
-			bExit(false), 
-			mCurrentId(0) {
+			bExit(false) {
 		}
 
 		inline ~ThreadPool() {
 			Shutdown();
 		}
 
-		inline const entt::meta_any& ReadPipe(PipeId pipeId) {
-			auto pipe = mPipes.find(pipeId.mId);
-			return pipe->second.Read();
-		}
-
-		inline void WritePipe(PipeId pipeId, entt::meta_any&& data) {
-			auto pipe = mPipes.find(pipeId.mId);
-			pipe->second.Write(std::move(data));
-		}
-
-		inline void WritePipeException(PipeId pipeId, std::exception_ptr ex) {
-			auto pipe = mPipes.find(pipeId.mId);
-			pipe->second.WriteException(ex);
-		}
-
-		void ThreadProc(bool bIsMainThread, uint threadNumber, TaskBarrier* barrier, 
-			const std::chrono::high_resolution_clock::time_point* quitTime);
-		void IOThreadProc(uint ioThreadNumber);
-
-		inline TaskQueueInterface GetQueue() {
-			std::unique_lock<std::mutex> mutexLock(mMutex);
-			std::unique_lock<std::mutex> ioMutexLock(mIOQueueMutex);
-
-			return TaskQueueInterface(std::move(mutexLock), std::move(ioMutexLock), this);
-		}
-
+		void Submit(Task&& taskDesc) override;
+		
+		void YieldUntilCondition(const std::function<bool()>& predicate) override;
 		void YieldUntilFinished();
-		void YieldUntil(TaskBarrier* barrier);
-		void YieldFor(const std::chrono::high_resolution_clock::duration& duration);
-		void YieldUntil(const std::chrono::high_resolution_clock::time_point& time);
+
 		void Startup(uint threads = std::thread::hardware_concurrency());
 		void Shutdown();
-		void WakeIO();
 
 		friend class TaskQueueInterface;
 		friend class TaskBarrier;
 		friend class TaskNodeDependencies;
 	};
+
+	uint TaskSyncPoint::EndTask(const TaskParams& params) {
+		auto result = mAwaiting.fetch_sub(1) - 1;
+
+		if (result == 0 && mCallback.IsValid()) {
+			params.mQueue->Submit(std::move(mCallback));
+		}
+
+		return result;
+	}
 }

@@ -155,12 +155,11 @@ namespace Morpheus {
 		entt::registry mPipelineViewRegistry;
 
 		void InitFactories();
-		void ActuallyLoad(const std::string& source, PipelineResource* into, 
+
+		Task ActuallyLoad(const std::string& source, PipelineResource* into,
 			const ShaderPreprocessorConfig* overrides=nullptr);
-		TaskId ActuallyLoadAsync(const std::string& source, PipelineResource* into,
-			ThreadPool* pool,
-			TaskBarrierCallback callback,
-			const ShaderPreprocessorConfig* overrides=nullptr);
+		Task ActuallyLoadFromFactory(factory_func_t factory, 
+			PipelineResource** output, const LoadParams<PipelineResource>& params);
 
 		std::shared_mutex mMutex;
 
@@ -171,20 +170,26 @@ namespace Morpheus {
 		}
 		~ResourceCache();
 
-		PipelineResource* LoadFromFactory(factory_func_t factory, const LoadParams<PipelineResource>& params);
-		PipelineResource* LoadFromFactory(factory_func_t factory, const ShaderPreprocessorConfig* overrides = nullptr);
-		TaskId AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
-			PipelineResource** output, const LoadParams<PipelineResource>& params,
-			const TaskBarrierCallback& callback = nullptr);
-		TaskId AsyncLoadFromFactory(ThreadPool* threadPool, factory_func_t factory, 
-			PipelineResource** output, const ShaderPreprocessorConfig* overrides = nullptr,
-			const TaskBarrierCallback& callback = nullptr);
+		Task LoadFromFactoryTask(factory_func_t factory, 
+			PipelineResource** output, const LoadParams<PipelineResource>& params);
 
-		IResource* Load(const void* params) override;
-		TaskId AsyncLoadDeferred(const void* params,
-			ThreadPool* threadPool,
-			IResource** output,
-			const TaskBarrierCallback& callback = nullptr) override;
+		inline PipelineResource* LoadFromFactory(factory_func_t factory, const LoadParams<PipelineResource>& params) {
+			PipelineResource* result = nullptr;
+			LoadFromFactoryTask(factory, &result, params)();
+			return result;
+		}
+
+		inline PipelineResource* LoadFromFactory(factory_func_t factory, const ShaderPreprocessorConfig* overrides = nullptr) {
+			PipelineResource* result = nullptr;
+			LoadParams<PipelineResource> params;
+			if (overrides)
+				params.mOverrides = *overrides;
+			LoadFromFactoryTask(factory, &result, params)();
+			return result;
+		}
+
+		Task LoadTask(const void* params, IResource** output) override;
+
 		void Add(IResource* resource, const void* params) override;
 		void Unload(IResource* resource) override;
 		void Clear() override;

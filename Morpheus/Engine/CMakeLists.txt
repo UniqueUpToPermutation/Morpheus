@@ -137,12 +137,12 @@ list(APPEND SOURCE
 	src/DefaultRenderer.cpp
 	src/Camera.cpp
 	src/ThreadPool.cpp
-	src/ThreadTasks.cpp
 	src/SpriteBatch.cpp
 	src/Im3d.cpp
 	src/Renderer.cpp
 	src/RendererGlobalsData.cpp
 	src/LightProbe.cpp
+	src/EmptyRenderer.cpp
 
 	src/Engine2D/Renderer2D.cpp
 	src/Engine2D/Tilemap.cpp
@@ -211,10 +211,10 @@ list(APPEND INCLUDE
     include/Engine/Scene.hpp
     include/Engine/SpriteBatch.hpp
     include/Engine/ThreadPool.hpp
-    include/Engine/ThreadTasks.hpp
 	include/Engine/Im3d.hpp
 	include/Engine/DynamicGlobalsBuffer.hpp
 	include/Engine/RendererGlobalsData.hpp
+	include/Engine/EmptyRenderer.hpp
 
 	include/Engine/Engine2D/Renderer2D.hpp
 	include/Engine/Engine2D/Sprite.hpp

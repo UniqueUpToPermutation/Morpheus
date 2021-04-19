@@ -61,53 +61,8 @@ namespace Morpheus {
 		}
 
 		template <typename T>
-		inline T* Load(const LoadParams<T>& params) {
-			auto resource_id = resource_type::type<T>;
-			auto it = mResourceCaches.find(resource_id);
-
-			if (it == mResourceCaches.end()) {
-				throw std::runtime_error("Could not find resource cache for resource type!");
-			}
-
-			auto result = it->second->Load(&params);
-			result->AddRef(); // Increment references
-
-			return result->template To<T>();
-		}
-
-		template <typename T>
-		inline T* Load(const std::string& source) {
-			auto params = LoadParams<T>::FromString(source);
-			return Load<T>(params);
-		}
-
-		template <typename T>
-		inline T* AsyncLoad(const LoadParams<T>& params, 
-			const TaskBarrierCallback& callback = nullptr) {
-			auto resource_id = resource_type::type<T>;
-			auto it = mResourceCaches.find(resource_id);
-
-			if (it == mResourceCaches.end()) {
-				throw std::runtime_error("Could not find resource cache for resource type!");
-			}
-
-			auto result = it->second->AsyncLoad(&params, mThreadPool, callback);
-			result->AddRef(); // Increment references
-
-			return result->template To<T>();
-		}
-
-		template <typename T>
-		inline T* AsyncLoad(const std::string& source, 
-			const TaskBarrierCallback& callback = nullptr) {
-			auto params = LoadParams<T>::FromString(source);
-			return AsyncLoad<T>(params, callback);
-		}
-
-		template <typename T>
-		inline TaskId AsyncLoadDeferred(const LoadParams<T>& params,
-			T** output,
-			const TaskBarrierCallback& callback = nullptr) {
+		inline Task LoadTask(const LoadParams<T>& params,
+			T** output) {
 			auto resource_id = resource_type::type<T>;
 			auto it = mResourceCaches.find(resource_id);
 
@@ -116,7 +71,7 @@ namespace Morpheus {
 			}
 
 			IResource* resource = nullptr;
-			auto task = it->second->AsyncLoadDeferred(&params, mThreadPool, &resource, callback);
+			auto task = it->second->LoadTask(&params, &resource);
 			resource->AddRef(); // Increment References
 
 			*output = resource->template To<T>();
@@ -125,19 +80,24 @@ namespace Morpheus {
 		}
 
 		template <typename T>
-		inline TaskId AsyncLoadDeferred(const std::string& source,
-			T** output,
-			const TaskBarrierCallback& callback = nullptr) {
+		inline Task LoadTask(const std::string& source,
+			T** output) {
 			auto params = LoadParams<T>::FromString(source);
-			return AsyncLoadDeferred<T>(params, output, callback);		
+			return LoadTask<T>(params, output);		
 		}
 
 		template <typename T>
-		inline TaskId AsyncLoad(const std::string& source,
-			T** output,
-			const TaskBarrierCallback& callback = nullptr) {
-			auto params = LoadParams<T>::FromString(source);
-			return AsyncLoad<T>(params, output, callback);
+		inline T* Load(const LoadParams<T>& params) {
+			T* output = nullptr;
+			LoadTask(params, &output)();
+			return output;
+		}
+
+		template <typename T>
+		inline T* Load(const std::string& source) {
+			T* output = nullptr;
+			LoadTask(source, &output)();
+			return output;
 		}
 
 		inline void RequestUnload(IResource* resource) {

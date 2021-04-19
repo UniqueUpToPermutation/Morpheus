@@ -17,39 +17,34 @@ namespace Morpheus {
 	std::vector<DG::IShaderResourceBinding*> GenerateSRBs(
 		DG::IPipelineState* pipelineState, IRenderer* renderer);
 
-	typedef std::function<TaskId(
+	typedef std::function<Task(
 		DG::IRenderDevice*, 
 		ResourceManager*, 
 		IRenderer*, 
 		PipelineResource*,
-		const ShaderPreprocessorConfig*,
-		const AsyncResourceParams*)> factory_func_t;
+		const ShaderPreprocessorConfig*)> factory_func_t;
 
-	TaskId CreateBasicTexturedPipeline(DG::IRenderDevice* device,
+	Task CreateBasicTexturedPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides = nullptr,
-		const AsyncResourceParams* asyncParams = nullptr);
+		const ShaderPreprocessorConfig* overrides = nullptr);
 
-	TaskId CreateSkyboxPipeline(DG::IRenderDevice* device,
+	Task CreateSkyboxPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		const AsyncResourceParams* asyncParams = nullptr);
+		const ShaderPreprocessorConfig* overrides);
 
-	TaskId CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
+	Task CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		const AsyncResourceParams* asyncParams = nullptr);
+		const ShaderPreprocessorConfig* overrides);
 
-	TaskId CreateWhitePipeline(DG::IRenderDevice* device,
+	Task CreateWhitePipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		const AsyncResourceParams* asyncParams = nullptr);
+		const ShaderPreprocessorConfig* overrides);
 }

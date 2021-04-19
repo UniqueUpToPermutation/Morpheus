@@ -415,12 +415,11 @@ namespace Morpheus {
 		}
 	};
 
-	TaskId CreateSpriteBatchPipeline(DG::IRenderDevice* device,
+	Task CreateSpriteBatchPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides,
 		DG::FILTER_TYPE filterType,
-		const AsyncResourceParams* asyncParams = nullptr,
 		ShaderResource* pixelShader = nullptr);
 }

@@ -1,5 +1,5 @@
 #include <Engine/Core.hpp>
-#include <Engine/DefaultRenderer.hpp>
+#include <Engine/EmptyRenderer.hpp>
 
 using namespace Morpheus;
 
@@ -18,59 +18,63 @@ int main(int argc, char** argv) {
 #endif
 	Engine en;
 
-	en.AddComponent<DefaultRenderer>();
+	en.AddComponent<EmptyRenderer>();
 	en.Startup();
-
-	Scene* scene = new Scene();
 
 	auto manager = en.GetResourceManager();
 
-	PipelineResource* pipeline = manager->AsyncLoad<PipelineResource>("White", [](ThreadPool* pool) {
-		std::cout << "Loaded pipeline!" << std::endl;
-	});
+	PipelineResource* pipeline = nullptr;
+	TextureResource* texture = nullptr;
+	MaterialResource* material = nullptr;
+	TextureResource* hdrTexture = nullptr;
+	GeometryResource* geometry = nullptr;
 
-	TextureResource* texture = manager->AsyncLoad<TextureResource>("brick_albedo.png", [](ThreadPool* pool) {
-		std::cout << "Loaded texture!" << std::endl;
-	});
-
-	MaterialResource* material = manager->AsyncLoad<MaterialResource>("material.json", [](ThreadPool* pool) {
-		std::cout << "Loaded material!" << std::endl;
-	});
-
-	TextureResource* hdrTexture = manager->AsyncLoad<TextureResource>("environment.hdr", [](ThreadPool* pool) {
-		std::cout << "Loaded HDR texture!" << std::endl;
-	});
+	// Generate tasks for loading resources
+	Task pipelineTask = manager->LoadTask<PipelineResource>("White", &pipeline);
+	Task textureTask = manager->LoadTask<TextureResource>("brick_albedo.png", &texture);
+	Task materialTask = manager->LoadTask<MaterialResource>("material.json", &material);
+	Task hdrTextureTask = manager->LoadTask<TextureResource>("environment.hdr", &hdrTexture);
 
 	LoadParams<GeometryResource> geoParams;
 	geoParams.mMaterial = material;
 	geoParams.mSource = "matBall.obj";
+	Task geometryTask = manager->LoadTask<GeometryResource>(geoParams, &geometry);
 
-	GeometryResource* geometry = manager->AsyncLoad<GeometryResource>(geoParams, [](ThreadPool* pool) {
-		std::cout << "Loaded geometry!" << std::endl;
-	});
+	// Set callbacks executed when the resources are actually loaded
+	pipeline->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
+		std::cout << "Loaded Pipeline!" << std::endl;
+	}));
 
-	en.InitializeDefaultSystems(scene);
-	scene->Begin();
+	texture->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
+		std::cout << "Loaded Texture!" << std::endl;
+	}));
+
+	material->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
+		std::cout << "Loaded Material!" << std::endl;
+	}));
+
+	hdrTexture->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
+		std::cout << "Loaded HDR Texture!" << std::endl;
+	}));
+
+	geometry->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
+		std::cout << "Loaded Geometry!" << std::endl;
+	}));
+
+	// Submit tasks to the thread pool
+	auto threadPool = en.GetThreadPool();
+	threadPool->Submit(std::move(pipelineTask));
+	threadPool->Submit(std::move(textureTask));
+	threadPool->Submit(std::move(materialTask));
+	threadPool->Submit(std::move(hdrTextureTask));
+	threadPool->Submit(std::move(geometryTask));
 
 	en.CollectGarbage();
 
 	while (en.IsReady()) {
 		en.YieldFor(std::chrono::milliseconds(10));
-		en.Update(scene);
-		
-		auto context = en.GetImmediateContext();
-		auto swapChain = en.GetSwapChain();
-		DG::ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
-		DG::ITextureView* pDSV = swapChain->GetDepthBufferDSV();
-
-		float rgba[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-		context->SetRenderTargets(1, &pRTV, pDSV,
-			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		context->ClearRenderTarget(pRTV, rgba, 
-			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		context->ClearDepthStencil(pDSV, DG::CLEAR_DEPTH_FLAG,
-			1.0f, 0, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
+		en.Update([](double, double) { });
+		en.Render(nullptr);
 		en.RenderUI();
 		en.Present();
 	}

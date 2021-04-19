@@ -3,7 +3,6 @@
 #include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Resources/TextureResource.hpp>
 #include <Engine/Engine.hpp>
-#include <Engine/ThreadTasks.hpp>
 
 #include <fstream>
 
@@ -76,57 +75,24 @@ namespace Morpheus {
 		return mPipeline->GetVertexLayout();
 	}
 
-	void MaterialLoader::Load(ResourceManager* manager,
-		const std::string& source, 
-		const MaterialFactory& prototypeFactory, 
-		MaterialResource* loadinto) {
-		std::cout << "Loading " << source << "..." << std::endl;
-
-		std::ifstream stream;
-		stream.exceptions(std::ios::failbit | std::ios::badbit);
-		stream.open(source);
-
-		nlohmann::json json;
-		stream >> json;
-
-		stream.close();
-
-		std::string path = ".";
-		auto path_cutoff = source.rfind('/');
-		if (path_cutoff != std::string::npos) {
-			path = source.substr(0, path_cutoff);
-		}
-
-		std::string prototype_str;
-		json["Prototype"].get_to(prototype_str);
-
-		prototypeFactory.Spawn(prototype_str, manager, source, path, json, loadinto);
-	}
-
-	TaskId MaterialLoader::AsyncLoad(ResourceManager* manager,
+	Task MaterialLoader::Load(ResourceManager* manager,
 		const std::string& source,
 		const MaterialFactory& prototypeFactory,
-		ThreadPool* pool,
-		TaskBarrierCallback barrierCallback,
 		MaterialResource* loadInto) {
 
-		loadInto->mLoadBarrier.SetCallback(barrierCallback);
-
-		auto queue = pool->GetQueue();
-		PipeId filePipe;
-		TaskId readFile = ReadFileToMemoryJobDeferred(source, &queue, &filePipe);
-		TaskId spawnPrototype = queue.MakeTask(
-			[filePipe, prototypeFactory, manager, 
-			source, pool, loadInto](const TaskParams& params) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = loadInto->GetLoadBarrier();
+		task.mFunc = [manager, source, prototypeFactory, loadInto](const TaskParams& e) {
+			
+			std::ifstream stream;
+			stream.exceptions(std::ios::failbit | std::ios::badbit);
+			stream.open(source);
 
 			nlohmann::json json;
+			stream >> json;
 
-			{
-				auto& value = params.mPool->ReadPipe(filePipe);
-				std::unique_ptr<ReadFileToMemoryResult> 
-					contents(value.cast<ReadFileToMemoryResult*>());
-				json = nlohmann::json::parse(contents->GetData());
-			}
+			stream.close();
 
 			// Create prototype
 			std::string prototype_str;
@@ -139,13 +105,12 @@ namespace Morpheus {
 			}
 
 			MaterialPrototype* prototype;
-			prototypeFactory.SpawnAsync(
-				prototype_str, manager, source,
-				path, json, pool, loadInto);
- 		}, &loadInto->mLoadBarrier);
+			Task spawnTask = prototypeFactory.SpawnTask(prototype_str, manager, source, path, json, loadInto);
+			spawnTask.mAssignedThread = ASSIGN_THREAD_MAIN;
+			e.mQueue->Submit(std::move(spawnTask));
+		};
 
-		queue.Dependencies(spawnPrototype).After(filePipe);
-		return readFile;
+		return task;
 	}
 
 	ResourceCache<MaterialResource>::ResourceCache(ResourceManager* manager) : 
@@ -156,34 +121,8 @@ namespace Morpheus {
 		Clear();
 	}
 
-	IResource* ResourceCache<MaterialResource>::Load(const void* params) {
-		auto params_cast = reinterpret_cast<
-			const LoadParams<MaterialResource>*>(params);
-		auto src = params_cast->mSource;
-		
-		{
-			std::shared_lock<std::shared_mutex> lock(mResourceMapMutex);
-			auto it = mResourceMap.find(src);
-			if (it != mResourceMap.end()) {
-				return it->second;
-			}
-		}
-
-		MaterialResource* resource = new MaterialResource(mManager);
-		MaterialLoader::Load(mManager, src, mPrototypeFactory, resource);
-
-		{
-			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);
-			resource->SetSource(mResourceMap.emplace(src, resource).first);
-		}
-
-		return resource;
-	}
-
-	TaskId ResourceCache<MaterialResource>::AsyncLoadDeferred(const void* params,
-		ThreadPool* threadPool,
-		IResource** output,
-		const TaskBarrierCallback& callback) {
+	Task ResourceCache<MaterialResource>::LoadTask(const void* params,
+		IResource** output) {
 		
 		auto params_cast = reinterpret_cast<
 			const LoadParams<MaterialResource>*>(params);
@@ -194,13 +133,12 @@ namespace Morpheus {
 			auto it = mResourceMap.find(src);
 			if (it != mResourceMap.end()) {
 				*output = it->second;
-				return TASK_NONE;
+				return Task();
 			}
 		}
 
 		MaterialResource* resource = new MaterialResource(mManager);
-		TaskId task = MaterialLoader::AsyncLoad(mManager, src, 
-			mPrototypeFactory, threadPool, callback, resource);
+		Task task = MaterialLoader::Load(mManager, src, mPrototypeFactory, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mResourceMapMutex);

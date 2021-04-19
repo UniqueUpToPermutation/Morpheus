@@ -5,143 +5,120 @@
 #include <Engine/Renderer.hpp>
 
 namespace Morpheus {
-	TaskId CreateSkyboxPipeline(DG::IRenderDevice* device,
+	Task CreateSkyboxPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
 		IRenderer* renderer,
 		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		const AsyncResourceParams* asyncParams) {
+		const ShaderPreprocessorConfig* overrides) {
 
-		LoadParams<ShaderResource> vsParams(
-			"internal/Skybox.vsh",
-			DG::SHADER_TYPE_VERTEX,
-			"Skybox VS",
-			overrides,
-			"main"
-		);
+		ShaderPreprocessorConfig overridesCopy;
+		if (overrides)
+			overridesCopy = *overrides;
 
-		LoadParams<ShaderResource> psParams(
-			"internal/Skybox.psh",
-			DG::SHADER_TYPE_PIXEL,
-			"Skybox PS",
-			overrides,
-			"main"
-		);
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = into->GetLoadBarrier();
+		task.mFunc = [device, manager, renderer, into,
+			overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
+			LoadParams<ShaderResource> vsParams(
+				"internal/Skybox.vsh",
+				DG::SHADER_TYPE_VERTEX,
+				"Skybox VS",
+				&overrides,
+				"main"
+			);
 
-		ShaderResource* skyboxVSResource = nullptr;
-		ShaderResource* skyboxPSResource = nullptr;
-		TaskBarrier* postLoadBarrier = into->GetLoadBarrier();
-		TaskId loadVSTask;
-		TaskId loadPSTask;
+			LoadParams<ShaderResource> psParams(
+				"internal/Skybox.psh",
+				DG::SHADER_TYPE_PIXEL,
+				"Skybox PS",
+				&overrides,
+				"main"
+			);
 
-		if (!asyncParams->bUseAsync) {
-			skyboxVSResource = manager->Load<ShaderResource>(vsParams);
-			skyboxPSResource = manager->Load<ShaderResource>(psParams);
-		} else {
-			loadVSTask = manager->AsyncLoadDeferred<ShaderResource>(vsParams, 
-				&skyboxVSResource);
-			loadPSTask = manager->AsyncLoadDeferred<ShaderResource>(psParams, 
-				&skyboxPSResource);
-		}
+			ShaderResource* skyboxVSResource = nullptr;
+			ShaderResource* skyboxPSResource = nullptr;
 
-		std::function<void()> buildPipeline = [=]() {
-			auto skyboxVS = skyboxVSResource->GetShader();
-			auto skyboxPS = skyboxPSResource->GetShader();
+			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &skyboxVSResource));
+			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &skyboxPSResource));
 
-			auto anisotropyFactor = renderer->GetMaxAnisotropy();
-			auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
+			e.mQueue->YieldUntil(skyboxVSResource->GetLoadBarrier());
+			e.mQueue->YieldUntil(skyboxPSResource->GetLoadBarrier());
 
-			DG::SamplerDesc SamLinearClampDesc
-			{
-				filterType, filterType, filterType, 
-				DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
-			};
+			e.mQueue->Submit([=](const TaskParams& e) {
+				auto skyboxVS = skyboxVSResource->GetShader();
+				auto skyboxPS = skyboxPSResource->GetShader();
 
-			SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
+				auto anisotropyFactor = renderer->GetMaxAnisotropy();
+				auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
 
-			DG::IPipelineState* result = nullptr;
+				DG::SamplerDesc SamLinearClampDesc
+				{
+					filterType, filterType, filterType, 
+					DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
+				};
 
-			// Create Irradiance Pipeline
-			DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
-			DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
-			DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+				SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
 
-			PSODesc.Name         = "Skybox Pipeline";
-			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+				DG::IPipelineState* result = nullptr;
 
-			GraphicsPipeline.NumRenderTargets             = 1;
-			GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
-			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
-			GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
-			GraphicsPipeline.DepthStencilDesc.DepthFunc   = DG::COMPARISON_FUNC_LESS_EQUAL;
-			GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
+				// Create Irradiance Pipeline
+				DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+				DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+				DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
 
-			// Number of MSAA samples
-			GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
+				PSODesc.Name         = "Skybox Pipeline";
+				PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
 
-			GraphicsPipeline.InputLayout.NumElements = 0;
+				GraphicsPipeline.NumRenderTargets             = 1;
+				GraphicsPipeline.RTVFormats[0]                = renderer->GetIntermediateFramebufferFormat();
+				GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+				GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
+				GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
+				GraphicsPipeline.DepthStencilDesc.DepthFunc   = DG::COMPARISON_FUNC_LESS_EQUAL;
+				GraphicsPipeline.DSVFormat 					  = renderer->GetIntermediateDepthbufferFormat();
 
-			PSOCreateInfo.pVS = skyboxVS;
-			PSOCreateInfo.pPS = skyboxPS;
+				// Number of MSAA samples
+				GraphicsPipeline.SmplDesc.Count = (DG::Uint8)renderer->GetMSAASamples();
 
-			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
-			// clang-format off
-			DG::ShaderResourceVariableDesc Vars[] = 
-			{
-				{DG::SHADER_TYPE_PIXEL, "mTexture", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
-			};
-			// clang-format on
-			PSODesc.ResourceLayout.NumVariables = _countof(Vars);
-			PSODesc.ResourceLayout.Variables    = Vars;
+				GraphicsPipeline.InputLayout.NumElements = 0;
 
-			// clang-format off
-			DG::ImmutableSamplerDesc ImtblSamplers[] =
-			{
-				{DG::SHADER_TYPE_PIXEL, "mTexture_sampler", SamLinearClampDesc}
-			};
-			// clang-format on
-			PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
-			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
-			
-			device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
-			result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
+				PSOCreateInfo.pVS = skyboxVS;
+				PSOCreateInfo.pPS = skyboxPS;
 
-			skyboxVSResource->Release();
-			skyboxPSResource->Release();
+				PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+				// clang-format off
+				DG::ShaderResourceVariableDesc Vars[] = 
+				{
+					{DG::SHADER_TYPE_PIXEL, "mTexture", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
+				};
+				// clang-format on
+				PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+				PSODesc.ResourceLayout.Variables    = Vars;
 
-			into->SetAll(
-				result,
-				GenerateSRBs(result, renderer),
-				VertexLayout(),
-				InstancingType::NONE);
+				// clang-format off
+				DG::ImmutableSamplerDesc ImtblSamplers[] =
+				{
+					{DG::SHADER_TYPE_PIXEL, "mTexture_sampler", SamLinearClampDesc}
+				};
+				// clang-format on
+				PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
+				PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
+				
+				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
+				result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
+
+				skyboxVSResource->Release();
+				skyboxPSResource->Release();
+
+				into->SetAll(
+					result,
+					GenerateSRBs(result, renderer),
+					VertexLayout(),
+					InstancingType::NONE);
+			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
 		};
 
-		if (!asyncParams->bUseAsync) {
-			buildPipeline(); // Build pipeline on the current thread
-			return TASK_NONE;
-		} else {
-			auto queue = asyncParams->mThreadPool->GetQueue();
-
-			TaskId buildPipelineTask = queue.MakeTask([buildPipeline](const TaskParams& params) { 
-				buildPipeline();
-			}, postLoadBarrier, 0);
-
-			// Schedule the loading of the build pipeline task
-			queue.Dependencies(buildPipelineTask)
-				.After(skyboxVSResource->GetLoadBarrier())
-				.After(skyboxPSResource->GetLoadBarrier());
-
-			postLoadBarrier->SetCallback(asyncParams->mCallback);
-
-			// Create a deferred task to trigger the loading of the vertex and pixel shaders
-			return queue.MakeTask([loadVSTask, loadPSTask](const TaskParams& params) {
-				auto queue = params.mPool->GetQueue();
-
-				// Load vertex and pixel shaders
-				queue.Schedule(loadVSTask);
-				queue.Schedule(loadPSTask);
-			});
-		}
+		return task;
 	}
 }

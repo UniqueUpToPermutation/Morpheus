@@ -3,8 +3,6 @@
 #include <Engine/Resources/ResourceManager.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 
-#include <Engine/ThreadTasks.hpp>
-
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -57,37 +55,23 @@ namespace Morpheus {
 		return this;
 	}
 
-	void GeometryLoader::Load(DG::IRenderDevice* device, 
-		const LoadParams<GeometryResource>& params, 
-		GeometryResource* resource) {
-		RawGeometry geo(params);
-		geo.SpawnOnGPU(device, resource);
-	}
-
-	TaskId GeometryLoader::LoadAsync(DG::IRenderDevice* device, 
-		ThreadPool* pool,
+	Task GeometryLoader::LoadTask(DG::IRenderDevice* device, 
 		const LoadParams<GeometryResource>& params,
-		const TaskBarrierCallback& callback,
 		GeometryResource* loadinto) {
 
-		auto raw = std::make_shared<RawGeometry>();
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = loadinto->GetLoadBarrier();
+		task.mFunc = [device, params, loadinto](const TaskParams& e) {
+			auto raw = std::make_unique<RawGeometry>();
+			raw->LoadTask(params)(e);
 
-		auto taskId = raw->LoadAsyncDeferred(params, pool);
+			e.mQueue->Submit([device, loadinto, raw = std::move(raw)](const TaskParams& params) mutable {
+				raw->SpawnOnGPU(device, loadinto);
+			}, TaskType::RENDER, loadinto->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		};
 
-		auto queue = pool->GetQueue();
-		auto rawBarrier = raw->GetLoadBarrier();
-		auto gpuSpawnBarrier = loadinto->GetLoadBarrier();
-
-		gpuSpawnBarrier->SetCallback(callback);
-
-		TaskId rawToGpu = queue.MakeTask([raw, device, loadinto](const TaskParams& params) {
-			raw->SpawnOnGPU(device, loadinto);
-			raw->Clear();
-		}, gpuSpawnBarrier);
-
-		queue.Dependencies(rawToGpu).After(rawBarrier);
-
-		return taskId;
+		return task;
 	}
 
 	void ResourceCache<GeometryResource>::Clear() {
@@ -107,35 +91,9 @@ namespace Morpheus {
 		Clear();
 	}
 
-	IResource* ResourceCache<GeometryResource>::Load(const void* params) {
-
+	Task ResourceCache<GeometryResource>::LoadTask(const void* params,
+		IResource** output) {
 		auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
-		
-		decltype(mResourceMap.find(params_cast->mSource)) it;
-
-		{
-			std::shared_lock<std::shared_mutex> lock(mMutex);
-			it = mResourceMap.find(params_cast->mSource);
-			if (it != mResourceMap.end()) 
-				return it->second;
-		}
-
-		auto resource = new GeometryResource(mManager);
-		mLoader.Load(mManager->GetParent()->GetDevice(), *params_cast, resource);
-
-		{
-			std::unique_lock<std::shared_mutex> lock(mMutex);
-			resource->mIterator = mResourceMap.emplace(params_cast->mSource, resource).first;
-		}
-	
-		return resource;
-	}
-
-	TaskId ResourceCache<GeometryResource>::AsyncLoadDeferred(const void* params,
-		ThreadPool* threadPool,
-		IResource** output,
-		const TaskBarrierCallback& callback) {
-				auto params_cast = reinterpret_cast<const LoadParams<GeometryResource>*>(params);
 		
 		decltype(mResourceMap.find(params_cast->mSource)) it;
 
@@ -144,13 +102,12 @@ namespace Morpheus {
 			it = mResourceMap.find(params_cast->mSource);
 			if (it != mResourceMap.end()) {
 				*output = it->second;
-				return TASK_NONE;
+				return Task();
 			}
 		}
 
 		auto resource = new GeometryResource(mManager);
-		TaskId loadGeoTask = mLoader.LoadAsync(mManager->GetParent()->GetDevice(),
-			threadPool, *params_cast, callback, resource);
+		Task loadGeoTask = mLoader.LoadTask(mManager->GetParent()->GetDevice(), *params_cast, resource);
 
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);

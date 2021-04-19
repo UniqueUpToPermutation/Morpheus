@@ -24,8 +24,7 @@ namespace Morpheus {
 		Clear();
 	}
 
-	TaskId ResourceCache<TextureResource>::ActuallyLoad(const void* params,
-		const AsyncResourceParams& asyncParams,
+	Task ResourceCache<TextureResource>::LoadTask(const void* params,
 		IResource** output) {
 
 		auto params_cast = reinterpret_cast<const LoadParams<TextureResource>*>(params);
@@ -36,39 +35,23 @@ namespace Morpheus {
 
 			if (it != mResourceMap.end()) {
 				*output = it->second;
-				return TASK_NONE;
+				return Task();
 			}
 		} 
 
 		auto result = new TextureResource(mManager);
-		TaskId taskId;
-
-		if (asyncParams.bUseAsync) {
+		Task task;
+		task.mType = TaskType::FILE_IO;
+		task.mSyncPoint = result->GetLoadBarrier();
+		task.mFunc = [this, result, params = *params_cast](const TaskParams& e) {
 			auto raw = std::make_shared<RawTexture>();
+			raw->LoadTask(params)(e);
 
-			taskId = raw->LoadAsyncDeferred(*params_cast, asyncParams.mThreadPool);
-
-			auto device = mManager->GetParent()->GetDevice();
-			auto queue = asyncParams.mThreadPool->GetQueue();
-			auto rawBarrier = raw->GetLoadBarrier();
-			auto gpuSpawnBarrier = result->GetLoadBarrier();
-
-			gpuSpawnBarrier->SetCallback(asyncParams.mCallback);
-
-			TaskId rawToGpu = queue.MakeTask([raw, device, result](const TaskParams& params) {
-				DG::ITexture* tex = raw->SpawnOnGPU(device);
+			e.mQueue->Submit([this, result, raw = std::move(raw)](const TaskParams& params) mutable {
+				DG::ITexture* tex = raw->SpawnOnGPU(mManager->GetParent()->GetDevice());
 				result->mTexture = tex;
-				raw->Clear();
-			}, gpuSpawnBarrier);
-
-			queue.Dependencies(rawToGpu).After(rawBarrier);
-
-		} else {
-			RawTexture raw(*params_cast);
-			DG::ITexture* tex = raw.SpawnOnGPU(mManager->GetParent()->GetDevice());
-			result->mTexture = tex;
-			taskId = TASK_NONE;
-		}
+			}, TaskType::RENDER, result->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		};
 		
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
@@ -76,30 +59,7 @@ namespace Morpheus {
 		}
 
 		*output = result;
-		return taskId;
-	}
-
-	IResource* ResourceCache<TextureResource>::Load(const void* params) {
-		AsyncResourceParams asyncParams;
-		asyncParams.bUseAsync = false;
-
-		IResource* result = nullptr;
-		ActuallyLoad(params, asyncParams, &result);
-		
-		return result;
-	}
-
-	TaskId ResourceCache<TextureResource>::AsyncLoadDeferred(const void* params, 
-		ThreadPool* pool,
-		IResource** resource,
-		const TaskBarrierCallback& callback) {
-
-		AsyncResourceParams asyncParams;
-		asyncParams.bUseAsync = true;
-		asyncParams.mThreadPool = pool;
-		asyncParams.mCallback = callback;
-
-		return ActuallyLoad(params, asyncParams, resource);
+		return task;
 	}
 
 	void ResourceCache<TextureResource>::Add(TextureResource* tex, const std::string& source) {
