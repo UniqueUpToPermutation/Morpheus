@@ -24,9 +24,7 @@ namespace Morpheus {
 		bool bSourced = false;
 
 	public:
-		inline TextureResource(ResourceManager* manager, DG::ITexture* texture) :
-			IResource(manager), mTexture(texture) {
-		}
+		inline TextureResource(ResourceManager* manager, DG::ITexture* texture);
 
 		inline TextureResource(ResourceManager* manager) :
 			IResource(manager), mTexture(nullptr) {
@@ -35,10 +33,6 @@ namespace Morpheus {
 		~TextureResource();
 
 		TextureResource* ToTexture() override;
-
-		inline bool IsReady() const {
-			return mTexture != nullptr;
-		}
 
 		inline DG::ITexture* GetTexture() {
 			return mTexture;
@@ -97,6 +91,12 @@ namespace Morpheus {
 		friend class TextureLoader;
 		friend class ResourceCache<TextureResource>;
 	};
+
+	TextureResource::TextureResource(ResourceManager* manager, DG::ITexture* texture) :
+		IResource(manager), mTexture(texture) {
+		SetLoaded(true);
+		mBarrier.mOut.SetFinishedUnsafe(true); // Barrier can't be in use yet, this is safe
+	}
 
 	void SavePng(DG::ITexture* texture, const std::string& path, 
 		DG::IDeviceContext* context, DG::IRenderDevice* device, bool bSaveMips = false);

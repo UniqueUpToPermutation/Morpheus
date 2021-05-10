@@ -48,7 +48,8 @@ namespace Morpheus {
 		// The intensity of the texture
 		float mIntensity = 1.0f;
 
-		TaskSyncPoint mBarrier;
+		TaskBarrier mBarrier;
+		std::atomic<bool> bIsLoaded;
 
 		Task LoadAsyncDeferred(const LoadParams<TextureResource>& params);
 		Task LoadPngAsyncDeferred(const LoadParams<TextureResource>& params);
@@ -77,7 +78,7 @@ namespace Morpheus {
 			return mDesc.Depth;
 		}
 
-		inline TaskSyncPoint* GetLoadBarrier() {
+		inline TaskBarrier* GetLoadBarrier() {
 			return &mBarrier;
 		}
 
@@ -99,6 +100,14 @@ namespace Morpheus {
 
 		inline const std::vector<uint8_t>& GetData() const {
 			return mData;
+		}
+
+		inline bool IsLoaded() const {
+			return bIsLoaded;
+		}
+
+		inline void SetLoaded(bool value) {
+			bIsLoaded = value;
 		}
 
 		inline RawTexture() {
@@ -124,6 +133,7 @@ namespace Morpheus {
 			mDesc(desc),
 			mData(data),
 			mSubDescs(subDescs) {
+			bIsLoaded = false;
 		}
 
 		inline RawTexture(const DG::TextureDesc& desc, 
@@ -132,6 +142,7 @@ namespace Morpheus {
 			mDesc(desc),
 			mData(data),
 			mSubDescs(subDescs) {
+			bIsLoaded = false;
 		}
 
 		void Set(const DG::TextureDesc& desc, std::vector<uint8_t>&& data,

@@ -140,11 +140,13 @@ namespace Morpheus {
 		ResourceManager* mManager;
 
 	protected:
-		TaskSyncPoint mLoadSync;
+		TaskBarrier mBarrier;
+		std::atomic<bool> bIsLoaded;
 
 	public:
 		IResource(ResourceManager* manager) : 
 			mManager(manager) {
+			bIsLoaded = false;
 		}
 
 		virtual ~IResource() {
@@ -174,14 +176,23 @@ namespace Morpheus {
 		virtual CollisionShapeResource* ToCollisionShape();
 		virtual ShaderResource* ToShader();
 
+		inline void SetLoaded(bool value) {
+			bIsLoaded = value;
+		}
+
 		inline bool IsLoaded() const {
-			return mLoadSync.IsFinished();
+			return bIsLoaded;
 		}
 
 		// A barrier that is invoked when the resource is loaded.
-		inline TaskSyncPoint* GetLoadBarrier() {
-			return &mLoadSync;
+		inline TaskBarrier* GetLoadBarrier() {
+			return &mBarrier;
 		}
+		
+		inline const TaskBarrier* GetLoadBarrier() const {
+			return &mBarrier;
+		}
+
 		inline ResourceManager* GetManager() {
 			return mManager;
 		}

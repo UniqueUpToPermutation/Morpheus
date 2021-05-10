@@ -835,7 +835,8 @@ namespace Morpheus
 
 	void Engine::Update(Scene* activeScene) {
 		update_callback_t updater = [activeScene](double CurrTime, double ElapsedTime) {
-			activeScene->Update(CurrTime, ElapsedTime);
+			if (activeScene)
+				activeScene->Update(CurrTime, ElapsedTime);
 		};
 		Update(updater);
 	}

@@ -233,20 +233,12 @@ namespace Morpheus {
 			return result;
 		}
 
-		inline void YieldUntilFinished() {
-			mThreadPool.YieldUntilFinished();
+		inline void YieldUntilEmpty() {
+			mThreadPool.YieldUntilEmpty();
 		}
-		inline void YieldUntil(const TaskSyncPoint* barrier) {
-			mThreadPool.YieldUntil(barrier);
-		}
-		inline void YieldUntil(const TaskSyncPoint& barrier) {
-			mThreadPool.YieldUntil(barrier);
-		}
-		inline void YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
-			mThreadPool.YieldFor(duration);
-		}
-		inline void YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
-			mThreadPool.YieldUntil(time);
+
+		inline void YieldFor(const std::chrono::high_resolution_clock::duration& time) {
+			mThreadPool.YieldFor(time);
 		}
 
 		DG::float4x4 GetSurfacePretransformMatrix(const DG::float3& f3CameraViewAxis) const;

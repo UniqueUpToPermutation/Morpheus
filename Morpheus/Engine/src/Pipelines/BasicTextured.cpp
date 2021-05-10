@@ -15,35 +15,51 @@ namespace Morpheus {
 		if (overrides)
 			overridesCopy = *overrides;
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = into->GetLoadBarrier();
-		task.mFunc = [device, manager, renderer, into, overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
-			LoadParams<ShaderResource> vsShaderParams("internal/BasicTextured.vsh", 
-				DG::SHADER_TYPE_VERTEX,
-				"Basic Textured VS",
-				&overrides,
-				"main");
+		struct Data {
+			ShaderResource* mBasicTexturedVSResource = nullptr;
+			ShaderResource* mBasicTexturedPSResource = nullptr;
 
-			LoadParams<ShaderResource> psShaderParams("internal/BasicTextured.psh",
-				DG::SHADER_TYPE_PIXEL,
-				"Basic Textured PS",
-				&overrides,
-				"main");
+			~Data() {
+				if (mBasicTexturedVSResource)
+					mBasicTexturedVSResource->Release();
+				if (mBasicTexturedPSResource)
+					mBasicTexturedPSResource->Release();
+			}
+		};
 
-			ShaderResource* basicTexturedVSResource = nullptr;
-			ShaderResource* basicTexturedPSResource = nullptr;
+		Task task([device, manager, renderer, into, 
+			overrides = std::move(overridesCopy), data = Data()](const TaskParams& e) mutable {
 
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsShaderParams, &basicTexturedVSResource));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psShaderParams, &basicTexturedPSResource));
+			if (e.mTask->SubTask()) {
+				LoadParams<ShaderResource> vsShaderParams("internal/BasicTextured.vsh", 
+					DG::SHADER_TYPE_VERTEX,
+					"Basic Textured VS",
+					&overrides,
+					"main");
 
-			e.mQueue->YieldUntil(basicTexturedPSResource->GetLoadBarrier());
-			e.mQueue->YieldUntil(basicTexturedPSResource->GetLoadBarrier());
+				LoadParams<ShaderResource> psShaderParams("internal/BasicTextured.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Basic Textured PS",
+					&overrides,
+					"main");
+
+				Task vsLoad = manager->LoadTask<ShaderResource>(vsShaderParams, &data.mBasicTexturedVSResource);
+				Task psLoad = manager->LoadTask<ShaderResource>(psShaderParams, &data.mBasicTexturedPSResource);
+
+				e.mQueue->AdoptAndTrigger(std::move(vsLoad));
+				e.mQueue->AdoptAndTrigger(std::move(psLoad));
+
+				if (e.mTask->In().Lock()
+					.Connect(&data.mBasicTexturedVSResource->GetLoadBarrier()->mOut)
+					.Connect(&data.mBasicTexturedPSResource->GetLoadBarrier()->mOut)
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
 
 			// Build pipeline on main thread
-			e.mQueue->Submit([=](const TaskParams& e) {
-				auto basicTexturedVS = basicTexturedVSResource->GetShader();
-				auto basicTexturedPS = basicTexturedPSResource->GetShader();
+			if (e.mTask->SubTask()) {
+				auto basicTexturedVS = data.mBasicTexturedVSResource->GetShader();
+				auto basicTexturedPS = data.mBasicTexturedPSResource->GetShader();
 
 				auto anisotropyFactor = renderer->GetMaxAnisotropy();
 				auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
@@ -114,9 +130,6 @@ namespace Morpheus {
 				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 				result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
 
-				basicTexturedVSResource->Release();
-				basicTexturedPSResource->Release();
-
 				VertexLayout layout;
 				layout.mElements = std::move(layoutElements);
 				layout.mPosition = 0;
@@ -131,8 +144,13 @@ namespace Morpheus {
 					InstancingType::INSTANCED_STATIC_TRANSFORMS);
 
 				into->AddView<BasicTexturedPipelineView>(into);
-			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-		};
+			}
+
+			return TaskResult::FINISHED;
+		}, 
+		"Upload Basic Textured Pipeline", 
+		TaskType::UNSPECIFIED, 
+		ASSIGN_THREAD_MAIN);
 
 		return task;
 	}

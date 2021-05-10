@@ -293,57 +293,65 @@ namespace Morpheus {
 		DG::FILTER_TYPE filterType,
 		ShaderResource* pixelShader) {
 
-		Task task;
-		task.mSyncPoint = into->GetLoadBarrier();
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [device, manager, renderer, into, 
-			overrides, filterType, pixelShader](const TaskParams& e) {
+		struct Data {
+			ShaderResource* mPS = nullptr;
+			ShaderResource* mGS = nullptr;
+			ShaderResource* mVS = nullptr;
 
-			LoadParams<ShaderResource> vsParams(
-				"internal/SpriteBatch.vsh",
-				DG::SHADER_TYPE_VERTEX,
-				"Sprite Batch VS",
-				overrides,
-				"main"
-			);
+			~Data() {
+				if (mPS)
+					mPS->Release();
+				if (mGS)
+					mGS->Release();
+				if (mVS)
+					mVS->Release();
+			}
+		};
 
-			LoadParams<ShaderResource> gsParams(
-				"internal/SpriteBatch.gsh",
-				DG::SHADER_TYPE_GEOMETRY,
-				"Sprite Batch GS",
-				overrides,
-				"main"
-			);
+		Task task([device, manager, renderer, into, 
+			overrides, filterType, pixelShader, data = Data()](const TaskParams& e) mutable {
+			
+			if (e.mTask->SubTask()) {
+				LoadParams<ShaderResource> vsParams(
+					"internal/SpriteBatch.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Sprite Batch VS",
+					overrides,
+					"main"
+				);
 
-			LoadParams<ShaderResource> psParams(
-				"internal/SpriteBatch.psh",
-				DG::SHADER_TYPE_PIXEL,
-				"Sprite Batch PS",
-				overrides,
-				"main"
-			);
+				LoadParams<ShaderResource> gsParams(
+					"internal/SpriteBatch.gsh",
+					DG::SHADER_TYPE_GEOMETRY,
+					"Sprite Batch GS",
+					overrides,
+					"main"
+				);
 
-			ShaderResource *sbVertex = nullptr;
-			ShaderResource *sbGeo = nullptr;
-			ShaderResource *sbPixel = nullptr;
+				LoadParams<ShaderResource> psParams(
+					"internal/SpriteBatch.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Sprite Batch PS",
+					overrides,
+					"main"
+				);
 
-			TaskSyncPoint* postLoadBarrier = into->GetLoadBarrier();
-			Task loadVSTask;
-			Task loadGSTask;
-			Task loadPSTask;
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(vsParams, &data.mVS));
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(gsParams, &data.mGS));
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(psParams, &data.mPS));
 
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &sbVertex));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(gsParams, &sbGeo));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &sbPixel));
+				if (e.mTask->In().Lock()
+					.Connect(&data.mVS->GetLoadBarrier()->mOut)
+					.Connect(&data.mPS->GetLoadBarrier()->mOut)
+					.Connect(&data.mGS->GetLoadBarrier()->mOut)
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
 
-			e.mQueue->YieldUntil(sbVertex->GetLoadBarrier());
-			e.mQueue->YieldUntil(sbGeo->GetLoadBarrier());
-			e.mQueue->YieldUntil(sbPixel->GetLoadBarrier());
-
-			e.mQueue->Submit([=](const TaskParams& e) {
-				auto batchVS = sbVertex->GetShader();
-				auto batchGS = sbGeo->GetShader();
-				auto batchPS = sbPixel->GetShader();
+			if (e.mTask->SubTask()) {
+				auto batchVS = data.mVS->GetShader();
+				auto batchGS = data.mGS->GetShader();
+				auto batchPS = data.mPS->GetShader();
 
 				DG::SamplerDesc SamDesc
 				{
@@ -432,10 +440,6 @@ namespace Morpheus {
 				if (globalsVar)
 					globalsVar->Set(renderer->GetGlobalsBuffer());
 
-				sbVertex->Release();
-				sbGeo->Release();
-				sbPixel->Release();
-
 				VertexLayout layout;
 				layout.mElements = std::move(layoutElements);
 				layout.mPosition = 0;
@@ -448,9 +452,13 @@ namespace Morpheus {
 					srbs,
 					layout,
 					InstancingType::NONE);
+			}
 
-			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-		};
+			return TaskResult::FINISHED;
+		},
+		"Sprite Batch Upload",
+		TaskType::UNSPECIFIED,
+		ASSIGN_THREAD_MAIN);
 
 		return task;
 	}

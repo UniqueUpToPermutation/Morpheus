@@ -1,5 +1,6 @@
 #include <Engine/Core.hpp>
 #include <Engine/EmptyRenderer.hpp>
+#include <Engine/Loading.hpp>
 
 using namespace Morpheus;
 
@@ -19,7 +20,11 @@ int main(int argc, char** argv) {
 	Engine en;
 
 	en.AddComponent<EmptyRenderer>();
-	en.Startup();
+
+	EngineParams params;
+	params.mThreads.mThreadCount = 1;
+
+	en.Startup(params);
 
 	auto manager = en.GetResourceManager();
 
@@ -40,34 +45,25 @@ int main(int argc, char** argv) {
 	geoParams.mSource = "matBall.obj";
 	Task geometryTask = manager->LoadTask<GeometryResource>(geoParams, &geometry);
 
-	// Set callbacks executed when the resources are actually loaded
-	pipeline->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
-		std::cout << "Loaded Pipeline!" << std::endl;
-	}));
-
-	texture->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
-		std::cout << "Loaded Texture!" << std::endl;
-	}));
-
-	material->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
-		std::cout << "Loaded Material!" << std::endl;
-	}));
-
-	hdrTexture->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
-		std::cout << "Loaded HDR Texture!" << std::endl;
-	}));
-
-	geometry->GetLoadBarrier()->SetCallback(Task([](const TaskParams& e) {
-		std::cout << "Loaded Geometry!" << std::endl;
-	}));
-
 	// Submit tasks to the thread pool
 	auto threadPool = en.GetThreadPool();
-	threadPool->Submit(std::move(pipelineTask));
-	threadPool->Submit(std::move(textureTask));
-	threadPool->Submit(std::move(materialTask));
-	threadPool->Submit(std::move(hdrTextureTask));
-	threadPool->Submit(std::move(geometryTask));
+	threadPool->AdoptAndTrigger(std::move(pipelineTask));
+	threadPool->AdoptAndTrigger(std::move(textureTask));
+	threadPool->AdoptAndTrigger(std::move(materialTask));
+	threadPool->AdoptAndTrigger(std::move(hdrTextureTask));
+	threadPool->AdoptAndTrigger(std::move(geometryTask));
+
+	std::vector<IResource*> resourcesToLoad = {
+		pipeline,
+		texture,
+		material, 
+		hdrTexture,
+		geometry
+	};
+
+	LoadingScreen(&en, resourcesToLoad);
+
+	std::cout << "Everything loaded!" << std::endl;
 
 	en.CollectGarbage();
 

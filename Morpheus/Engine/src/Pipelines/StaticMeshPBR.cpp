@@ -16,70 +16,83 @@ namespace Morpheus {
 		if (overrides)
 			overridesCopy = *overrides;
 
-		Task task;
-		task.mSyncPoint = into->GetLoadBarrier();
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [device, manager, renderer, into, 
-			overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
+		struct Data {
+			bool bUseSH;
+			bool bUseIBL;
+			ShaderResource* mPbrStaticMeshVSResource;
+			ShaderResource* mPbrStaticMeshPSResource;
 
-			bool bUseSH = renderer->GetUseSHIrradiance();
-			bool bUseIBL = renderer->GetUseIBL();
-
-			auto itUseIBL = overrides.mDefines.find("USE_IBL");
-			if (itUseIBL != overrides.mDefines.end()) {
-				if (itUseIBL->second == "0" || itUseIBL->second == "false") {
-					bUseIBL = false;
-				} else if (itUseIBL->second == "1" || itUseIBL->second == "true") {
-					bUseIBL = true;
-				} else {
-					throw std::runtime_error("USE_IBL macro has invalid value!");
-				}
-			} else {
-				overrides.mDefines["USE_IBL"] = bUseIBL ? "1" : "0";
+			~Data() {
+				if (mPbrStaticMeshVSResource)
+					mPbrStaticMeshVSResource->Release();
+				if (mPbrStaticMeshPSResource)
+					mPbrStaticMeshPSResource->Release();
 			}
+		};
 
-			auto itUseSH = overrides.mDefines.find("USE_SH");
-			if (itUseSH != overrides.mDefines.end()) {
-				if (itUseSH->second == "0" || itUseSH->second == "false") {
-					bUseSH = false;
-				} else if (itUseSH->second == "1" || itUseSH->second == "true") {
-					bUseSH = true;
+		Task task([device, manager, renderer, into, 
+			overrides = std::move(overridesCopy), data = Data()](const TaskParams& e) mutable {
+
+			if (e.mTask->SubTask()) {
+				data.bUseSH = renderer->GetUseSHIrradiance();
+				data.bUseIBL = renderer->GetUseIBL();
+
+				auto itUseIBL = overrides.mDefines.find("USE_IBL");
+				if (itUseIBL != overrides.mDefines.end()) {
+					if (itUseIBL->second == "0" || itUseIBL->second == "false") {
+						data.bUseIBL = false;
+					} else if (itUseIBL->second == "1" || itUseIBL->second == "true") {
+						data.bUseIBL = true;
+					} else {
+						throw std::runtime_error("USE_IBL macro has invalid value!");
+					}
 				} else {
-					throw std::runtime_error("USE_IBL macro has invalid value!");
+					overrides.mDefines["USE_IBL"] = data.bUseIBL ? "1" : "0";
 				}
-			} else {
-				overrides.mDefines["USE_SH"] = bUseSH ? "1" : "0";
+
+				auto itUseSH = overrides.mDefines.find("USE_SH");
+				if (itUseSH != overrides.mDefines.end()) {
+					if (itUseSH->second == "0" || itUseSH->second == "false") {
+						data.bUseSH = false;
+					} else if (itUseSH->second == "1" || itUseSH->second == "true") {
+						data.bUseSH = true;
+					} else {
+						throw std::runtime_error("USE_IBL macro has invalid value!");
+					}
+				} else {
+					overrides.mDefines["USE_SH"] = data.bUseSH ? "1" : "0";
+				}
+
+				LoadParams<ShaderResource> vsParams(
+					"internal/StaticMesh.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"StaticMesh VS",
+					&overrides,
+					"main"
+				);
+
+				LoadParams<ShaderResource> psParams(
+					"internal/PBR.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"PBR PS",
+					&overrides,
+					"main"
+				);
+
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(vsParams, &data.mPbrStaticMeshVSResource));
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(psParams, &data.mPbrStaticMeshPSResource));
+
+				if (e.mTask->In().Lock()
+					.Connect(&data.mPbrStaticMeshVSResource->GetLoadBarrier()->mOut)
+					.Connect(&data.mPbrStaticMeshPSResource->GetLoadBarrier()->mOut)
+					.ShouldWait())
+					return TaskResult::WAITING;
 			}
-
-			LoadParams<ShaderResource> vsParams(
-				"internal/StaticMesh.vsh",
-				DG::SHADER_TYPE_VERTEX,
-				"StaticMesh VS",
-				&overrides,
-				"main"
-			);
-
-			LoadParams<ShaderResource> psParams(
-				"internal/PBR.psh",
-				DG::SHADER_TYPE_PIXEL,
-				"PBR PS",
-				&overrides,
-				"main"
-			);
-
-			ShaderResource* pbrStaticMeshVSResource = nullptr;
-			ShaderResource* pbrStaticMeshPSResource = nullptr;
-
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &pbrStaticMeshVSResource));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &pbrStaticMeshPSResource));
-
-			e.mQueue->YieldUntil(pbrStaticMeshVSResource->GetLoadBarrier());
-			e.mQueue->YieldUntil(pbrStaticMeshPSResource->GetLoadBarrier());
 
 			// Spawn pipeline on main thread
-			e.mQueue->Submit([=](const TaskParams& e) {
-				auto pbrStaticMeshVS = pbrStaticMeshVSResource->GetShader();
-				auto pbrStaticMeshPS = pbrStaticMeshPSResource->GetShader();
+			if (e.mTask->SubTask()) {
+				auto pbrStaticMeshVS = data.mPbrStaticMeshVSResource->GetShader();
+				auto pbrStaticMeshPS = data.mPbrStaticMeshPSResource->GetShader();
 
 				auto anisotropyFactor = renderer->GetMaxAnisotropy();
 				auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
@@ -166,8 +179,8 @@ namespace Morpheus {
 					"mNormalMap", 
 					DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC});
 
-				if (bUseIBL) {
-					if (bUseSH) {
+				if (data.bUseIBL) {
+					if (data.bUseSH) {
 						Vars.emplace_back(DG::ShaderResourceVariableDesc{
 							DG::SHADER_TYPE_PIXEL, 
 							"IrradianceSH", 
@@ -209,8 +222,8 @@ namespace Morpheus {
 					DG::SHADER_TYPE_PIXEL, "mNormalMap_sampler", SamLinearWrapDesc
 				});
 
-				if (bUseIBL) {
-					if (!bUseSH) {
+				if (data.bUseIBL) {
+					if (!data.bUseSH) {
 						ImtblSamplers.emplace_back(DG::ImmutableSamplerDesc{
 							DG::SHADER_TYPE_PIXEL, "mIrradianceMap_sampler", SamLinearClampDesc
 						});
@@ -236,14 +249,11 @@ namespace Morpheus {
 				if (globalsVar)
 					globalsVar->Set(renderer->GetGlobalsBuffer());
 
-				if (bUseIBL) {
+				if (data.bUseIBL) {
 					auto lutVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT");
 					if (lutVar)
 						lutVar->Set(renderer->GetLUTShaderResourceView());
 				}
-
-				pbrStaticMeshVSResource->Release();
-				pbrStaticMeshPSResource->Release();
 
 				VertexLayout layout;
 				layout.mElements = std::move(layoutElements);
@@ -261,8 +271,13 @@ namespace Morpheus {
 
 				into->AddView<ImageBasedLightingView>(into);
 				into->AddView<StaticMeshPBRPipelineView>(into);
-			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-		};
+			}
+
+			return TaskResult::FINISHED;
+		},
+		"Upload Static Mesh PBR Pipeline",
+		TaskType::UNSPECIFIED,
+		ASSIGN_THREAD_MAIN);
 			
 		return task;
 	}

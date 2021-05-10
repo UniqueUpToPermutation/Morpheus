@@ -15,39 +15,51 @@ namespace Morpheus {
 		if (overrides)
 			overridesCopy = *overrides;
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = into->GetLoadBarrier();
-		task.mFunc = [device, manager, renderer, into, 
-			overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
-			LoadParams<ShaderResource> vsParams(
-				"internal/StaticMesh.vsh",
-				DG::SHADER_TYPE_VERTEX,
-				"Static Mesh VS",
-				&overrides,
-				"main"
-			);
+		struct Data {
+			ShaderResource* mWhiteVSResource = nullptr;
+			ShaderResource* mWhitePSResource = nullptr;
 
-			LoadParams<ShaderResource> psParams(
-				"internal/White.psh",
-				DG::SHADER_TYPE_PIXEL,
-				"Basic Textured PS",
-				&overrides,
-				"main"
-			);
+			~Data() {
+				if (mWhiteVSResource)
+					mWhiteVSResource->Release();
+				if (mWhitePSResource)
+					mWhitePSResource->Release();
+			}
+		};
 
-			ShaderResource* whiteVSResource = nullptr;
-			ShaderResource* whitePSResource = nullptr;
+		Task task([device, manager, renderer, into, 
+			overrides = std::move(overridesCopy), data = Data()](const TaskParams& e) mutable {
 
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &whiteVSResource));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &whitePSResource));
+			if (e.mTask->SubTask()) {
+				LoadParams<ShaderResource> vsParams(
+					"internal/StaticMesh.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Static Mesh VS",
+					&overrides,
+					"main"
+				);
 
-			e.mQueue->YieldUntil(whiteVSResource->GetLoadBarrier());
-			e.mQueue->YieldUntil(whitePSResource->GetLoadBarrier());
+				LoadParams<ShaderResource> psParams(
+					"internal/White.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Basic Textured PS",
+					&overrides,
+					"main"
+				);
 
-			e.mQueue->Submit([=](const TaskParams& e) {
-				auto whiteVS = whiteVSResource->GetShader();
-				auto whitePS = whitePSResource->GetShader();
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(vsParams, &data.mWhiteVSResource));
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(psParams, &data.mWhitePSResource));
+
+				if (e.mTask->In().Lock()
+					.Connect(&data.mWhiteVSResource->GetLoadBarrier()->mOut)
+					.Connect(&data.mWhitePSResource->GetLoadBarrier()->mOut)
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			if (e.mTask->SubTask()) {
+				auto whiteVS = data.mWhiteVSResource->GetShader();
+				auto whitePS = data.mWhitePSResource->GetShader();
 
 				DG::IPipelineState* result = nullptr;
 
@@ -98,9 +110,6 @@ namespace Morpheus {
 				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 				result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
 
-				whiteVSResource->Release();
-				whitePSResource->Release();
-
 				VertexLayout layout;
 				layout.mElements = std::move(layoutElements);
 				layout.mPosition = 0;
@@ -117,8 +126,13 @@ namespace Morpheus {
 					GenerateSRBs(result, renderer),
 					layout,
 					InstancingType::INSTANCED_STATIC_TRANSFORMS);
-			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-		};
+			}
+
+			return TaskResult::FINISHED;
+		}, 
+		"Upload White Pipeline",
+		TaskType::UNSPECIFIED,
+		ASSIGN_THREAD_MAIN);
 
 		return task;
 	}

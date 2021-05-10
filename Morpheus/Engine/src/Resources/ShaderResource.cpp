@@ -59,20 +59,33 @@ namespace Morpheus {
 		auto resource = new ShaderResource(mManager, nullptr);
 		DG::IRenderDevice* renderDevice = mManager->GetParent()->GetDevice();
 
-		Task task;
-		task.mSyncPoint = resource->GetLoadBarrier();
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [params = *params_cast, renderDevice, overrides, fileLoader, shaderLoader, resource](const TaskParams& e) {
-			ShaderPreprocessorOutput output;
-			shaderLoader->Load(params.mSource, fileLoader, &output, &overrides);
-
-			auto raw = std::make_unique<RawShader>(output, params.mShaderType, params.mName, params.mEntryPoint);
-
-			e.mQueue->Submit([raw = std::move(raw), renderDevice, resource](const TaskParams& e) mutable {
-				DG::IShader* shader = raw->SpawnOnGPU(renderDevice);
-				resource->SetShader(shader);
-			}, TaskType::RENDER, resource->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		struct Data {
+			std::unique_ptr<RawShader> mRawShader;
 		};
+
+		Task task([params = *params_cast, renderDevice, overrides, fileLoader, shaderLoader, resource, data = Data()](const TaskParams& e) mutable {
+			if (e.mTask->SubTask()) {
+				ShaderPreprocessorOutput output;
+				shaderLoader->Load(params.mSource, fileLoader, &output, &overrides);
+
+				data.mRawShader = std::make_unique<RawShader>(output, params.mShaderType, params.mName, params.mEntryPoint);
+
+				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
+					return TaskResult::REQUEST_THREAD_SWITCH;
+			}
+
+			if (e.mTask->SubTask()) {
+				DG::IShader* shader = data.mRawShader->SpawnOnGPU(renderDevice);
+				resource->SetShader(shader);
+				resource->SetLoaded(true);
+			}
+
+			return TaskResult::FINISHED;
+		}, 
+		std::string("Load Shader ") + params_cast->mSource,
+		TaskType::FILE_IO);
+
+		resource->mBarrier.mIn.Lock().Connect(&task->Out());
 
 		*output = resource;
 		

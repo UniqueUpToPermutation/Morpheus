@@ -51,11 +51,20 @@ namespace Morpheus {
 		BoundingBox mAabb;
 		bool bHasIndexBuffer;
 
-		TaskSyncPoint mBarrier;
+		TaskBarrier mBarrier;
+		std::atomic<bool> bIsLoaded;
 
 		void LoadAssimp(const aiScene* scene, const VertexLayout& vertexLayout);
 
 	public:
+		inline bool IsLoaded() const {
+			return bIsLoaded;
+		}
+
+		inline void SetLoaded(bool value) {
+			bIsLoaded = value;
+		}
+
 		void CopyTo(RawGeometry* geometry) const;
 		void CopyFrom(const RawGeometry& geometry);
 
@@ -96,6 +105,7 @@ namespace Morpheus {
 		}
 
 		inline RawGeometry() {
+			bIsLoaded = false;
 		}
 		RawGeometry(const RawGeometry& other) = delete;
 		RawGeometry(RawGeometry&& other);
@@ -181,7 +191,7 @@ namespace Morpheus {
 			Load(params);
 		}
 
-		TaskSyncPoint* GetLoadBarrier() {
+		TaskBarrier* GetLoadBarrier() {
 			return &mBarrier;
 		}
 	};

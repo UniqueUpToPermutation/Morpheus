@@ -41,6 +41,7 @@ namespace Morpheus {
 			resource,
 			&params.mOverrides);
 
+		resource->GetLoadBarrier()->mIn.Lock().Connect(&task);
 		resource->mFactory = factory;
 
 		*output = resource;
@@ -60,11 +61,14 @@ namespace Morpheus {
 			std::cout << "Loading Internal Pipeline " << source << "..." << std::endl;
 			into->mFactory = factoryIt->second;
 
-			return factoryIt->second(mManager->GetParent()->GetDevice(),
+			Task task = factoryIt->second(mManager->GetParent()->GetDevice(),
 				mManager,
 				mManager->GetParent()->GetRenderer(),
 				into,
 				overrides);
+
+			into->GetLoadBarrier()->mIn.Lock().Connect(&task);
+			return task;
 
 		} else {
 			// Spawn from json
@@ -124,7 +128,7 @@ namespace Morpheus {
 		}
 
 		*output = resource;
-		
+	
 		return task;
 	}
 

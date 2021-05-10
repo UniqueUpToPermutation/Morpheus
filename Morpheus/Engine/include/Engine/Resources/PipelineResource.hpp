@@ -87,6 +87,8 @@ namespace Morpheus {
 			mState = state;
 			mLayout = layout;
 			mInstancingType = instancingType;
+
+			SetLoaded(true);
 		}
 
 		template <typename T> 
@@ -175,7 +177,8 @@ namespace Morpheus {
 
 		inline PipelineResource* LoadFromFactory(factory_func_t factory, const LoadParams<PipelineResource>& params) {
 			PipelineResource* result = nullptr;
-			LoadFromFactoryTask(factory, &result, params)();
+			Task t = LoadFromFactoryTask(factory, &result, params);
+			t();
 			return result;
 		}
 
@@ -184,7 +187,8 @@ namespace Morpheus {
 			LoadParams<PipelineResource> params;
 			if (overrides)
 				params.mOverrides = *overrides;
-			LoadFromFactoryTask(factory, &result, params)();
+			Task t = LoadFromFactoryTask(factory, &result, params);
+			t();
 			return result;
 		}
 

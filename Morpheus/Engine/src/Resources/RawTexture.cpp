@@ -454,9 +454,7 @@ namespace Morpheus {
 	}
 
 	Task RawTexture::SaveTask(const std::string& path) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [this, path](const TaskParams& e) {
+		return Task([this, path](const TaskParams& e) {
 			std::ofstream f(path, std::ios::binary);
 
 			if (f.is_open()) {
@@ -466,15 +464,11 @@ namespace Morpheus {
 			} else {
 				throw std::runtime_error("Could not open file for writing!");
 			}
-		};
-		return task;
+		}, std::string("Save Texture ") + path + " (Archive)", TaskType::FILE_IO);
 	}
 
 	Task RawTexture::SaveGliTask(const std::string& path) {
-
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [this, path](const TaskParams& e) {
+		return Task([this, path](const TaskParams& e) {
 
 			auto target = DGToGli(mDesc.Type);
 			auto format = DGToGli(mDesc.Format);
@@ -560,15 +554,13 @@ namespace Morpheus {
 			}
 
 			gli::save_ktx(*tex, path);
-		};
-
-		return task;
+		}, 
+		std::string("Save Texture ") + path + " (GLI)", 
+		TaskType::FILE_IO);
 	}
 
 	Task RawTexture::SavePngTask(const std::string& path, bool bSaveMips) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [this, path, bSaveMips](const TaskParams& e) {
+		return Task([this, path, bSaveMips](const TaskParams& e) {
 			std::vector<uint8_t> buf;
 
 			if (mDesc.Type == DG::RESOURCE_DIM_TEX_3D) {
@@ -633,8 +625,9 @@ namespace Morpheus {
 					throw std::runtime_error(lodepng_error_text(err));
 				}
 			}
-		};
-		return task;
+		}, 
+		std::string("Save Texture ") + path + " (PNG)", 
+		TaskType::FILE_IO);
 	}
 
 	void RawTexture::RetrieveData(DG::ITexture* texture, 
@@ -903,6 +896,7 @@ namespace Morpheus {
 		desc.ArraySize = 1;
 
 		rawTexture->Set(desc, std::move(rawData), subDatas);
+		rawTexture->SetLoaded(true);
 	}
 
 	void LoadGliDataRaw(const LoadParams<TextureResource>& params,
@@ -985,6 +979,7 @@ namespace Morpheus {
 		}
 
 		into->Set(desc, std::move(datas), subData);
+		into->SetLoaded(true);
 	}
 
 	void LoadPngDataRaw(const LoadParams<TextureResource>& params, 
@@ -1021,6 +1016,8 @@ namespace Morpheus {
 
 		if (params.bGenerateMips)
 			into->GenerateMips();
+
+		into->SetLoaded(true);
 	}
 
 	void RawTexture::LoadArchive(const uint8_t* rawArchive, const size_t length) {
@@ -1046,15 +1043,16 @@ namespace Morpheus {
 	}
 
 	Task RawTexture::LoadPngTask(const LoadParams<TextureResource>& params) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = GetLoadBarrier();
-		task.mFunc = [this, params](const TaskParams& e) {
+
+		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
 			LoadPng(params, &data[0], data.size());
-		};
+		}, 
+		std::string("Load Texture ") + params.mSource + " (PNG)", 
+		TaskType::FILE_IO);
 
+		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
@@ -1067,9 +1065,7 @@ namespace Morpheus {
 
 	Task LoadDeferred(RawTexture* texture, const LoadParams<TextureResource>& params, LoadType type) {
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [texture, type, params](const TaskParams& e) {
+		Task task([texture, type, params](const TaskParams& e) {
 		
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
@@ -1088,35 +1084,36 @@ namespace Morpheus {
 					texture->LoadArchive(&data[0], data.size());
 					break;
 			}
-		};
-		task.mSyncPoint = texture->GetLoadBarrier();
+		}, std::string("Load Texture ") + params.mSource, TaskType::FILE_IO);
 
+		texture->GetLoadBarrier()->mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
 	Task RawTexture::LoadArchiveTask(const std::string& path) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = &mBarrier;
-		task.mFunc = [this, path](const TaskParams& e) {
+		Task task([this, path](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(path, data);
 			LoadArchive(&data[0], data.size());
-		};
+		},
+		std::string("Load Texture ") + path + " (Archive)",
+		TaskType::FILE_IO);
+	
+		mBarrier.mIn.Lock().Connect(&task->Out());
 
 		return task;
 	}
 
 	Task RawTexture::LoadStbTask(const LoadParams<TextureResource>& params) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = &mBarrier;
-		task.mFunc = [this, params](const TaskParams& e) {
+		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
 			LoadStb(params, &data[0], data.size());
-		};
+		}, 
+		std::string("Load Texture ") + params.mSource + " (STB)",
+		TaskType::FILE_IO);
 
+		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
@@ -1153,15 +1150,15 @@ namespace Morpheus {
 	}
 
 	Task RawTexture::LoadGliTask(const LoadParams<TextureResource>& params) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = GetLoadBarrier();
-		task.mFunc = [this, params](const TaskParams& e) {
+		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
 			LoadGli(params, &data[0], data.size());
-		};
+		}, 
+		std::string("Load Texture ") + params.mSource + " (GLI)",
+		TaskType::FILE_IO);
 
+		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
@@ -1212,6 +1209,7 @@ namespace Morpheus {
 		data.pSubResources = &subs[0];
 
 		device->CreateTexture(mDesc, &data, &texture);
+
 		return texture;
 	}
 }

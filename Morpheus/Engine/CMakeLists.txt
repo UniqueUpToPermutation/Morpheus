@@ -143,6 +143,7 @@ list(APPEND SOURCE
 	src/RendererGlobalsData.cpp
 	src/LightProbe.cpp
 	src/EmptyRenderer.cpp
+	src/Loading.cpp
 
 	src/Engine2D/Renderer2D.cpp
 	src/Engine2D/Tilemap.cpp
@@ -215,6 +216,7 @@ list(APPEND INCLUDE
 	include/Engine/DynamicGlobalsBuffer.hpp
 	include/Engine/RendererGlobalsData.hpp
 	include/Engine/EmptyRenderer.hpp
+	include/Engine/Loading.hpp
 
 	include/Engine/Engine2D/Renderer2D.hpp
 	include/Engine/Engine2D/Sprite.hpp

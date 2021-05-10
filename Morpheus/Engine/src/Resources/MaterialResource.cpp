@@ -49,6 +49,8 @@ namespace Morpheus {
 		mPipeline = pipeline;
 		mTextures = textures;
 		mApplyFunc = applyFunc;
+
+		SetLoaded(true);
 	}
 
 	void MaterialResource::SetSource(const std::unordered_map<std::string, MaterialResource*>::iterator& it) {
@@ -80,11 +82,12 @@ namespace Morpheus {
 		const MaterialFactory& prototypeFactory,
 		MaterialResource* loadInto) {
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = loadInto->GetLoadBarrier();
-		task.mFunc = [manager, source, prototypeFactory, loadInto](const TaskParams& e) {
-			
+		struct Data {
+			Task mSpawnTask;
+		};
+
+		Task task([manager, source, prototypeFactory, loadInto, data = Data()](const TaskParams& e) mutable {
+
 			std::ifstream stream;
 			stream.exceptions(std::ios::failbit | std::ios::badbit);
 			stream.open(source);
@@ -104,11 +107,17 @@ namespace Morpheus {
 				path = source.substr(0, path_cutoff);
 			}
 
-			MaterialPrototype* prototype;
-			Task spawnTask = prototypeFactory.SpawnTask(prototype_str, manager, source, path, json, loadInto);
-			spawnTask.mAssignedThread = ASSIGN_THREAD_MAIN;
-			e.mQueue->Submit(std::move(spawnTask));
-		};
+			data.mSpawnTask = prototypeFactory.SpawnTask(prototype_str, manager, source, path, json, loadInto);
+			loadInto->GetLoadBarrier()->mIn.Lock().Connect(&data.mSpawnTask);
+
+			e.mQueue->AdoptAndTrigger(std::move(data.mSpawnTask));
+
+			return TaskResult::FINISHED;
+		},
+		std::string("Load Material ") + source,
+		TaskType::FILE_IO);
+
+		loadInto->GetLoadBarrier()->mIn.Lock().Connect(&task->Out());
 
 		return task;
 	}

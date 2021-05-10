@@ -74,6 +74,7 @@ namespace Morpheus {
 		mIndexedDrawAttribs(other.mIndexedDrawAttribs),
 		mUnindexedDrawAttribs(other.mUnindexedDrawAttribs),
 		mLayout(other.mLayout) {
+		bIsLoaded = other.bIsLoaded.load();
 	}
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device, 
@@ -115,43 +116,54 @@ namespace Morpheus {
 			throw std::runtime_error("Cannot specify both material and pipeline for raw geometry vertex layout!");
 		}
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = GetLoadBarrier();
-		task.mFunc = [this, params](const TaskParams& e) {
-			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
-
-			std::unique_ptr<Assimp::Importer> importer(new Assimp::Importer());
-
-			const aiScene* pScene = importer->ReadFileFromMemory(&data[0], data.size(), 
-				aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-				aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
-				params.mSource.c_str());
-			
-			if (!pScene) {
-				std::cout << importer->GetErrorString() << std::endl;
-				throw std::runtime_error("Failed to load geometry!");
+		Task task([this, params](const TaskParams& e) {
+			if (e.mTask->SubTask()) {
+				if (params.mPipeline) {
+					if (e.mTask->In().Lock().Connect(&params.mPipeline->GetLoadBarrier()->mOut).ShouldWait())
+						return TaskResult::WAITING;
+				}
+				else if (params.mMaterial) {
+					if (e.mTask->In().Lock().Connect(&params.mMaterial->GetLoadBarrier()->mOut).ShouldWait())
+						return TaskResult::WAITING;
+				}
 			}
 
-			if (!pScene->HasMeshes()) {
-				throw std::runtime_error("Geometry has no meshes!");
+			if (e.mTask->SubTask()) {
+				std::vector<uint8_t> data;
+				ReadBinaryFile(params.mSource, data);
+
+				Assimp::Importer importer;
+
+				const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
+					aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+					aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
+					params.mSource.c_str());
+				
+				if (!pScene) {
+					std::cout << importer.GetErrorString() << std::endl;
+					throw std::runtime_error("Failed to load geometry!");
+				}
+
+				if (!pScene->HasMeshes()) {
+					throw std::runtime_error("Geometry has no meshes!");
+				}
+
+				const VertexLayout* layout = &params.mVertexLayout;
+
+				if (params.mPipeline) 
+					layout = &params.mPipeline->GetVertexLayout();
+				else if (params.mMaterial) 
+					layout = &params.mMaterial->GetVertexLayout();
+				
+				LoadAssimp(pScene, *layout);
 			}
 
-			const VertexLayout* layout = &params.mVertexLayout;
+			return TaskResult::FINISHED;
+		},
+		std::string("Load Raw Geometry ") + params.mSource + " (Assimp)",
+		TaskType::FILE_IO);
 
-			if (params.mPipeline) {
-				e.mQueue->YieldUntil(params.mPipeline->GetLoadBarrier());
-				layout = &params.mPipeline->GetVertexLayout();
-			}
-
-			if (params.mMaterial) {
-				e.mQueue->YieldUntil(params.mMaterial->GetLoadBarrier());
-				layout = &params.mMaterial->GetVertexLayout();
-			}
-
-			LoadAssimp(pScene, *layout);
-		};
+		mBarrier.mIn.Lock().Connect(&task->Out());
 
 		return task;
 	}
@@ -163,15 +175,15 @@ namespace Morpheus {
 	}
 
 	Task RawGeometry::LoadArchiveTask(const std::string& path) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = GetLoadBarrier();
-		task.mFunc = [this, path](const TaskParams& taskParams) {
+		Task task([this, path](const TaskParams& taskParams) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(path, data);
 			LoadArchive(&data[0], data.size());
-		};
+		}, 
+		std::string("Load Raw Geometry ") + path + " (Archive)",
+		TaskType::FILE_IO);
 
+		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
@@ -405,6 +417,8 @@ namespace Morpheus {
 			std::move(vert_buffer), 
 			std::move(indx_buffer_raw),
 			indexedAttribs, aabb);
+
+		SetLoaded(true);
 	}
 
 	Task RawGeometry::LoadTask(const LoadParams<GeometryResource>& params) {
@@ -422,9 +436,7 @@ namespace Morpheus {
 	}
 
 	Task RawGeometry::SaveTask(const std::string& destination) {
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mFunc = [this, destination](const TaskParams& e) {
+		Task task([this, destination](const TaskParams& e) {
 			std::ofstream f(destination, std::ios::binary);
 
 			if (f.is_open()) {
@@ -434,7 +446,9 @@ namespace Morpheus {
 			} else {
 				throw std::runtime_error("Could not open file for writing!");
 			}
-		};
+		},
+		std::string("Save Raw Geometry ") + destination + " (Archive)",
+		TaskType::FILE_IO);
 
 		return task;
 	}

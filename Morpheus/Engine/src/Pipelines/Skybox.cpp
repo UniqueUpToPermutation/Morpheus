@@ -15,39 +15,50 @@ namespace Morpheus {
 		if (overrides)
 			overridesCopy = *overrides;
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = into->GetLoadBarrier();
-		task.mFunc = [device, manager, renderer, into,
-			overrides = std::move(overridesCopy)](const TaskParams& e) mutable {
-			LoadParams<ShaderResource> vsParams(
-				"internal/Skybox.vsh",
-				DG::SHADER_TYPE_VERTEX,
-				"Skybox VS",
-				&overrides,
-				"main"
-			);
+		struct Data {
+			ShaderResource* mSkyboxVSResource = nullptr;
+			ShaderResource* mSkyboxPSResource = nullptr;
 
-			LoadParams<ShaderResource> psParams(
-				"internal/Skybox.psh",
-				DG::SHADER_TYPE_PIXEL,
-				"Skybox PS",
-				&overrides,
-				"main"
-			);
+			~Data() {
+				if (mSkyboxVSResource)
+					mSkyboxVSResource->Release();
+				if (mSkyboxPSResource)
+					mSkyboxPSResource->Release();
+			}
+		};
 
-			ShaderResource* skyboxVSResource = nullptr;
-			ShaderResource* skyboxPSResource = nullptr;
+		Task task([device, manager, renderer, into,
+			overrides = std::move(overridesCopy), data = Data()](const TaskParams& e) mutable {
+			if (e.mTask->SubTask()) {
+				LoadParams<ShaderResource> vsParams(
+					"internal/Skybox.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Skybox VS",
+					&overrides,
+					"main"
+				);
 
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(vsParams, &skyboxVSResource));
-			e.mQueue->Submit(manager->LoadTask<ShaderResource>(psParams, &skyboxPSResource));
+				LoadParams<ShaderResource> psParams(
+					"internal/Skybox.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Skybox PS",
+					&overrides,
+					"main"
+				);
 
-			e.mQueue->YieldUntil(skyboxVSResource->GetLoadBarrier());
-			e.mQueue->YieldUntil(skyboxPSResource->GetLoadBarrier());
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(vsParams, &data.mSkyboxVSResource));
+				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(psParams, &data.mSkyboxPSResource));
 
-			e.mQueue->Submit([=](const TaskParams& e) {
-				auto skyboxVS = skyboxVSResource->GetShader();
-				auto skyboxPS = skyboxPSResource->GetShader();
+				if (e.mTask->In().Lock()
+					.Connect(&data.mSkyboxVSResource->GetLoadBarrier()->mOut)
+					.Connect(&data.mSkyboxPSResource->GetLoadBarrier()->mOut)
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			if (e.mTask->SubTask()) {
+				auto skyboxVS = data.mSkyboxVSResource->GetShader();
+				auto skyboxPS = data.mSkyboxPSResource->GetShader();
 
 				auto anisotropyFactor = renderer->GetMaxAnisotropy();
 				auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
@@ -108,16 +119,18 @@ namespace Morpheus {
 				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 				result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")->Set(renderer->GetGlobalsBuffer());
 
-				skyboxVSResource->Release();
-				skyboxPSResource->Release();
-
 				into->SetAll(
 					result,
 					GenerateSRBs(result, renderer),
 					VertexLayout(),
 					InstancingType::NONE);
-			}, TaskType::RENDER, into->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
-		};
+			}
+
+			return TaskResult::FINISHED;
+		}, 
+		"Load Skybox Pipeline", 
+		TaskType::UNSPECIFIED, 
+		ASSIGN_THREAD_MAIN);
 
 		return task;
 	}

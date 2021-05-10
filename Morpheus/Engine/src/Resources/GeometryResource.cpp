@@ -59,18 +59,35 @@ namespace Morpheus {
 		const LoadParams<GeometryResource>& params,
 		GeometryResource* loadinto) {
 
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = loadinto->GetLoadBarrier();
-		task.mFunc = [device, params, loadinto](const TaskParams& e) {
-			auto raw = std::make_unique<RawGeometry>();
-			raw->LoadTask(params)(e);
-
-			e.mQueue->Submit([device, loadinto, raw = std::move(raw)](const TaskParams& params) mutable {
-				raw->SpawnOnGPU(device, loadinto);
-			}, TaskType::RENDER, loadinto->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		struct Data {
+			std::unique_ptr<RawGeometry> mRawGeo;
 		};
 
+		Task task([device, params, loadinto, data = Data()](const TaskParams& e) mutable {
+			if (e.mTask->SubTask()) {
+				data.mRawGeo = std::make_unique<RawGeometry>();
+				Task task = data.mRawGeo->LoadTask(params);
+
+				e.mTask->In().Lock().Connect(&task);
+				e.mQueue->AdoptAndTrigger(std::move(task));
+				return TaskResult::WAITING;
+			}
+
+			if (e.mTask->SubTask())
+				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
+					return TaskResult::REQUEST_THREAD_SWITCH;
+
+			if (e.mTask->SubTask()) {
+				data.mRawGeo->SpawnOnGPU(device, loadinto);
+				loadinto->SetLoaded(true);
+			}
+
+			return TaskResult::FINISHED;
+		}, 
+		std::string("Load Geometry ") + params.mSource,
+		TaskType::FILE_IO);
+
+		loadinto->GetLoadBarrier()->mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 

@@ -40,29 +40,51 @@ namespace Morpheus {
 		} 
 
 		auto result = new TextureResource(mManager);
-		Task task;
-		task.mType = TaskType::FILE_IO;
-		task.mSyncPoint = result->GetLoadBarrier();
-		task.mFunc = [this, result, params = *params_cast](const TaskParams& e) {
-			auto raw = std::make_shared<RawTexture>();
-			raw->LoadTask(params)(e);
 
-			e.mQueue->Submit([this, result, raw = std::move(raw)](const TaskParams& params) mutable {
-				DG::ITexture* tex = raw->SpawnOnGPU(mManager->GetParent()->GetDevice());
-				result->mTexture = tex;
-			}, TaskType::RENDER, result->GetLoadBarrier(), ASSIGN_THREAD_MAIN);
+		struct Data {
+			std::unique_ptr<RawTexture> mTexture;
 		};
-		
+
+		Task task([this, result, params = *params_cast, data = Data()](const TaskParams& e) mutable {
+			if (e.mTask->SubTask()) {
+				data.mTexture = std::make_unique<RawTexture>();
+				data.mTexture->Load(params);
+
+				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
+					return TaskResult::REQUEST_THREAD_SWITCH;
+			}
+
+			if (e.mTask->SubTask()) {
+				result->mTexture = data.mTexture->SpawnOnGPU(mManager->GetParent()->GetDevice());
+				result->SetLoaded(true);
+			}
+
+			return TaskResult::FINISHED;
+		},
+		std::string("Upload Texture ") + params_cast->mSource,
+		TaskType::FILE_IO);
+
+		result->GetLoadBarrier()->mIn.Lock().Connect(&task->Out());
+
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
 			result->SetSource(mResourceMap.emplace(params_cast->mSource, result).first);
 		}
 
 		*output = result;
+
 		return task;
 	}
 
 	void ResourceCache<TextureResource>::Add(TextureResource* tex, const std::string& source) {
+
+		if (!tex->IsLoaded()) {
+			throw std::runtime_error("Texture must be loaded before it can be added to resource cache!");
+		}
+
+		assert(tex->IsLoaded());
+		assert(tex->GetLoadBarrier()->mOut.Lock().IsFinished());
+
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
 			tex->SetSource(mResourceMap.emplace(source, tex).first);
@@ -71,6 +93,14 @@ namespace Morpheus {
 	}
 
 	void ResourceCache<TextureResource>::Add(TextureResource* tex) {
+
+		if (!tex->IsLoaded()) {
+			throw std::runtime_error("Texture must be loaded before it can be added to resource cache!");
+		}
+
+		assert(tex->IsLoaded());
+		assert(tex->GetLoadBarrier()->mOut.Lock().IsFinished());
+
 		{
 			std::unique_lock<std::shared_mutex> lock(mMutex);
 			mResourceSet.emplace(tex);
