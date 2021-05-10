@@ -656,11 +656,13 @@ namespace Morpheus {
 	void ITaskQueue::Trigger(TaskGroup* group) {
 		Trigger(&group->In(), false);
 	}
+
 	void ITaskQueue::Trigger(ITask* task) {
 		if (task) {
 			Trigger(&task->In(), false);
 		}
 	}
+
 	void ITaskQueue::Trigger(TaskBarrier* barrier) {
 		Trigger(&barrier->mIn, false);
 	}
@@ -683,12 +685,15 @@ namespace Morpheus {
 		mNode->ResetUnsafe();
 		return *this;
 	}
+	
 	uint TaskNodeInLock::InputsLeft() const {
 		return mNode->InputsLeftUnsafe();
 	}
+
 	bool TaskNodeInLock::IsStarted() const {
 		return mNode->IsStartedUnsafe();
 	}
+
 	bool TaskNodeInLock::IsReady() const {
 		return mNode->IsReadyUnsafe();
 	}
@@ -696,7 +701,8 @@ namespace Morpheus {
 	bool TaskNodeOutLock::IsFinished() const {
 		return mNode->IsFinishedUnsafe();
 	}
-	inline TaskNodeOutLock& TaskNodeOutLock::Reset() {
+
+	TaskNodeOutLock& TaskNodeOutLock::Reset() {
 		mNode->ResetUnsafe();
 		return *this;
 	}

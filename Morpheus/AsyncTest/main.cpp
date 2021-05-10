@@ -20,11 +20,7 @@ int main(int argc, char** argv) {
 	Engine en;
 
 	en.AddComponent<EmptyRenderer>();
-
-	EngineParams params;
-	params.mThreads.mThreadCount = 1;
-
-	en.Startup(params);
+	en.Startup();
 
 	auto manager = en.GetResourceManager();
 
