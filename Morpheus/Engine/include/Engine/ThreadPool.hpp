@@ -899,8 +899,9 @@ namespace Morpheus {
 		Task mTask;
 		Future<T> mFuture;
 
-		inline void operator()() {
+		inline T operator()() {
 			mTask();
+			return std::move(mFuture.Get());
 		}
 
 		inline operator bool() const {

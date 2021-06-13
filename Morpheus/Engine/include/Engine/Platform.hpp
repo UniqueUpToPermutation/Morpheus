@@ -104,5 +104,52 @@ namespace Morpheus {
 			plat.mPlatform = nullptr;
 			return *this;
 		}
+
+		inline int Startup(const PlatformParams& params = PlatformParams()) {
+			return mPlatform->Startup(params);
+		}
+		inline void Shutdown() {
+			return mPlatform->Shutdown();
+		}
+		inline bool IsValid() const {
+			return mPlatform->IsValid();
+		}
+		inline void MessagePump() {
+			mPlatform->MessagePump();
+		}
+		inline void Flush() {
+			mPlatform->Flush();
+		}
+		inline void Show() {
+			mPlatform->Show();
+		}
+		inline void Hide() {
+			mPlatform->Hide();
+		}
+		inline void SetCursorVisible(bool value) {
+			mPlatform->SetCursorVisible(value);
+		}
+		inline const PlatformParams& GetParameters() const {
+			return mPlatform->GetParameters();
+		}
+		inline const InputController& GetInput() const {
+			return mPlatform->GetInput();
+		}
+
+		// Adds a delegate that will be called when the window is resized.
+		inline void AddUserResizeHandler(user_window_resize_t* handler) {
+			mPlatform->AddUserResizeHandler(handler);
+		}
+		// Removes a delegate that is called when the window is resized.
+		inline void RemoveUserResizeHandler(user_window_resize_t* handler) {
+			mPlatform->RemoveUserResizeHandler(handler);
+		}
+
+		inline PlatformLinux* ToLinux() {
+			return mPlatform->ToLinux();
+		}
+		inline PlatformWin32* ToWindows() {
+			return mPlatform->ToWindows();
+		}
 	};
 }

@@ -1,8 +1,8 @@
 #include <Engine/Core.hpp>
-#include <Engine/DefaultRenderer.hpp>
 #include <Engine/Resources/RawTexture.hpp>
 #include <Engine/Resources/RawSampler.hpp>
 #include <Engine/Resources/TextureIterator.hpp>
+#include <Engine/SpriteBatch.hpp>
 
 #include <filesystem>
 
@@ -69,76 +69,94 @@ int main() {
 	}
 
 	// Create scene to render textures
-	Engine en;
-	en.AddComponent<DefaultRenderer>();
-	en.Startup();
+	Platform platform;
+	platform.Startup();
 
-	std::unique_ptr<Scene> scene(new Scene());
-	auto camera = scene->GetCamera();
-	camera->SetType(CameraType::ORTHOGRAPHIC);
-	camera->SetClipPlanes(-1.0, 1.0);
+	Graphics graphics(platform);
+	graphics.Startup();
 
-	std::unique_ptr<SpriteBatch> spriteBatch(
-		new SpriteBatch(en.GetDevice(), en.GetResourceManager()));
+	Camera camera;
+	camera.SetType(CameraType::ORTHOGRAPHIC);
+	camera.SetClipPlanes(-1.0, 1.0);
 
-	en.InitializeDefaultSystems(scene.get());
-	scene->Begin();
+	{
+		SpriteBatchGlobals sbGlobals(graphics);
+		EmbeddedFileLoader embeddedFileSystem;
 
-	en.CollectGarbage();
+		auto sbPipeline = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
+			DG::FILTER_TYPE_LINEAR, &embeddedFileSystem)();
 
-	// Spawn textures on GPU
-	auto gpuTexture1 = texture.SpawnOnGPU(en.GetDevice());
-	auto gpuTexture2 = fromDesc.SpawnOnGPU(en.GetDevice());
+		SpriteBatch spriteBatch(graphics, sbPipeline);
 
-	DG::ITexture* gpuTexture3 = nullptr;
-	if (bArchiveTextureExists) 
-		gpuTexture3 = fromArchive.SpawnOnGPU(en.GetDevice());
+		// Spawn textures on GPU
+		auto gpuTexture1 = texture.SpawnOnGPU(graphics.Device());
+		auto gpuTexture2 = fromDesc.SpawnOnGPU(graphics.Device());
 
-	auto gpuTexture4 = textureFromArchive.SpawnOnGPU(en.GetDevice());
+		DG::ITexture* gpuTexture3 = nullptr;
+		if (bArchiveTextureExists) 
+			gpuTexture3 = fromArchive.SpawnOnGPU(graphics.Device());
 
-	texture.Clear();
-	fromDesc.Clear();
-	fromArchive.Clear();
-	textureFromArchive.Clear();
+		auto gpuTexture4 = textureFromArchive.SpawnOnGPU(graphics.Device());
 
-	auto& d = gpuTexture1->GetDesc();
+		texture.Clear();
+		fromDesc.Clear();
+		fromArchive.Clear();
+		textureFromArchive.Clear();
 
-	while (en.IsReady()) {
+		while (platform->IsValid()) {
 
-		auto& swapChainDesc = en.GetSwapChain()->GetDesc();
-		camera->SetOrthoSize(swapChainDesc.Width, swapChainDesc.Height);
+			auto& swapChainDesc = graphics.SwapChain()->GetDesc();
+			camera.SetOrthoSize(swapChainDesc.Width, swapChainDesc.Height);
 
-		en.Update(scene.get());
-		en.Render(scene.get());
+			// Perform window IO
+			platform->MessagePump();
 
-		spriteBatch->Begin(en.GetImmediateContext());
-		spriteBatch->Draw(gpuTexture4, DG::float2(-400.0, -400.0));
-		spriteBatch->Draw(gpuTexture1, DG::float2(-300.0, -300.0));
-		spriteBatch->Draw(gpuTexture2, DG::float2(0.0, 0.0));
+			// Clear the screen
+			auto context = graphics.ImmediateContext();
+			auto swapChain = graphics.SwapChain();
+			auto rtv = swapChain->GetCurrentBackBufferRTV();
+			auto dsv = swapChain->GetDepthBufferDSV();
+			float color[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+			context->SetRenderTargets(1, &rtv, dsv, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearRenderTarget(rtv, color, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearDepthStencil(dsv, DG::CLEAR_DEPTH_FLAG, 1.0f, 0, 
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Make sure that the camera width/height match window width/height
+			auto& scDesc = swapChain->GetDesc();
+			camera.SetOrthoSize(scDesc.Width, scDesc.Height);
+
+			// Send camera information to the GPU
+			auto cameraAttribs = camera.GetLocalAttribs(graphics);
+			sbGlobals.Write(graphics.ImmediateContext(), cameraAttribs);
+
+			// Draw textures
+			spriteBatch.Begin(graphics.ImmediateContext());
+			spriteBatch.Draw(gpuTexture4, DG::float2(-400.0, -400.0));
+			spriteBatch.Draw(gpuTexture1, DG::float2(-300.0, -300.0));
+			spriteBatch.Draw(gpuTexture2, DG::float2(0.0, 0.0));
+			if (gpuTexture3)
+				spriteBatch.Draw(gpuTexture3, DG::float2(300.0, 300.0));
+			spriteBatch.End();
+
+			graphics.Present(1);
+		}
+
+		// Retreive textures from GPU and write to disk
+		RawTexture fromGpu1(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
+		fromGpu1.SavePng("FromGpu1.png", false);
+		fromGpu1.Save("FromGpu.tark");
+
+		RawTexture fromGpu2(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
+		fromGpu2.SavePng("FromGpu2.png", true);
+
+		gpuTexture1->Release();
+		gpuTexture2->Release();
 		if (gpuTexture3)
-			spriteBatch->Draw(gpuTexture3, DG::float2(300.0, 300.0));
-		spriteBatch->End();
-
-		en.RenderUI();
-		en.Present();
+			gpuTexture3->Release();
+		gpuTexture4->Release();
 	}
 
-	// Retreive textures from GPU and write to disk
-	RawTexture fromGpu1(gpuTexture1, en.GetDevice(), en.GetImmediateContext());
-	fromGpu1.SavePng("FromGpu1.png", false);
-	fromGpu1.Save("FromGpu.tark");
-
-	RawTexture fromGpu2(gpuTexture2, en.GetDevice(), en.GetImmediateContext());
-	fromGpu2.SavePng("FromGpu2.png", true);
-
-	gpuTexture1->Release();
-	gpuTexture2->Release();
-	if (gpuTexture3)
-		gpuTexture3->Release();
-	gpuTexture4->Release();
-
-	spriteBatch.reset();
-	scene.reset();
-
-	en.Shutdown();
+	graphics.Shutdown();
+	platform.Shutdown();
 }

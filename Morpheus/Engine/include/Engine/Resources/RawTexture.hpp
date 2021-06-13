@@ -232,21 +232,6 @@ namespace Morpheus {
 		inline RawTexture(const LoadParams<Texture>& params) {
 			Load(params);
 		}
-		inline RawTexture(const std::string& source) {
-			Load(source);
-		}
-		inline void Load(const std::string& source) {
-			Load(source);
-		}
-		inline void LoadStb(const std::string& source) {
-			LoadStb(source);
-		}
-		inline void LoadPng(const std::string& source) {
-			LoadPng(source);
-		}
-		inline void LoadGli(const std::string& source) {
-			LoadGli(source);
-		}
 
 		inline void Clear() {
 			mData.clear();
