@@ -1,147 +1,282 @@
-#include <Engine/Resources/PipelineResource.hpp>
-#include <Engine/Pipelines/PipelineFactory.hpp>
 #include <Engine/SpriteBatch.hpp>
-#include <Engine/Engine.hpp>
-#include <Engine/Renderer.hpp>
-#include <Engine/Geometry.hpp>
+#include <Engine/Systems/Renderer.hpp>
+#include <Engine/GeometryStructures.hpp>
+#include <Engine/Resources/Shader.hpp>
 
 using namespace DG;
 
 #include <shaders/SpriteBatchStructures.hlsl>
 
 namespace Morpheus {
-	SpriteBatchState::SpriteBatchState(DG::IShaderResourceBinding* shaderBinding, 
-		DG::IShaderResourceVariable* textureVariable, 
-		PipelineResource* pipeline) :
-		mShaderBinding(shaderBinding),
-		mTextureVariable(textureVariable),
-		mPipeline(pipeline) {
 
-		mShaderBinding->AddRef();
-		mPipeline->AddRef();
-	}
-
-	void SpriteBatchState::CopyFrom(const SpriteBatchState& state) {
-		mShaderBinding = state.mShaderBinding;
-		mTextureVariable = state.mTextureVariable;
-		mPipeline = state.mPipeline;
-
-		mShaderBinding->AddRef();
-		mPipeline->AddRef();
-	}
-
-	SpriteBatchState::~SpriteBatchState() {
-		if (mShaderBinding) {
-			mShaderBinding->Release();
-			mPipeline->Release();
-		}
-	}
-
-	SpriteBatch::SpriteBatch(DG::IRenderDevice* device, PipelineResource* pipeline, uint batchSize) {
-		mBatchSize = batchSize;
-		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
-
-		DG::BufferDesc desc;
-		desc.Name = "Sprite Batch Buffer";
-		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
-		desc.uiSizeInBytes = mBatchSizeBytes;
-		desc.Usage = DG::USAGE_DYNAMIC;
-		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-
-		mBuffer = nullptr;
-		device->CreateBuffer(desc, nullptr, &mBuffer);
-
-		mDefaultState = CreateState(pipeline);
-	}
-
-	SpriteBatch::SpriteBatch(DG::IRenderDevice* device, 
-		ResourceManager* resourceManager, 
-		DG::FILTER_TYPE filterType,
-		uint batchSize) {
-
-		mBatchSize = batchSize;
-		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
-
-		DG::BufferDesc desc;
-		desc.Name = "Sprite Batch Buffer";
-		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
-		desc.uiSizeInBytes = mBatchSizeBytes;
-		desc.Usage = DG::USAGE_DYNAMIC;
-		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-
-		mBuffer = nullptr;
-		device->CreateBuffer(desc, nullptr, &mBuffer);
-
-		PipelineResource* pipeline = LoadPipeline(resourceManager, filterType);
-		mDefaultState = CreateState(pipeline);
-		pipeline->Release();
-	}
-
-	SpriteBatch::SpriteBatch(DG::IRenderDevice* device, uint batchSize) {
-
-		mBatchSize = batchSize;
-		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
-
-		DG::BufferDesc desc;
-		desc.Name = "Sprite Batch Buffer";
-		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
-		desc.uiSizeInBytes = mBatchSizeBytes;
-		desc.Usage = DG::USAGE_DYNAMIC;
-		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-
-		mBuffer = nullptr;
-		device->CreateBuffer(desc, nullptr, &mBuffer);
-
-		mBatchSize = batchSize;
-	}
-
-	SpriteBatch::~SpriteBatch() {
-		mBuffer->Release();
-	}
-
-	void SpriteBatch::ResetDefaultPipeline(ResourceManager* resourceManager) {
-		auto pipeline = LoadPipeline(resourceManager);
-		SetDefaultPipeline(pipeline);
-		pipeline->Release();
-	}
-
-	PipelineResource* SpriteBatch::LoadPipeline(ResourceManager* manager, DG::FILTER_TYPE filterType, ShaderResource* pixelShader) {
-		PipelineResource* result = nullptr;
+	ResourceTask<SpriteShaders> SpriteShaders::LoadDefaults(
+			DG::IRenderDevice* device, 
+			IVirtualFileSystem* system) {
+		Promise<SpriteShaders> shadersPromise;
+		Future<SpriteShaders> shadersFuture(shadersPromise);
 		
-		if (pixelShader) {
-			auto cache = manager->GetCache<PipelineResource>();
+		struct {
+			Future<DG::IShader*> mVS;
+			Future<DG::IShader*> mGS;
+			Future<DG::IShader*> mPS;
+		} data;
 
-			pixelShader->AddRef();
-			factory_func_t factory = [pixelShader, filterType](DG::IRenderDevice* device, 
-				ResourceManager* manager, 
-				IRenderer* renderer, 
-				PipelineResource* into,
-				const ShaderPreprocessorConfig* overrides) {
-				auto task = CreateSpriteBatchPipeline(device, manager, renderer, into, 
-					overrides, filterType, pixelShader);
-				pixelShader->Release();
-				return task;
-			};
+		Task task([data, promise = std::move(shadersPromise), 
+			device, system](const TaskParams& e) mutable {
 
-			result = cache->LoadFromFactory(factory);
-		} else {
-			auto cache = manager->GetCache<PipelineResource>();
+			if (e.mTask->BeginSubTask()) {
+				LoadParams<RawShader> vsParams("internal/SpriteBatch.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Sprite Batch VS");
 
-			factory_func_t factory = [filterType](DG::IRenderDevice* device, 
-				ResourceManager* manager, 
-				IRenderer* renderer, 
-				PipelineResource* into,
-				const ShaderPreprocessorConfig* overrides) {
+				LoadParams<RawShader> gsParams("internal/SpriteBatch.gsh",
+					DG::SHADER_TYPE_GEOMETRY,
+					"Sprite Batch GS");
 
-				return CreateSpriteBatchPipeline(device, manager, renderer, into, 
-					overrides, filterType, nullptr);
-			};
+				LoadParams<RawShader> psParams("internal/SpriteBatch.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Sprite Batch PS");
 
-			result = cache->LoadFromFactory(factory);
-		}
-		
-		result->AddRef();
+				auto vsTask = LoadShader(device, vsParams, system);
+				auto gsTask = LoadShader(device, gsParams, system);
+				auto psTask = LoadShader(device, psParams, system);
+
+				data.mVS = e.mQueue->AdoptAndTrigger(std::move(vsTask));
+				data.mGS = e.mQueue->AdoptAndTrigger(std::move(gsTask));
+				data.mPS = e.mQueue->AdoptAndTrigger(std::move(psTask));
+
+				e.mTask->EndSubTask();
+
+				if (e.mTask->In().Lock()
+					.Connect(data.mVS.Out())
+					.Connect(data.mGS.Out())
+					.Connect(data.mPS.Out())
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			// Forward shaders to promise
+			SpriteShaders shaders;
+			shaders.mVS = data.mVS.Get();
+			shaders.mGS = data.mGS.Get();
+			shaders.mPS = data.mPS.Get();
+
+			data.mVS.Get()->Release();
+			data.mGS.Get()->Release();
+			data.mPS.Get()->Release();
+
+			promise.Set(shaders, e.mQueue);
+
+			return TaskResult::FINISHED;
+		});
+
+		ResourceTask<SpriteShaders> result;
+		result.mFuture = shadersFuture;
+		result.mTask = std::move(task);
+
 		return result;
+	}
+
+	ResourceTask<SpriteBatchPipeline> SpriteBatchPipeline::LoadDefault(
+		DG::IRenderDevice* device,
+		SpriteBatchGlobals* globals,
+		DG::TEXTURE_FORMAT backbufferFormat,
+		DG::TEXTURE_FORMAT depthbufferFormat,
+		uint samples,
+		DG::FILTER_TYPE filterType,
+		IVirtualFileSystem* fileSystem) {
+
+		Promise<SpriteBatchPipeline> pipelinePromise;
+		Future<SpriteBatchPipeline> pipelineFuture(pipelinePromise);
+
+		struct {
+			Future<SpriteShaders> mShaders;
+		} data;
+
+		Task task([pipelinePromise = std::move(pipelinePromise), 
+			data, device, backbufferFormat, depthbufferFormat, 
+			samples, filterType, fileSystem, globals](const TaskParams& e) mutable {
+			if (e.mTask->BeginSubTask()) {
+
+				auto loadShaders = SpriteShaders::LoadDefaults(device, fileSystem);
+				data.mShaders = e.mQueue->AdoptAndTrigger(std::move(loadShaders));
+
+				e.mTask->EndSubTask();
+
+				if (e.mTask->In().Lock()
+					.Connect(data.mShaders.Out())
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			SpriteBatchPipeline pipeline = SpriteBatchPipeline::Create(device, globals, 
+				backbufferFormat, depthbufferFormat, samples,
+				filterType, data.mShaders.Get());
+
+			pipelinePromise.Set(pipeline, e.mQueue);
+			return TaskResult::FINISHED;
+		});
+
+		ResourceTask<SpriteBatchPipeline> loadTask;
+		loadTask.mFuture = pipelineFuture;
+		loadTask.mTask = std::move(task);
+
+		return loadTask;
+	}
+
+	DG::IPipelineState* CreateSpriteBatchPipeline(
+		DG::IRenderDevice* device,
+		DG::TEXTURE_FORMAT backbufferFormat,
+		DG::TEXTURE_FORMAT depthbufferFormat,
+		uint samples,
+		const ShaderPreprocessorConfig* overrides,
+		DG::FILTER_TYPE filterType,
+		DG::IShader* vertexShader,
+		DG::IShader* geoShader,
+		DG::IShader* pixelShader) {
+
+		DG::SamplerDesc SamDesc
+		{
+			filterType, filterType, filterType, 
+			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
+		};
+
+		DG::IPipelineState* result = nullptr;
+
+		// Create Irradiance Pipeline
+		DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
+		DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
+		DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
+
+		PSODesc.Name         = "Sprite Batch Pipeline";
+		PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
+
+		GraphicsPipeline.NumRenderTargets             = 1;
+		GraphicsPipeline.RTVFormats[0]                = backbufferFormat;
+		GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_POINT_LIST;
+		GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
+		GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
+		GraphicsPipeline.DSVFormat 					  = depthbufferFormat;
+
+		DG::RenderTargetBlendDesc blendState;
+		blendState.BlendEnable = true;
+		blendState.BlendOp = DG::BLEND_OPERATION_ADD;
+		blendState.BlendOpAlpha = DG::BLEND_OPERATION_ADD;
+		blendState.DestBlend = DG::BLEND_FACTOR_INV_SRC_ALPHA;
+		blendState.SrcBlend = DG::BLEND_FACTOR_SRC_ALPHA;
+		blendState.DestBlendAlpha = DG::BLEND_FACTOR_ONE;
+		blendState.SrcBlendAlpha = DG::BLEND_FACTOR_ONE;
+
+		GraphicsPipeline.BlendDesc.RenderTargets[0] = blendState;
+
+		// Number of MSAA samples
+		GraphicsPipeline.SmplDesc.Count = 1;
+
+		uint stride = sizeof(SpriteBatchVSInput);
+
+		std::vector<DG::LayoutElement> layoutElements = {
+			DG::LayoutElement(0, 0, 4, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+			DG::LayoutElement(1, 0, 4, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+			DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+			DG::LayoutElement(3, 0, 2, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+			DG::LayoutElement(4, 0, 2, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+			DG::LayoutElement(5, 0, 2, DG::VT_FLOAT32, false, 
+				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
+		};
+
+		GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
+		GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
+
+		PSOCreateInfo.pVS = vertexShader;
+		PSOCreateInfo.pGS = geoShader;
+		PSOCreateInfo.pPS = pixelShader;
+
+		PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+
+		// clang-format off
+		DG::ShaderResourceVariableDesc Vars[] = 
+		{
+			{DG::SHADER_TYPE_PIXEL, "mTexture", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
+		};
+		// clang-format on
+		PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+		PSODesc.ResourceLayout.Variables    = Vars;
+
+		// clang-format off
+		DG::ImmutableSamplerDesc ImtblSamplers[] =
+		{
+			{DG::SHADER_TYPE_PIXEL, "mTexture_sampler", SamDesc}
+		};
+		// clang-format on
+		PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
+		PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
+
+		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
+
+		VertexLayout layout;
+		layout.mElements = std::move(layoutElements);
+		layout.mPosition = 0;
+		layout.mStride = sizeof(SpriteBatchVSInput);
+
+		return result;
+	}
+
+	SpriteBatchPipeline SpriteBatchPipeline::Create(
+		DG::IRenderDevice* device,
+		SpriteBatchGlobals* globals,
+		DG::TEXTURE_FORMAT backbufferFormat,
+		DG::TEXTURE_FORMAT depthbufferFormat,
+		uint samples,
+		DG::FILTER_TYPE filterType,
+		SpriteShaders shaders) {
+
+		DG::IPipelineState* pipeline = CreateSpriteBatchPipeline(device, backbufferFormat, 
+			depthbufferFormat, samples, nullptr, filterType, shaders.mVS.Ptr(),
+			shaders.mGS.Ptr(), shaders.mPS.Ptr());
+
+		SpriteBatchPipeline result(pipeline, globals);
+		pipeline->Release();
+
+		result.mVS = shaders.mVS;
+		result.mGS = shaders.mGS;
+		result.mPS = shaders.mPS;
+
+		return result;
+	}
+
+	SpriteBatchState SpriteBatchPipeline::CreateState() {
+		DG::IShaderResourceBinding* binding = nullptr;
+		mPipeline->CreateShaderResourceBinding(&binding, true);
+
+		DG::IShaderResourceVariable* textureVar = 
+			binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture");
+
+		return SpriteBatchState(binding, textureVar, mPipeline.Ptr());
+	}
+
+	SpriteBatch::SpriteBatch(DG::IRenderDevice* device,
+		SpriteBatchState&& defaultState, 
+		uint batchSize) : mDefaultState(std::move(defaultState)) {
+
+		mBatchSize = batchSize;
+		mBatchSizeBytes = batchSize * sizeof(SpriteBatchVSInput);
+
+		DG::BufferDesc desc;
+		desc.Name = "Sprite Batch Buffer";
+		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
+		desc.uiSizeInBytes = mBatchSizeBytes;
+		desc.Usage = DG::USAGE_DYNAMIC;
+		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
+
+		DG::IBuffer* buf = nullptr;
+		device->CreateBuffer(desc, nullptr, &buf);
+		mBuffer = buf; // Adds to reference counter
+		buf->Release(); 
 	}
 
 	void SpriteBatch::Begin(DG::IDeviceContext* context, const SpriteBatchState* state) {
@@ -151,7 +286,7 @@ namespace Morpheus {
 			mCurrentState = mDefaultState;
 		}
 
-		context->SetPipelineState(mCurrentState.mPipeline->GetState());
+		context->SetPipelineState(mCurrentState.mPipeline);
 
 		DG::IBuffer* buffers[] = { mBuffer };
 		DG::Uint32 offsets[] = { 0 };
@@ -273,193 +408,5 @@ namespace Morpheus {
 		instance->mUVBottom = uvbottom_unscaled / dim2d;
 
 		++mWriteIndex;
-	}
-
-	SpriteBatchState SpriteBatch::CreateState(PipelineResource* resource) {
-		auto state = resource->GetState();
-
-		DG::IShaderResourceBinding* srb = nullptr;
-		state->CreateShaderResourceBinding(&srb, true);
-
-		auto texVar = srb->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture");
-		return SpriteBatchState(srb, texVar, resource);
-	}
-
-	Task CreateSpriteBatchPipeline(DG::IRenderDevice* device,
-		ResourceManager* manager,
-		IRenderer* renderer,
-		PipelineResource* into,
-		const ShaderPreprocessorConfig* overrides,
-		DG::FILTER_TYPE filterType,
-		ShaderResource* pixelShader) {
-
-		struct Data {
-			ShaderResource* mPS = nullptr;
-			ShaderResource* mGS = nullptr;
-			ShaderResource* mVS = nullptr;
-
-			~Data() {
-				if (mPS)
-					mPS->Release();
-				if (mGS)
-					mGS->Release();
-				if (mVS)
-					mVS->Release();
-			}
-		};
-
-		Task task([device, manager, renderer, into, 
-			overrides, filterType, pixelShader, data = Data()](const TaskParams& e) mutable {
-			
-			if (e.mTask->SubTask()) {
-				LoadParams<ShaderResource> vsParams(
-					"internal/SpriteBatch.vsh",
-					DG::SHADER_TYPE_VERTEX,
-					"Sprite Batch VS",
-					overrides,
-					"main"
-				);
-
-				LoadParams<ShaderResource> gsParams(
-					"internal/SpriteBatch.gsh",
-					DG::SHADER_TYPE_GEOMETRY,
-					"Sprite Batch GS",
-					overrides,
-					"main"
-				);
-
-				LoadParams<ShaderResource> psParams(
-					"internal/SpriteBatch.psh",
-					DG::SHADER_TYPE_PIXEL,
-					"Sprite Batch PS",
-					overrides,
-					"main"
-				);
-
-				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(vsParams, &data.mVS));
-				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(gsParams, &data.mGS));
-				e.mQueue->AdoptAndTrigger(manager->LoadTask<ShaderResource>(psParams, &data.mPS));
-
-				if (e.mTask->In().Lock()
-					.Connect(&data.mVS->GetLoadBarrier()->mOut)
-					.Connect(&data.mPS->GetLoadBarrier()->mOut)
-					.Connect(&data.mGS->GetLoadBarrier()->mOut)
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
-
-			if (e.mTask->SubTask()) {
-				auto batchVS = data.mVS->GetShader();
-				auto batchGS = data.mGS->GetShader();
-				auto batchPS = data.mPS->GetShader();
-
-				DG::SamplerDesc SamDesc
-				{
-					filterType, filterType, filterType, 
-					DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
-				};
-
-				DG::IPipelineState* result = nullptr;
-
-				// Create Irradiance Pipeline
-				DG::GraphicsPipelineStateCreateInfo PSOCreateInfo;
-				DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
-				DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
-
-				PSODesc.Name         = "Sprite Batch Pipeline";
-				PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
-
-				GraphicsPipeline.NumRenderTargets             = 1;
-				GraphicsPipeline.RTVFormats[0]                = renderer->GetBackbufferColorFormat();
-				GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_POINT_LIST;
-				GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_BACK;
-				GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
-				GraphicsPipeline.DSVFormat 					  = renderer->GetBackbufferDepthFormat();
-
-				DG::RenderTargetBlendDesc blendState;
-				blendState.BlendEnable = true;
-				blendState.BlendOp = DG::BLEND_OPERATION_ADD;
-				blendState.BlendOpAlpha = DG::BLEND_OPERATION_ADD;
-				blendState.DestBlend = DG::BLEND_FACTOR_INV_SRC_ALPHA;
-				blendState.SrcBlend = DG::BLEND_FACTOR_SRC_ALPHA;
-				blendState.DestBlendAlpha = DG::BLEND_FACTOR_ONE;
-				blendState.SrcBlendAlpha = DG::BLEND_FACTOR_ONE;
-
-				GraphicsPipeline.BlendDesc.RenderTargets[0] = blendState;
-
-				// Number of MSAA samples
-				GraphicsPipeline.SmplDesc.Count = 1;
-
-				uint stride = sizeof(SpriteBatchVSInput);
-
-				std::vector<DG::LayoutElement> layoutElements = {
-					DG::LayoutElement(0, 0, 4, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-					DG::LayoutElement(1, 0, 4, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-					DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-					DG::LayoutElement(3, 0, 2, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-					DG::LayoutElement(4, 0, 2, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-					DG::LayoutElement(5, 0, 2, DG::VT_FLOAT32, false, 
-						DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-				};
-
-				GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
-				GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
-
-				PSOCreateInfo.pVS = batchVS;
-				PSOCreateInfo.pGS = batchGS;
-				PSOCreateInfo.pPS = batchPS;
-
-				PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
-
-				// clang-format off
-				DG::ShaderResourceVariableDesc Vars[] = 
-				{
-					{DG::SHADER_TYPE_PIXEL, "mTexture", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
-				};
-				// clang-format on
-				PSODesc.ResourceLayout.NumVariables = _countof(Vars);
-				PSODesc.ResourceLayout.Variables    = Vars;
-
-				// clang-format off
-				DG::ImmutableSamplerDesc ImtblSamplers[] =
-				{
-					{DG::SHADER_TYPE_PIXEL, "mTexture_sampler", SamDesc}
-				};
-				// clang-format on
-				PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
-				PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
-
-				device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
-
-				auto globalsVar = result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals");
-				if (globalsVar)
-					globalsVar->Set(renderer->GetGlobalsBuffer());
-
-				VertexLayout layout;
-				layout.mElements = std::move(layoutElements);
-				layout.mPosition = 0;
-				layout.mStride = sizeof(SpriteBatchVSInput);
-
-				std::vector<DG::IShaderResourceBinding*> srbs;
-
-				into->SetAll(
-					result,
-					srbs,
-					layout,
-					InstancingType::NONE);
-			}
-
-			return TaskResult::FINISHED;
-		},
-		"Sprite Batch Upload",
-		TaskType::UNSPECIFIED,
-		ASSIGN_THREAD_MAIN);
-
-		return task;
 	}
 }

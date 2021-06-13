@@ -1,9 +1,7 @@
 #include <Engine/Resources/RawGeometry.hpp>
-#include <Engine/Resources/GeometryResource.hpp>
+#include <Engine/Resources/Geometry.hpp>
 #include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ResourceData.hpp>
-#include <Engine/Resources/PipelineResource.hpp>
-#include <Engine/Resources/MaterialResource.hpp>
 
 #include <fstream>
 
@@ -64,17 +62,26 @@ namespace Morpheus {
 		bHasIndexBuffer = true;
 	}
 
-	RawGeometry::RawGeometry(RawGeometry&& other) :
-		mVertexBufferData(std::move(other.mVertexBufferData)),
-		mIndexBufferData(std::move(other.mIndexBufferData)),
-		mVertexBufferDesc(other.mVertexBufferDesc),
-		mIndexBufferDesc(other.mIndexBufferDesc),
-		mAabb(other.mAabb),
-		bHasIndexBuffer(other.bHasIndexBuffer),
-		mIndexedDrawAttribs(other.mIndexedDrawAttribs),
-		mUnindexedDrawAttribs(other.mUnindexedDrawAttribs),
-		mLayout(other.mLayout) {
+	void RawGeometry::AdoptData(RawGeometry&& other) {
+		mVertexBufferData = std::move(other.mVertexBufferData);
+		mIndexBufferData = std::move(other.mIndexBufferData);
+		mVertexBufferDesc = other.mVertexBufferDesc;
+		mIndexBufferDesc = other.mIndexBufferDesc;
+		mAabb = other.mAabb;
+		bHasIndexBuffer = other.bHasIndexBuffer;
+		mIndexedDrawAttribs = other.mIndexedDrawAttribs;
+		mUnindexedDrawAttribs = other.mUnindexedDrawAttribs;
+		mLayout = other.mLayout;
 		bIsLoaded = other.bIsLoaded.load();
+	}
+
+	RawGeometry::RawGeometry(RawGeometry&& other) {
+		AdoptData(std::move(other));
+	}
+
+	RawGeometry& RawGeometry::operator=(RawGeometry&& other) {
+		AdoptData(std::move(other));
+		return *this;
 	}
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device, 
@@ -94,7 +101,7 @@ namespace Morpheus {
 	}
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device,
-		GeometryResource* writeTo) {
+		Geometry* writeTo) {
 
 		DG::IBuffer* vertexBuffer = nullptr;
 		DG::IBuffer* indexBuffer = nullptr;
@@ -102,63 +109,39 @@ namespace Morpheus {
 		SpawnOnGPU(device, &vertexBuffer, &indexBuffer);
 
 		if (indexBuffer) {
-			writeTo->InitIndexed(vertexBuffer, indexBuffer, 0,
+			writeTo->Set(vertexBuffer, indexBuffer, 0,
 				mIndexedDrawAttribs, mLayout, mAabb);
 		} else {
-			writeTo->Init(vertexBuffer, 0, mUnindexedDrawAttribs, 
+			writeTo->Set(vertexBuffer, 0, mUnindexedDrawAttribs, 
 				mLayout, mAabb);
 		}
 	}
 
-	Task RawGeometry::LoadAssimpTask(const LoadParams<GeometryResource>& params) {
-
-		if (params.mMaterial && params.mPipeline) {
-			throw std::runtime_error("Cannot specify both material and pipeline for raw geometry vertex layout!");
-		}
+	Task RawGeometry::LoadAssimpTask(const LoadParams<Geometry>& params) {
 
 		Task task([this, params](const TaskParams& e) {
-			if (e.mTask->SubTask()) {
-				if (params.mPipeline) {
-					if (e.mTask->In().Lock().Connect(&params.mPipeline->GetLoadBarrier()->mOut).ShouldWait())
-						return TaskResult::WAITING;
-				}
-				else if (params.mMaterial) {
-					if (e.mTask->In().Lock().Connect(&params.mMaterial->GetLoadBarrier()->mOut).ShouldWait())
-						return TaskResult::WAITING;
-				}
+			std::vector<uint8_t> data;
+			ReadBinaryFile(params.mSource, data);
+
+			Assimp::Importer importer;
+
+			const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
+				aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+				aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
+				params.mSource.c_str());
+			
+			if (!pScene) {
+				std::cout << importer.GetErrorString() << std::endl;
+				throw std::runtime_error("Failed to load geometry!");
 			}
 
-			if (e.mTask->SubTask()) {
-				std::vector<uint8_t> data;
-				ReadBinaryFile(params.mSource, data);
-
-				Assimp::Importer importer;
-
-				const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
-					aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-					aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | aiProcessPreset_TargetRealtime_Quality,
-					params.mSource.c_str());
-				
-				if (!pScene) {
-					std::cout << importer.GetErrorString() << std::endl;
-					throw std::runtime_error("Failed to load geometry!");
-				}
-
-				if (!pScene->HasMeshes()) {
-					throw std::runtime_error("Geometry has no meshes!");
-				}
-
-				const VertexLayout* layout = &params.mVertexLayout;
-
-				if (params.mPipeline) 
-					layout = &params.mPipeline->GetVertexLayout();
-				else if (params.mMaterial) 
-					layout = &params.mMaterial->GetVertexLayout();
-				
-				LoadAssimp(pScene, *layout);
+			if (!pScene->HasMeshes()) {
+				throw std::runtime_error("Geometry has no meshes!");
 			}
 
-			return TaskResult::FINISHED;
+			const VertexLayout* layout = &params.mVertexLayout;
+	
+			LoadAssimp(pScene, *layout);
 		},
 		std::string("Load Raw Geometry ") + params.mSource + " (Assimp)",
 		TaskType::FILE_IO);
@@ -421,7 +404,7 @@ namespace Morpheus {
 		SetLoaded(true);
 	}
 
-	Task RawGeometry::LoadTask(const LoadParams<GeometryResource>& params) {
+	Task RawGeometry::LoadTask(const LoadParams<Geometry>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");

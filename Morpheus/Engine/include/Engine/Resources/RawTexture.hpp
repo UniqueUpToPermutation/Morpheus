@@ -11,16 +11,43 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 	template <>
-	struct LoadParams<TextureResource> {
+	struct LoadParams<Texture> {
 		std::string mSource;
 		bool bIsSRGB = false;
 		bool bGenerateMips = true;
 
-		static LoadParams<TextureResource> FromString(const std::string& str) {
-			LoadParams<TextureResource> res;
-			res.mSource = str;
-			return res;
+		inline LoadParams(const std::string& source, 
+			bool isSRGB = false, 
+			bool generateMips = true) :
+			mSource(source),
+			bIsSRGB(isSRGB),
+			bGenerateMips(generateMips) {
 		}
+
+		inline LoadParams(const char* source,
+			bool isSRGB = false,
+			bool generateMips = true) :
+			mSource(source),
+			bIsSRGB(isSRGB),
+			bGenerateMips(generateMips) {	
+		}
+
+		bool operator==(const LoadParams<Texture>& t) const {
+			return mSource == t.mSource && 
+				bIsSRGB == t.bIsSRGB && 
+				bGenerateMips == t.bGenerateMips;
+		}
+
+		struct Hasher {
+			std::size_t operator()(const LoadParams<Texture>& k) const
+			{
+				using std::size_t;
+				using std::hash;
+				using std::string;
+
+				return hash<string>()(k.mSource);
+			}
+		};
 	};
 
 	inline uint MipCount(const uint width, const uint height) {
@@ -51,10 +78,10 @@ namespace Morpheus {
 		TaskBarrier mBarrier;
 		std::atomic<bool> bIsLoaded;
 
-		Task LoadAsyncDeferred(const LoadParams<TextureResource>& params);
-		Task LoadPngAsyncDeferred(const LoadParams<TextureResource>& params);
-		Task LoadGliAsyncDeferred(const LoadParams<TextureResource>& params);
-		Task LoadStbAsyncDeferred(const LoadParams<TextureResource>& params);
+		Task LoadAsyncDeferred(const LoadParams<Texture>& params);
+		Task LoadPngAsyncDeferred(const LoadParams<Texture>& params);
+		Task LoadGliAsyncDeferred(const LoadParams<Texture>& params);
+		Task LoadStbAsyncDeferred(const LoadParams<Texture>& params);
 		Task LoadArchiveAsyncDeferred(const std::string& source);
 
 		void RetrieveData(DG::ITexture* texture, DG::IRenderDevice* device, DG::IDeviceContext* context, const DG::TextureDesc& desc);
@@ -152,23 +179,23 @@ namespace Morpheus {
 			mSubDescs = subDescs;
 		}
 
-		Task LoadTask(const LoadParams<TextureResource>& params);
-		Task LoadPngTask(const LoadParams<TextureResource>& params);
-		Task LoadGliTask(const LoadParams<TextureResource>& params);
-		Task LoadStbTask(const LoadParams<TextureResource>& params);
+		Task LoadTask(const LoadParams<Texture>& params);
+		Task LoadPngTask(const LoadParams<Texture>& params);
+		Task LoadGliTask(const LoadParams<Texture>& params);
+		Task LoadStbTask(const LoadParams<Texture>& params);
 		Task LoadArchiveTask(const std::string& path);
 
-		inline void Load(const LoadParams<TextureResource>& params) {
+		inline void Load(const LoadParams<Texture>& params) {
 			LoadTask(params)();
 		}
 
-		void LoadPng(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
-		inline void LoadPng(const LoadParams<TextureResource>& params) {
+		void LoadPng(const LoadParams<Texture>& params, const uint8_t* rawData, const size_t length);
+		inline void LoadPng(const LoadParams<Texture>& params) {
 			LoadPngTask(params)();
 		}
 
-		void LoadGli(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
-		inline void LoadGli(const LoadParams<TextureResource>& params) {
+		void LoadGli(const LoadParams<Texture>& params, const uint8_t* rawData, const size_t length);
+		inline void LoadGli(const LoadParams<Texture>& params) {
 			LoadGliTask(params)();
 		}
 
@@ -177,8 +204,8 @@ namespace Morpheus {
 			LoadArchiveTask(source)();
 		}
 
-		void LoadStb(const LoadParams<TextureResource>& params, const uint8_t* rawData, const size_t length);
-		void LoadStb(const LoadParams<TextureResource>& params) {
+		void LoadStb(const LoadParams<Texture>& params, const uint8_t* rawData, const size_t length);
+		void LoadStb(const LoadParams<Texture>& params) {
 			LoadStbTask(params)();
 		}
 
@@ -202,24 +229,23 @@ namespace Morpheus {
 			RetrieveData(texture, device, context);
 		}
 
-		inline RawTexture(const LoadParams<TextureResource>& params) {
+		inline RawTexture(const LoadParams<Texture>& params) {
 			Load(params);
 		}
-
 		inline RawTexture(const std::string& source) {
-			Load(LoadParams<TextureResource>::FromString(source));
+			Load(source);
 		}
 		inline void Load(const std::string& source) {
-			Load(LoadParams<TextureResource>::FromString(source));
+			Load(source);
 		}
 		inline void LoadStb(const std::string& source) {
-			LoadStb(LoadParams<TextureResource>::FromString(source));
+			LoadStb(source);
 		}
 		inline void LoadPng(const std::string& source) {
-			LoadPng(LoadParams<TextureResource>::FromString(source));
+			LoadPng(source);
 		}
 		inline void LoadGli(const std::string& source) {
-			LoadGli(LoadParams<TextureResource>::FromString(source));
+			LoadGli(source);
 		}
 
 		inline void Clear() {
@@ -227,12 +253,18 @@ namespace Morpheus {
 			mSubDescs.clear();
 		}
 
-		RawTexture(RawTexture&& other) = default;
+		inline RawTexture(RawTexture&& other) :
+			mDesc(other.mDesc),
+			mData(std::move(other.mData)),
+			mSubDescs(std::move(other.mSubDescs)),
+			mIntensity(other.mIntensity),
+			bIsLoaded(other.bIsLoaded.load()) {
+		}
+
 		RawTexture(const RawTexture& other) = delete;
 
 		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device);
 
-		friend class ResourceCache<TextureResource>;
 		friend class RawSampler;
 		friend class TextureIterator;
 	};

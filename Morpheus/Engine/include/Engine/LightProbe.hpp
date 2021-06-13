@@ -1,14 +1,14 @@
 #pragma once
 
-#include <Engine/Resources/TextureResource.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 namespace Morpheus {
 
 	class LightProbe {
 	private:
-		RefHandle<TextureResource> mIrradianceMap;
-		RefHandle<TextureResource> mPrefilteredEnvMap;
-		DG::RefCntAutoPtr<DG::IBuffer> mIrradianceSH;
+		Handle<Texture> mIrradianceMap;
+		Handle<Texture> mPrefilteredEnvMap;
+		Handle<DG::IBuffer> mIrradianceSH;
 
 		DG::ITextureView* mIrradianceMapView;
 		DG::ITextureView* mPrefilteredEnvMapView;
@@ -22,26 +22,26 @@ namespace Morpheus {
 			return mPrefilteredEnvMapView;
 		}
 
-		inline TextureResource* GetIrradianceMap() {
+		inline Handle<Texture> GetIrradianceMap() {
 			return mIrradianceMap;
 		}
 
 		inline DG::IBuffer* GetIrradianceSH() {
-			return mIrradianceSH.RawPtr();
+			return mIrradianceSH.Ptr();
 		}
 
-		inline TextureResource* GetPrefilteredEnvMap() {
+		inline Handle<Texture> GetPrefilteredEnvMap() {
 			return mPrefilteredEnvMap;
 		}
 
-		inline void SetIrradiance(TextureResource* irradiance, 
+		inline void SetIrradiance(Handle<Texture> irradiance, 
 			DG::ITextureView* irradianceView = nullptr);
 
-		inline void SetIrradianceSH(DG::RefCntAutoPtr<DG::IBuffer> irradiance) {
+		inline void SetIrradianceSH(Handle<DG::IBuffer> irradiance) {
 			mIrradianceSH = irradiance;
 		}
 
-		void SetPrefilteredEnvMap(TextureResource* prefilteredEnvMap, 
+		void SetPrefilteredEnvMap(Handle<Texture> prefilteredEnvMap, 
 			DG::ITextureView* prefilteredEnvMapView = nullptr);
 
 		inline LightProbe() : 
@@ -53,9 +53,9 @@ namespace Morpheus {
 		}
 
 		// Note that either irradianceMap or irradianceSH should be nullptr
-		inline LightProbe(TextureResource* irradianceMap,
-			DG::RefCntAutoPtr<DG::IBuffer> irradianceSH,
-			TextureResource* prefilteredEnvMap) :
+		inline LightProbe(Handle<Texture> irradianceMap,
+			Handle<DG::IBuffer> irradianceSH,
+			Handle<Texture> prefilteredEnvMap) :
 			mIrradianceMap(irradianceMap),
 			mIrradianceSH(irradianceSH),
 			mPrefilteredEnvMap(prefilteredEnvMap) {

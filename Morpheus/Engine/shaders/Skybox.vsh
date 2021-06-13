@@ -1,8 +1,8 @@
 #include "BasicStructures.hlsl"
 
-cbuffer Globals
+cbuffer CameraData
 {
-   	RendererGlobalData mGlobals;
+   	CameraAttribs mCamera;
 };
 
 struct PSInput 
@@ -25,8 +25,8 @@ void main(in uint VertId : SV_VertexID,
 
 	PSIn.Position = vPos;
 
-	vPos = mul(vPos, mGlobals.mCamera.mViewProjInv);
+	vPos = mul(vPos, mCamera.mViewProjInv);
 	vPos /= vPos.w;
 
-	PSIn.Direction = vPos.xyz - mGlobals.mCamera.f4Position.xyz;
+	PSIn.Direction = vPos.xyz - mCamera.f4Position.xyz;
 }

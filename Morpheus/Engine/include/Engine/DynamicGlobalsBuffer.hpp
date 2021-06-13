@@ -33,7 +33,8 @@ namespace Morpheus {
 		}
 
 		inline ~DynamicGlobalsBuffer() {
-			mBuffer->Release();
+			if (mBuffer)
+				mBuffer->Release();
 		}
 
 		inline DG::IBuffer* Get() {

@@ -1,29 +1,45 @@
-#include <Engine/Engine.hpp>
+#include <Engine/Platform.hpp>
+#include <Engine/Graphics.hpp>
+#include <Engine/Entity.hpp>
+#include <Engine/Systems/DefaultRenderer.hpp>
+
+#include "Timer.hpp"
 
 using namespace Morpheus;
 
-#if PLATFORM_WIN32
-int __stdcall WinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR     lpCmdLine,
-	int       nShowCmd) {
-#endif
+MAIN() {
+	Platform platform;
+	platform->Startup();
 
-#if PLATFORM_LINUX
-int main(int argc, char** argv) {
-#endif
+	SystemCollection systems;
 
-	Engine en;
-	
-	en.Startup();
+	Graphics graphics(platform);
+	graphics.Startup();
 
-	while (en.IsReady()) {
-		en.Update([](double, double) { });
-		en.Render(nullptr);
-		en.RenderUI();
-		en.Present();
+	systems.Add<DefaultRenderer>(graphics);
+	systems.Startup();
+
+	auto frame = std::make_unique<Frame>();
+	systems.SetFrame(frame.get());
+
+	DG::Timer timer;
+	FrameTime time(timer);
+
+	ImmediateTaskQueue queue;
+
+	while (platform->IsValid()) {
+
+		time.UpdateFrom(timer);
+		platform->MessagePump();
+
+		systems.RunFrame(time, &queue);
+		systems.WaitOnRender(&queue);
+		graphics.Present(1);
+		systems.WaitOnUpdate(&queue);
 	}
 
-	en.Shutdown();
+	frame.reset();
+	systems.Shutdown();
+	graphics.Shutdown();
+	platform->Shutdown();
 }

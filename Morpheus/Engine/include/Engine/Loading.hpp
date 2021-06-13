@@ -2,10 +2,17 @@
 
 #include <vector>
 
+#include <Engine/Systems/ImGuiSystem.hpp>
+
 namespace Morpheus {
-	class Engine;
-	class IResource;
+	
+	class TaskBarrier;
+	class ITaskQueue;
+	class SystemCollection;
+	class Graphics;
+	class Platform;
 
 	// Presents a loading screen until all resources are loaded
-	void LoadingScreen(Engine* en, const std::vector<IResource*>& resources);
+	void BasicLoadingScreen(Platform& platform, Graphics& graphics,
+		DG::ImGuiImplDiligent* imgui, TaskBarrier* barrier, ITaskQueue* queue);
 }

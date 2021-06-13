@@ -1,105 +1,124 @@
 #include <Engine/Core.hpp>
-#include <Engine/Engine2D/Renderer2D.hpp>
+#include <Engine/SpriteBatch.hpp>
 
 #include <random>
 
 using namespace Morpheus;
 
-#if PLATFORM_WIN32
-int __stdcall WinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR     lpCmdLine,
-	int       nShowCmd) {
-#endif
+MAIN() {
+	// Create windowing stuff
+	Platform platform;
+	platform->Startup();
 
-#if PLATFORM_LINUX
-int main(int argc, char** argv) {
-#endif
+	// Create graphics device and swap chain
+	Graphics graphics(platform);
+	graphics.Startup();
 
-	EngineParams params;
+	// For embedded shaders and stuff
+	EmbeddedFileLoader embeddedFileLoader;
 
-	Engine en;
+	{
+		// Create sprite batch globals to forward camera info to GPU
+		SpriteBatchGlobals sbGlobals(graphics);
 
-	en.AddComponent<Renderer2D>();
-	en.Startup(params);
+		auto& scDesc = graphics.SwapChain()->GetDesc();	
 
-	Scene* scene = new Scene();
-	auto camera = scene->GetCamera();
-	camera->SetType(CameraType::ORTHOGRAPHIC);
-	camera->SetClipPlanes(-1.0, 1.0);
+		// Actually load everything
+		auto sbPipelineLoadTask = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
+			DG::FILTER_TYPE_LINEAR, &embeddedFileLoader);
+		auto textureLoadTask = Texture::LoadHandle(graphics.Device(), "sprite.png");
 
-	TextureResource* spriteTexture = en.GetResourceManager()->Load<TextureResource>("sprite.png");
-	auto spriteBatch = std::make_unique<SpriteBatch>(en.GetDevice(), en.GetResourceManager());
+		ImmediateTaskQueue queue;
+		auto sbPipelineFuture = queue.AdoptAndTrigger(std::move(sbPipelineLoadTask));
+		auto textureFuture = queue.AdoptAndTrigger(std::move(textureLoadTask));
+		queue.YieldUntilEmpty();
 
-	en.InitializeDefaultSystems(scene);
-	scene->Begin();
+		assert(sbPipelineFuture.IsAvailable());
+		assert(textureFuture.IsAvailable());
 
-	en.CollectGarbage();
+		auto sbPipeline = sbPipelineFuture.Get();
+		auto spriteTexture = textureFuture.Get();
 
-	// Create all the objects on screen
-	struct ObjInstance {
-		DG::float2 mPositionBase;
-		float mRotation;
-		DG::float4 mColor;
-		float mAngularVelocity;
-		DG::float2 mOscillatorVector;
-		float mOscillatorVelocity;
-		float mOscillatorX;
-	};
+		// Actually create the sprite batch!
+		SpriteBatch spriteBatch(graphics, sbPipeline);
 
-	std::default_random_engine generator;
-	std::uniform_real_distribution<double> distribution1(-1.0, 1.0);
-	std::uniform_real_distribution<double> distribution2(0.0, 1.0);
+		// Setup camera
+		Camera camera;
+		camera.SetType(CameraType::ORTHOGRAPHIC);
+		camera.SetClipPlanes(-1.0, 1.0);
 
-	constexpr uint obj_count = 350;
-	std::vector<ObjInstance> insts(obj_count);
-	for (auto& obj : insts) {
-		obj.mPositionBase.x = distribution1(generator) * 400;
-		obj.mPositionBase.y = distribution1(generator) * 300;
-		obj.mRotation = distribution1(generator) * DG::PI;
-		obj.mColor = DG::float4(distribution2(generator), distribution2(generator), distribution2(generator), 1.0);
-		obj.mAngularVelocity = distribution1(generator) * 0.01;
-		obj.mOscillatorVector.x = distribution1(generator) * 50.0;
-		obj.mOscillatorVector.y = distribution1(generator) * 50.0;
-		obj.mOscillatorVelocity = distribution1(generator) * 0.01;
-		obj.mOscillatorX = distribution1(generator) * DG::PI;
-	}
+		// Create all the objects on screen
+		struct ObjInstance {
+			DG::float2 mPositionBase;
+			float mRotation;
+			DG::float4 mColor;
+			float mAngularVelocity;
+			DG::float2 mOscillatorVector;
+			float mOscillatorVelocity;
+			float mOscillatorX;
+		};
 
-	while (en.IsReady()) {
-		en.Update(scene);
-		en.Render(scene);
+		std::default_random_engine generator;
+		std::uniform_real_distribution<double> distribution1(-1.0, 1.0);
+		std::uniform_real_distribution<double> distribution2(0.0, 1.0);
 
-		// Use a custom rendering proceedure to draw all sprites
-		auto camera = scene->GetCamera();
-		auto swapChain = en.GetSwapChain();
-		auto& swapChainDesc = swapChain->GetDesc();
-
-		camera->SetOrthoSize(swapChainDesc.Width, swapChainDesc.Height);
-
+		constexpr uint obj_count = 350;
+		std::vector<ObjInstance> insts(obj_count);
 		for (auto& obj : insts) {
-			obj.mOscillatorX += obj.mOscillatorVelocity;
-			obj.mRotation += obj.mAngularVelocity;
+			obj.mPositionBase.x = distribution1(generator) * 400;
+			obj.mPositionBase.y = distribution1(generator) * 300;
+			obj.mRotation = distribution1(generator) * DG::PI;
+			obj.mColor = DG::float4(distribution2(generator), distribution2(generator), distribution2(generator), 1.0);
+			obj.mAngularVelocity = distribution1(generator) * 0.01;
+			obj.mOscillatorVector.x = distribution1(generator) * 50.0;
+			obj.mOscillatorVector.y = distribution1(generator) * 50.0;
+			obj.mOscillatorVelocity = distribution1(generator) * 0.01;
+			obj.mOscillatorX = distribution1(generator) * DG::PI;
 		}
 
-		// Draw all sprites
-		spriteBatch->Begin(en.GetImmediateContext());
+		while (platform->IsValid()) {
+			// Perform window IO
+			platform->MessagePump();
 
-		for (auto& obj : insts) {
-			spriteBatch->Draw(spriteTexture, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
-				DG::float2(128, 128), DG::float2(64, 64), obj.mRotation, obj.mColor);
+			// Clear the screen
+			auto context = graphics.ImmediateContext();
+			auto swapChain = graphics.SwapChain();
+			auto rtv = swapChain->GetCurrentBackBufferRTV();
+			auto dsv = swapChain->GetDepthBufferDSV();
+			float color[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+			context->SetRenderTargets(1, &rtv, dsv, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearRenderTarget(rtv, color, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearDepthStencil(dsv, DG::CLEAR_DEPTH_FLAG, 1.0f, 0, 
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Make sure that the camera width/height match window width/height
+			auto& scDesc = swapChain->GetDesc();
+			camera.SetOrthoSize(scDesc.Width, scDesc.Height);
+
+			// Send camera information to the GPU
+			auto cameraAttribs = camera.GetLocalAttribs(graphics);
+			sbGlobals.Write(graphics.ImmediateContext(), cameraAttribs);
+
+			for (auto& obj : insts) {
+				obj.mOscillatorX += obj.mOscillatorVelocity;
+				obj.mRotation += obj.mAngularVelocity;
+			}
+
+			// Draw all sprites
+			spriteBatch.Begin(graphics.ImmediateContext());
+			for (auto& obj : insts) {
+				spriteBatch.Draw(spriteTexture, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
+					DG::float2(128, 128), DG::float2(64, 64), obj.mRotation, obj.mColor);
+			}
+			spriteBatch.End();
+
+			// Swap front and back buffer
+			graphics.Present(1);
 		}
 
-		spriteBatch->End();
-
-		en.RenderUI();
-		en.Present();
+		spriteTexture->Release();
 	}
 
-	delete scene;
-
-	spriteBatch.reset();
-	spriteTexture->Release();
-
-	en.Shutdown();
+	graphics.Shutdown();
+	platform->Shutdown();
 }

@@ -4,7 +4,7 @@
 #include "DeviceContext.h"
 #include "BasicMath.hpp"
 
-#include <Engine/Resources/ResourceManager.hpp>
+#include <Engine/Graphics.hpp>
 #include <Engine/LightProbe.hpp>
 
 namespace DG = Diligent;
@@ -16,17 +16,9 @@ namespace DG = Diligent;
 namespace Morpheus {
 	class CookTorranceLUT {
 	private:
-		DG::ITexture* mLut;
+		Handle<DG::ITexture> mLut;
 
 	public:
-		inline CookTorranceLUT() : 
-			mLut(nullptr) {
-		}
-		~CookTorranceLUT() {
-			if (mLut)
-				mLut->Release();
-		}
-
 		void Compute(DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
 			uint surfaceAngleSamples = DEFAULT_LUT_SURFACE_ANGLE_SAMPLES, 
@@ -34,7 +26,7 @@ namespace Morpheus {
 			uint integrationSamples = DEFAULT_LUT_INTEGRATION_SAMPLES);
 
 		inline DG::ITexture* GetLUT() {
-			return mLut;
+			return mLut.Ptr();
 		}
 
 		inline DG::ITextureView* GetShaderView() {
@@ -42,7 +34,6 @@ namespace Morpheus {
 		}
 
 		void SavePng(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device);
-		void SaveGli(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device);
 	};
 
 	struct PrecomputeEnvMapAttribs
@@ -64,15 +55,12 @@ namespace Morpheus {
 	};
 	class LightProbeProcessor {
 	private:
-		DG::IPipelineState* mIrradiancePipeline;
 		DG::IPipelineState* mPrefilterEnvPipeline;
 		DG::IPipelineState* mSHIrradiancePipeline;
 		DG::IBuffer* mTransformConstantBuffer;
-		DG::IShaderResourceBinding* mIrradianceSRB;
 		DG::IShaderResourceBinding* mPrefilterEnvSRB;
 		DG::IShaderResourceBinding* mSHIrradianceSRB;
 
-		DG::TEXTURE_FORMAT mIrradianceFormat;
 		DG::TEXTURE_FORMAT mPrefilteredEnvFormat;
 
 		uint mEnvironmentMapSamples;
@@ -84,7 +72,6 @@ namespace Morpheus {
 
 		void Initialize(
 			DG::IRenderDevice* device,
-			DG::TEXTURE_FORMAT irradianceFormat,
 			DG::TEXTURE_FORMAT prefilterEnvFormat,
 			const LightProbeProcessorConfig& config = LightProbeProcessorConfig());
 
@@ -97,16 +84,11 @@ namespace Morpheus {
 		}
 
 		void ComputeIrradiance(
-			DG::IDeviceContext* context, 
-			DG::ITextureView* incommingEnvironmentSRV,
-			DG::ITexture* outputCubemap);
-
-		void ComputeIrradianceSH(
 			DG::IDeviceContext* context,
 			DG::ITextureView* incommingEnvironmentSRV,
 			DG::IBufferView* outputBufferView);
 
-		DG::IBuffer* ComputeIrradianceSH(
+		DG::IBuffer* ComputeIrradiance(
 			DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
 			DG::ITextureView* incommingEnvironmentSRV
@@ -117,12 +99,6 @@ namespace Morpheus {
 			DG::ITextureView* incommingEnvironmentSRV,
 			DG::ITexture* outputCubemap);
 
-		DG::ITexture* ComputeIrradiance(
-			DG::IRenderDevice* device,
-			DG::IDeviceContext* context,
-			DG::ITextureView* incommingEnvironmentSRV,
-			uint size);
-
 		DG::ITexture* ComputePrefilteredEnvironment(
 			DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
@@ -132,15 +108,6 @@ namespace Morpheus {
 		LightProbe ComputeLightProbe(
 			DG::IRenderDevice* device,
 			DG::IDeviceContext* context,
-			ResourceCache<TextureResource>* textureCache,
-			DG::ITextureView* incommingEnvironmentSRV,
-			uint prefilteredEnvironmentSize = 256,
-			uint irradianceSize = 64);
-
-		LightProbe ComputeLightProbeSH(
-			DG::IRenderDevice* device,
-			DG::IDeviceContext* context,
-			ResourceCache<TextureResource>* textureCache,
 			DG::ITextureView* incommingEnvironmentSRV,
 			uint prefilteredEnvironmentSize = 256);
 	};

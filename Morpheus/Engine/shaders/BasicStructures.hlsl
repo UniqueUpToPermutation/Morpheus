@@ -19,6 +19,14 @@
 #       define DEFAULT_VALUE(x) =x
 #   endif
 
+namespace DG = Diligent;
+
+namespace HLSL {
+typedef DG::float4 float4;
+typedef DG::float3 float3;
+typedef DG::float2 float2;
+typedef DG::float4x4 float4x4;
+
 #else
 
 #   ifndef BOOL
@@ -156,6 +164,10 @@ struct RendererGlobalData {
 };
 #ifdef CHECK_STRUCT_ALIGNMENT
     CHECK_STRUCT_ALIGNMENT(RendererGlobalData);
+#endif
+
+#ifdef __cplusplus
+} // END NAMESPACE MORPHEUS
 #endif
 
 #endif //_BASIC_STRUCTURES_FXH_

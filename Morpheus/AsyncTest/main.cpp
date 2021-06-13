@@ -1,81 +1,94 @@
 #include <Engine/Core.hpp>
-#include <Engine/EmptyRenderer.hpp>
 #include <Engine/Loading.hpp>
+#include <Engine/Systems/EmptyRenderer.hpp>
+#include <Engine/Systems/ImGuiSystem.hpp>
 
 using namespace Morpheus;
 
 std::mutex mOutput;
 
-#if PLATFORM_WIN32
-int __stdcall WinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR     lpCmdLine,
-	int       nShowCmd) {
-#endif
+MAIN() {
+	Platform platform;
+	platform->Startup();
 
-#if PLATFORM_LINUX
-int main(int argc, char** argv) {
-#endif
-	Engine en;
+	Graphics graphics(platform);
+	graphics.Startup();
 
-	en.AddComponent<EmptyRenderer>();
-	en.Startup();
+	ThreadPool taskQueue;
+	taskQueue.Startup();
 
-	auto manager = en.GetResourceManager();
+	SystemCollection systems;
+	systems.Add<TextureCacheSystem>(graphics);
+	systems.Add<GeometryCacheSystem>(graphics);
+	systems.Add<EmptyRenderer>(graphics);
+	auto imguiSystem = systems.Add<ImGuiSystem>(graphics);
 
-	PipelineResource* pipeline = nullptr;
-	TextureResource* texture = nullptr;
-	MaterialResource* material = nullptr;
-	TextureResource* hdrTexture = nullptr;
-	GeometryResource* geometry = nullptr;
+	systems.Startup(&taskQueue);
 
-	// Generate tasks for loading resources
-	Task pipelineTask = manager->LoadTask<PipelineResource>("White", &pipeline);
-	Task textureTask = manager->LoadTask<TextureResource>("brick_albedo.png", &texture);
-	Task materialTask = manager->LoadTask<MaterialResource>("material.json", &material);
-	Task hdrTextureTask = manager->LoadTask<TextureResource>("environment.hdr", &hdrTexture);
+	{
+		auto geometryLayout = systems
+			.QueryInterface<IVertexFormatProvider>()
+			->GetStaticMeshLayout();
 
-	LoadParams<GeometryResource> geoParams;
-	geoParams.mMaterial = material;
-	geoParams.mSource = "matBall.obj";
-	Task geometryTask = manager->LoadTask<GeometryResource>(geoParams, &geometry);
+		// Using Texture::Load or Geometry::Load means the resulting object will not be
+		// managed by the texture and geometry caches.
+		ResourceTask<Handle<Texture>> unmanagedTextureTask = 
+			Texture::LoadHandle(graphics.Device(), "brick_albedo.png");
+		LoadParams<Geometry> geoLoad("matBall.obj", geometryLayout);
+		ResourceTask<Handle<Geometry>> unmanagedGeoTask = 
+			Geometry::LoadHandle(graphics.Device(), geoLoad);
+		ResourceTask<Handle<Texture>> unmanagedHdrTask = 
+			Texture::LoadHandle(graphics.Device(), "environment.hdr");
 
-	// Submit tasks to the thread pool
-	auto threadPool = en.GetThreadPool();
-	threadPool->AdoptAndTrigger(std::move(pipelineTask));
-	threadPool->AdoptAndTrigger(std::move(textureTask));
-	threadPool->AdoptAndTrigger(std::move(materialTask));
-	threadPool->AdoptAndTrigger(std::move(hdrTextureTask));
-	threadPool->AdoptAndTrigger(std::move(geometryTask));
+		// You can submit a load task to the task queue by using AdoptAndTrigger,
+		// this converts a resource task into a resource future
+		Future<Handle<Texture>> unmanagedTextureFuture = 
+			taskQueue.AdoptAndTrigger(std::move(unmanagedTextureTask));
+		Future<Handle<Geometry>> unmanagedGeometryFuture = 
+			taskQueue.AdoptAndTrigger(std::move(unmanagedGeoTask));
+		Future<Handle<Texture>> unmanagedHdrFuture = 
+			taskQueue.AdoptAndTrigger(std::move(unmanagedHdrTask));
 
-	std::vector<IResource*> resourcesToLoad = {
-		pipeline,
-		texture,
-		material, 
-		hdrTexture,
-		geometry
-	};
+		// Alternatively, you can use the resource caches to load textures / geometry.
+		// These textures are not gauranteed to be stable, and may move around in memory
+		// or be disposed of to make room for new textures.
+		Future<Texture*> managedTextureFuture = 
+			systems.Load<Texture>("brick_albedo.png", &taskQueue);
+		Future<Geometry*> managedGeoFuture = 
+			systems.Load<Geometry>(geoLoad, &taskQueue);
+		Future<Texture*> managedHdrFuture = 
+			systems.Load<Texture>("environment.hdr", &taskQueue);
 
-	LoadingScreen(&en, resourcesToLoad);
+		// Create a barrier that is invoked after all resources are loaded
+		TaskBarrier barrier;
+		barrier.mIn.Lock()
+			.Connect(unmanagedTextureFuture.Out())
+			.Connect(unmanagedGeometryFuture.Out())
+			.Connect(unmanagedHdrFuture.Out())
+			.Connect(managedTextureFuture.Out())
+			.Connect(managedGeoFuture.Out())
+			.Connect(managedHdrFuture.Out());
 
-	std::cout << "Everything loaded!" << std::endl;
+		BasicLoadingScreen(platform, graphics, imguiSystem->GetImGui(), &barrier, &taskQueue);
 
-	en.CollectGarbage();
+		std::cout << "Everything loaded!" << std::endl;
 
-	while (en.IsReady()) {
-		en.YieldFor(std::chrono::milliseconds(10));
-		en.Update([](double, double) { });
-		en.Render(nullptr);
-		en.RenderUI();
-		en.Present();
+		DG::Timer timer;
+		FrameTime time(timer);
+
+		while (platform->IsValid()) {
+			time.UpdateFrom(timer);
+			platform->MessagePump();
+
+			systems.RunFrame(time, &taskQueue);
+			systems.WaitOnRender(&taskQueue);
+			graphics.Present(1);
+			systems.WaitOnUpdate(&taskQueue);
+		}
 	}
 
-	geometry->Release();
-	texture->Release();
-	pipeline->Release();
-	material->Release();
-	hdrTexture->Release();
-
-	en.Shutdown();
+	systems.Shutdown();
+	taskQueue.Shutdown();
+	graphics.Shutdown();
+	platform->Shutdown();
 }

@@ -11,7 +11,7 @@ namespace Morpheus {
 	}
 
 	std::vector<DG::IShaderResourceBinding*> GenerateSRBs(
-		DG::IPipelineState* pipelineState, IRenderer* renderer) {
+		DG::IPipelineState* pipelineState, IRendererOld* renderer) {
 
 		std::vector<DG::IShaderResourceBinding*> srbs;
 		srbs.resize(renderer->GetMaxRenderThreadCount());

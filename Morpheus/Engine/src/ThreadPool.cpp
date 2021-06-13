@@ -68,6 +68,9 @@ namespace Morpheus {
 	}
 
 	void ImmediateTaskQueue::RunOneJob() {
+		if (mImmediateQueue.size() == 0)
+			return;
+
 		Task task = std::move(mImmediateQueue.front());
 		mImmediateQueue.pop();
 

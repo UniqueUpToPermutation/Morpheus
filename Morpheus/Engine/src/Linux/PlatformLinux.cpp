@@ -1,17 +1,5 @@
 
-#include <Engine/Engine.hpp>
 #include <Engine/Linux/PlatformLinux.hpp>
-
-#include "PlatformDefinitions.h"
-#include "NativeAppBase.hpp"
-#include "StringTools.hpp"
-#include "Timer.hpp"
-#include "Errors.hpp"
-
-#if VULKAN_SUPPORTED
-#    include "ImGuiImplLinuxXCB.hpp"
-#endif
-#include "ImGuiImplLinuxX11.hpp"
 
 namespace Morpheus
 {
@@ -52,11 +40,60 @@ namespace Morpheus
 	static constexpr uint16_t MinWindowWidth  = 320;
 	static constexpr uint16_t MinWindowHeight = 240;
 
-	PlatformLinux::PlatformLinux() : mEngine(nullptr),
+	PlatformLinux::PlatformLinux() :
 		bQuit(false) {
 	}
 
-	int PlatformLinux::InitializeVulkan(const EngineParams& params) {
+	int PlatformLinux::HandleXEvent(XEvent* xev) {
+		int handled = false;
+		for (auto handler : mEventHandlersX) {
+			if (!handled || xev->type == ButtonRelease || xev->type == MotionNotify || xev->type == KeyRelease) {
+				handled = (*handler)(xev);
+			} else {
+				break;
+			}
+		}
+
+		if (!handled || xev->type == ButtonRelease || xev->type == MotionNotify || xev->type == KeyRelease) {
+			handled = mInput.HandleXEvent(xev);
+		}
+
+		return handled;
+	}
+
+#ifdef VULKAN_SUPPORTED
+	void PlatformLinux::HandleXCBEvent(xcb_generic_event_t* event) {
+
+		int handled = false;
+		for (auto handler : mEventHandlersXCB) {
+			if (!handled) {
+				handled = (*handler)(event);
+			} else {
+				break;
+			}
+		}
+		
+		auto EventType = event->response_type & 0x7f;
+		// Always handle mouse move, button release and key release events
+		if (!handled || EventType == XCB_MOTION_NOTIFY || EventType == XCB_BUTTON_RELEASE || EventType == XCB_KEY_RELEASE)
+		{
+			handled = mInput.HandleXCBEvent(event);
+		}
+	}
+#endif
+
+	void PlatformLinux::HandleWindowResize(uint width, uint height) {
+		
+		mParams.mWindowWidth = width;
+		mParams.mWindowHeight = height;
+
+		for (auto handler : mWindowResizeHandlers) {
+			(*handler)(width, height);
+		}
+	}
+
+#ifdef VULKAN_SUPPORTED
+	int PlatformLinux::InitializeVulkan(const PlatformParams& params) {
 
 		int scr         = 0;
 		mXCBInfo.connection = xcb_connect(nullptr, &scr);
@@ -73,8 +110,8 @@ namespace Morpheus
 
 		auto screen = iter.data;
 
-		mXCBInfo.width  = params.mDisplay.mWidth;
-		mXCBInfo.height = params.mDisplay.mHeight;
+		mXCBInfo.width  = params.mWindowWidth;
+		mXCBInfo.height = params.mWindowHeight;
 
 		uint32_t value_mask, value_list[32];
 
@@ -105,7 +142,7 @@ namespace Morpheus
 							&(*mXCBInfo.atom_wm_delete_window).atom);
 		free(reply);
 
-		mTitle = params.mWindow.mWindowTitle;
+		mTitle = params.mWindowTitle;
 
 		// https://stackoverflow.com/a/27771295
 		xcb_size_hints_t hints = {};
@@ -132,18 +169,17 @@ namespace Morpheus
 		xcb_change_property(mXCBInfo.connection, XCB_PROP_MODE_REPLACE, mXCBInfo.window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING,
 			8, mTitle.length(), mTitle.c_str());
 
-		if (!mEngine->InitVulkan(mXCBInfo.connection, mXCBInfo.window)) {
-        	throw std::runtime_error("Could not initialize Vulkan!");
-		}
-
 		xcb_flush(mXCBInfo.connection);
 
-		mDeviceType = DG::RENDER_DEVICE_TYPE_VULKAN;
+		mParams.mDeviceType = DG::RENDER_DEVICE_TYPE_VULKAN;
+
+		mMode = PlatformLinuxMode::XCB;
 
 		return 1;
 	}
+#endif
 
-	int PlatformLinux::InitializeGL(const EngineParams& params) {
+	int PlatformLinux::InitializeGL(const PlatformParams& params) {
 		mDisplay = XOpenDisplay(0);
 
 		// clang-format off
@@ -198,7 +234,7 @@ namespace Morpheus
 			PointerMotionMask;
 
 		Window mWindow = XCreateWindow(mDisplay, RootWindow(mDisplay, vi->screen), 0, 0, 
-			params.mDisplay.mWidth, params.mDisplay.mHeight, 0, vi->depth, InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, &swa);
+			params.mWindowWidth, params.mWindowHeight, 0, vi->depth, InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, &swa);
 		if (!mWindow)
 		{
 			LOG_ERROR_MESSAGE("Failed to create window.");
@@ -240,12 +276,12 @@ namespace Morpheus
 		int minor_version = 3;
 
 		static int context_attribs[] =
-			{
-				GLX_CONTEXT_MAJOR_VERSION_ARB, major_version,
-				GLX_CONTEXT_MINOR_VERSION_ARB, minor_version,
-				GLX_CONTEXT_FLAGS_ARB, Flags,
-				None //
-			};
+		{
+			GLX_CONTEXT_MAJOR_VERSION_ARB, major_version,
+			GLX_CONTEXT_MINOR_VERSION_ARB, minor_version,
+			GLX_CONTEXT_FLAGS_ARB, Flags,
+			None //
+		};
 
 		constexpr int True = 1;
 		mGLXContext  = glXCreateContextAttribsARB(mDisplay, fbc[0], NULL, True, context_attribs);
@@ -258,63 +294,75 @@ namespace Morpheus
 
 		glXMakeCurrent(mDisplay, mWindow, mGLXContext);
 
-		mDeviceType = DG::RENDER_DEVICE_TYPE_GL;
+		mParams.mDeviceType = DG::RENDER_DEVICE_TYPE_GL;
 	
-		mTitle = params.mWindow.mWindowTitle;
-		if (!mEngine->OnGLContextCreated(mDisplay, mWindow))
-		{
-			LOG_ERROR("Unable to initialize the application in OpenGL mode. Aborting");
-			return 0;
-		}
+		mTitle = params.mWindowTitle;
 		XStoreName(mDisplay, mWindow, mTitle.c_str());
 
-		mTimer.Restart();
-		mPrevTime = mTimer.GetElapsedTime();
+		mMode = PlatformLinuxMode::X11;
+
 		return 1;
 	}
 
 	void PlatformLinux::Flush() {
 #if VULKAN_SUPPORTED
-		if (mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
+		if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
 			xcb_flush(mXCBInfo.connection);
 		}
 #endif
 	}
 
-	void PlatformLinux::MessageLoop(const update_callback_t& callback) {
-		if (mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
+	void PlatformLinux::Show() {
+
+	}
+	void PlatformLinux::Hide() {
+		
+	}
+	void PlatformLinux::SetCursorVisible(bool value) {
+		
+	}
+
+	const PlatformParams& PlatformLinux::GetParameters() const {
+		return mParams;
+	}
+
+	const InputController& PlatformLinux::GetInput() const {
+		return mInput;
+	}
+
+	void PlatformLinux::AddUserResizeHandler(user_window_resize_t* handler) {
+		mWindowResizeHandlers.emplace(handler);
+	}
+	void PlatformLinux::RemoveUserResizeHandler(user_window_resize_t* handler) {
+		mWindowResizeHandlers.erase(handler);
+	}
+				
+	void PlatformLinux::MessagePump() {
+		if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
 			XEvent xev;
 			// Handle all events in the queue
 			while (XCheckMaskEvent(mDisplay, 0xFFFFFFFF, &xev))
 			{
-				mEngine->HandleXEvent(&xev);
+				HandleXEvent(&xev);
 				switch (xev.type)
 				{
 					case ConfigureNotify:
 					{
 						XConfigureEvent& xce = reinterpret_cast<XConfigureEvent&>(xev);
 						if (xce.width != 0 && xce.height != 0)
-							mEngine->WindowResize(xce.width, xce.height);
+							HandleWindowResize(xce.width, xce.height);
 						break;
 					}
 				}
 			}
-
-			// Render the scene
-			auto CurrTime    = mTimer.GetElapsedTime();
-			auto ElapsedTime = CurrTime - mPrevTime;
-			mPrevTime         = CurrTime;
-
-			if (callback)
-				callback(CurrTime, ElapsedTime);
 		}
 #if VULKAN_SUPPORTED
-		else if (mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
+		else if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
 			xcb_generic_event_t* event = nullptr;
 
 			while ((event = xcb_poll_for_event(mXCBInfo.connection)) != nullptr)
 			{
-				mEngine->HandleXCBEvent(event);
+				HandleXCBEvent(event);
 				switch (event->response_type & 0x7f)
 				{
 					case XCB_CLIENT_MESSAGE:
@@ -338,7 +386,7 @@ namespace Morpheus
 							mXCBInfo.height = cfgEvent->height;
 							if ((mXCBInfo.width > 0) && (mXCBInfo.height > 0))
 							{
-								mEngine->WindowResize(mXCBInfo.width, mXCBInfo.height);
+								HandleWindowResize(mXCBInfo.width, mXCBInfo.height);
 							}
 						}
 					}
@@ -349,27 +397,36 @@ namespace Morpheus
 				}
 				free(event);
 			}
-
-			// Update
-			auto CurrTime    = mTimer.GetElapsedTime();
-			auto ElapsedTime = CurrTime - mPrevTime;
-			mPrevTime         = CurrTime;
-
-			if (callback)
-				callback(CurrTime, ElapsedTime);
 		}
 #endif
 	}
 
-	int PlatformLinux::Initialize(Engine* engine, 
-			const EngineParams& params) {
-		bool UseVulkan = false;
+	DG::LinuxNativeWindow PlatformLinux::GetNativeWindow() const {
+		
+		if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
+			DG::LinuxNativeWindow window;
+			window.pDisplay = mDisplay;
+			window.WindowId = mWindow;
+			return window;
+		}
+#if VULKAN_SUPPORTED
+		else if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
+			DG::LinuxNativeWindow window;
+			window.pXCBConnection = mXCBInfo.connection;
+			window.WindowId = mXCBInfo.window;
+			return window;
+		}
+#endif
+		return DG::LinuxNativeWindow();
+	}
 
-		mEngine = engine;
 
-		UseVulkan = true;
+	int PlatformLinux::Startup(const PlatformParams& params) {
 
-		switch (params.mRenderer.mBackendType) {
+		bIsInitialized = true;
+		bool UseVulkan = true;
+
+		switch (params.mDeviceType) {
 			case DG::RENDER_DEVICE_TYPE_GL:
 				UseVulkan = false;
 				break;
@@ -409,16 +466,22 @@ namespace Morpheus
 	}
 
 	void PlatformLinux::Shutdown() {
-		if (mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
-			glXMakeCurrent(mDisplay, None, NULL);
-			glXDestroyContext(mDisplay, mGLXContext);
-			XDestroyWindow(mDisplay, mWindow);
-			XCloseDisplay(mDisplay);
+		if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
+			if (mDisplay) {
+				glXMakeCurrent(mDisplay, None, NULL);
+				glXDestroyContext(mDisplay, mGLXContext);
+				XDestroyWindow(mDisplay, mWindow);
+				XCloseDisplay(mDisplay);
+				mDisplay = nullptr;
+			}
 		}
 #if VULKAN_SUPPORTED
-		else if (mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
-			xcb_destroy_window(mXCBInfo.connection, mXCBInfo.window);
-    		xcb_disconnect(mXCBInfo.connection);
+		else if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_VULKAN) {
+			if (mXCBInfo.connection) {
+				xcb_destroy_window(mXCBInfo.connection, mXCBInfo.window);
+				xcb_disconnect(mXCBInfo.connection);
+				mXCBInfo.connection = nullptr;
+			}
 		}
 #endif
 		else {

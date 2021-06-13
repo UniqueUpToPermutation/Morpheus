@@ -4,245 +4,129 @@
 #include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
-	class TextureResource;
-	class PipelineResource;
-	class MaterialResource;
-	class GeometryResource;
-	class ShaderResource;
-	class ResourceManager;
-	class CollisionShapeResource;
 	class RawTexture;
+	class Texture;
 	class RawGeometry;
-	class RawShader;
+	class Geometry;
 
+	struct MaterialDesc;
+	class Material;
+
+	enum class ResourceManagement {
+		FROM_DISK_MANAGED,
+		FROM_DISK_UNMANAGED,
+		INTERNAL_MANAGED,
+		INTERNAL_UNMANAGED
+	};
+	
 	template <typename T>
-	struct RefHandle {
-	private:
-		T* mPtr;
-
-	public:
-		inline T* RawPtr() {
-			return mPtr;
-		}
-
-		inline const T* RawPtr() const {
-			return mPtr;
-		}
-
-		inline RefHandle() noexcept : mPtr(nullptr) {
-		}
-
-		inline RefHandle(T* ptr) noexcept : mPtr(ptr) {
-			if (ptr)
-				ptr->AddRef();
-		}
-
-		inline ~RefHandle() {
-			if (mPtr)
-				mPtr->Release();
-		}
-
-		inline RefHandle(const RefHandle& other) noexcept : mPtr(other.mPtr) {
-			if (mPtr)
-				mPtr->AddRef();
-		}
-
-		inline RefHandle(RefHandle&& other) noexcept : mPtr(other.mPtr) {
-			other.mPtr = nullptr;
-		}
-
-		inline RefHandle& operator=(const RefHandle& other) noexcept {
-			mPtr = other.mPtr;
-			if (mPtr)
-				mPtr->AddRef();
-
-			return *this;
-		}
-
-		inline RefHandle& operator=(RefHandle&& other) {
-			if (mPtr) 
-				mPtr->Release();
-
-			mPtr = other.mPtr;
-			other.mPtr = nullptr;
-
-			return *this;
-		}
-
-		inline T* operator->() noexcept {
-			return mPtr;
-		}
-
-		inline const T* operator->() const noexcept {
-			return mPtr;
-		}
-
-		inline RefHandle& operator=(T* ptr) {
-			if (mPtr) 
-				mPtr->Release();
-
-			mPtr = ptr;
-
-			if (mPtr)
-				mPtr->AddRef();
-
-			return *this;
-		}
-
-		inline operator bool() const noexcept {
-			return mPtr != nullptr;
-		}
-
-		inline operator T*() noexcept {
-			return mPtr;
-		}
-
-		inline operator const T*() const noexcept {
-			return mPtr;
-		}
+	struct LoadParams {
 	};
 
 	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
 
-	using resource_type = 
-		entt::identifier<
-			TextureResource,
-			PipelineResource,
-			MaterialResource,
-			GeometryResource,
-			CollisionShapeResource,
-			ShaderResource>;
-
-	class IResource;
-	class IResourceCache {
-	public:
-		// Returns a task desc that the caller must then trigger with the thread pool
-		virtual Task LoadTask(const void* params, IResource** output) = 0;
-		virtual void Add(IResource* resource, const void* params) = 0;
-		virtual void Unload(IResource* resource) = 0;
-		virtual void Clear() = 0;
-		virtual ~IResourceCache() {
-		}
-	};
-
-	template <typename T>
-	class ResourceCache;
-
-	template <typename T>
-	struct LoadParams;
-
-	template <typename T>
-	struct ResourceConvert;
-
 	class IResource {
 	private:
-		std::atomic<unsigned int> mRefCount = 0;
-		ResourceManager* mManager;
-
-	protected:
-		TaskBarrier mBarrier;
-		std::atomic<bool> bIsLoaded;
+		std::atomic<uint> mRefCount;
 
 	public:
-		IResource(ResourceManager* manager) : 
-			mManager(manager) {
-			bIsLoaded = false;
+		inline IResource() {
+			mRefCount = 1;
 		}
 
-		virtual ~IResource() {
-			assert(mRefCount == 0);
+		inline uint AddRef() {
+			return mRefCount.fetch_add(1) + 1;
 		}
 
-		inline void AddRef() noexcept {
-			++mRefCount;
-		}
-
-		void Release();
-		
-		inline void ResetRefCount() {
-			mRefCount = 0;
-		}
-
-		inline int GetRefCount() const {
+		inline uint GetRefCount() {
 			return mRefCount;
 		}
 
-		virtual entt::id_type GetType() const = 0;
+		virtual ~IResource() = default;
 
-		virtual PipelineResource* ToPipeline();
-		virtual GeometryResource* ToGeometry();
-		virtual MaterialResource* ToMaterial();
-		virtual TextureResource* ToTexture();
-		virtual CollisionShapeResource* ToCollisionShape();
-		virtual ShaderResource* ToShader();
+		inline uint Release() {
+			auto val = mRefCount.fetch_sub(1);
+			assert(val >= 1);
 
-		inline void SetLoaded(bool value) {
-			bIsLoaded = value;
-		}
+			if (val == 1)
+				delete this;
 
-		inline bool IsLoaded() const {
-			return bIsLoaded;
-		}
-
-		// A barrier that is invoked when the resource is loaded.
-		inline TaskBarrier* GetLoadBarrier() {
-			return &mBarrier;
-		}
-		
-		inline const TaskBarrier* GetLoadBarrier() const {
-			return &mBarrier;
-		}
-
-		inline ResourceManager* GetManager() {
-			return mManager;
-		}
-
-		template <typename T>
-		inline T* To() {
-			return ResourceConvert<T>::Convert(this);
+			return val - 1;
 		}
 	};
 
-	template <>
-	struct ResourceConvert<PipelineResource> {
-		static inline PipelineResource* Convert(IResource* resource) {
-			return resource->ToPipeline();
-		}
-	};
+	template <typename T>
+	class Handle {
+	private:
+		T* mResource;
 
-	template <>
-	struct ResourceConvert<GeometryResource> {
-		static inline GeometryResource* Convert(IResource* resource) {
-			return resource->ToGeometry();
+	public:
+		inline Handle() : mResource(nullptr) {
 		}
-	};
 
-	template <>
-	struct ResourceConvert<MaterialResource> {
-		static inline MaterialResource* Convert(IResource* resource) {
-			return resource->ToMaterial();
+		inline Handle(T* resource) : mResource(resource) {
+			if (resource)
+				resource->AddRef();
 		}
-	};
 
-	template <>
-	struct ResourceConvert<TextureResource> {
-		static inline TextureResource* Convert(IResource* resource) {
-			return resource->ToTexture();
+		inline Handle(const Handle<T>& h) : mResource(h.mResource) {
+			if (mResource)
+				mResource->AddRef();
 		}
-	};
 
-	template <>
-	struct ResourceConvert<CollisionShapeResource> {
-		static inline CollisionShapeResource* Convert(IResource* resource) {
-			return resource->ToCollisionShape();
+		inline Handle(Handle<T>&& h) : mResource(h.mResource) {
+			h.mResource = nullptr;
 		}
-	};
 
-	
-	template <>
-	struct ResourceConvert<ShaderResource> {
-		static inline ShaderResource* Convert(IResource* resource) {
-			return resource->ToShader();
+		inline Handle<T>& operator=(const Handle<T>& h) {
+			if (mResource)
+				mResource->Release();
+
+			mResource = h.mResource;
+
+			if (mResource)
+				mResource->AddRef();
+
+			return *this;
+		}
+
+		inline Handle<T>& operator=(Handle<T>&& h) {
+			if (mResource)
+				mResource->Release();
+
+			mResource = h.mResource;
+			h.mResource = nullptr;
+			return *this;
+		}
+
+		inline ~Handle() {
+			if (mResource)
+				mResource->Release();
+		}
+
+		inline T* Ptr() {
+			return mResource;
+		}
+
+		inline T* operator->() {
+			return mResource;
+		}
+
+		inline operator bool() {
+			return mResource;
+		}
+
+		inline operator T*() {
+			return mResource;
+		}
+
+		inline T* Release() {
+			T* result = mResource;
+			if (mResource) {
+				result->Release();
+				mResource = nullptr;
+			}
+			return result;
 		}
 	};
 }

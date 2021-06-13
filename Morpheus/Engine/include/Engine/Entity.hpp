@@ -137,206 +137,57 @@ namespace Morpheus {
 			mFirstChild(firstChild),
 			mLastChild(lastChild) {
 		}
-	};
 
-	class EntityNode {
-	private:
-		entt::registry* mRegistry;
-		entt::entity mEntity;
+		static void Orphan(entt::registry& registry, entt::entity ent) {
+			HierarchyData& data = registry.get<HierarchyData>(ent);
 
-		void Orphan(HierarchyData& selfData) {
-			if (selfData.mParent != entt::null) {
-				HierarchyData& parentData = mRegistry->get<HierarchyData>(selfData.mParent);
+			if (data.mParent != entt::null) {
+				HierarchyData& parentData = registry.get<HierarchyData>(data.mParent);
 
-				if (parentData.mFirstChild == mEntity) {
-					parentData.mFirstChild = selfData.mNext;
-					if (selfData.mNext != entt::null) {
-						HierarchyData& nextData = mRegistry->get<HierarchyData>(selfData.mNext);
+				if (parentData.mFirstChild == ent) {
+					parentData.mFirstChild = data.mNext;
+					if (data.mNext != entt::null) {
+						HierarchyData& nextData = registry.get<HierarchyData>(data.mNext);
 						nextData.mPrevious = entt::null;
 					}
 				}
 
-				if (parentData.mLastChild == mEntity) {
-					parentData.mLastChild = selfData.mPrevious;
-					if (selfData.mPrevious != entt::null) {
-						HierarchyData& prevData = mRegistry->get<HierarchyData>(selfData.mPrevious);
+				if (parentData.mLastChild == ent) {
+					parentData.mLastChild = data.mPrevious;
+					if (data.mPrevious != entt::null) {
+						HierarchyData& prevData = registry.get<HierarchyData>(data.mPrevious);
 						prevData.mNext = entt::null;
 					}
 				}
 			}
 
-			selfData.mParent = entt::null;
+			data.mParent = entt::null;
 		}
 
-		void DestroyInternal() {
-			for (EntityNode child = GetFirstChild(); child.IsValid(); child = child.GetNext()) {
-				child.DestroyInternal();
-			}
+		static void AddChild(entt::registry& registry, entt::entity parent, entt::entity newChild) {
+			auto& childData = registry.get<HierarchyData>(newChild);
 
-			mRegistry->destroy(mEntity);
-			mEntity = entt::null;
-		}
-
-	public:
-		EntityNode(entt::registry* registry, entt::entity e) :
-			mRegistry(registry),
-			mEntity(e) {
-		}
-
-		EntityNode() :
-			mRegistry(nullptr),
-			mEntity(entt::null) {
-		}
-
-		inline bool IsValid() const {
-			return mEntity != entt::null;
-		}
-
-		inline bool IsInvalid() const {
-			return mEntity == entt::null;
-		}
-
-		static EntityNode Invalid() {
-			return EntityNode();
-		}
-
-		inline HierarchyData GetAdjacencyData() {
-			return mRegistry->get<HierarchyData>(mEntity);
-		}
-
-		inline EntityNode GetParent() {
-			auto& data = mRegistry->get<HierarchyData>(mEntity);
-			return EntityNode(mRegistry, data.mParent);
-		}
-
-		inline EntityNode GetFirstChild() {
-			auto& data = mRegistry->get<HierarchyData>(mEntity);
-			return EntityNode(mRegistry, data.mFirstChild);
-		}
-
-		inline EntityNode GetLastChild() {
-			auto& data = mRegistry->get<HierarchyData>(mEntity);
-			return EntityNode(mRegistry, data.mLastChild);
-		}
-
-		inline EntityNode GetNext() {
-			auto& data = mRegistry->get<HierarchyData>(mEntity);
-			return EntityNode(mRegistry, data.mNext);
-		}
-
-		inline EntityNode GetPrevious() {
-			auto& data = mRegistry->get<HierarchyData>(mEntity);
-			return EntityNode(mRegistry, data.mPrevious);
-		}
-
-		template <typename T>
-		inline bool Has() {
-			return mRegistry->has<T>(mEntity);
-		}
-
-		void AddChild(EntityNode e) {
-			auto& otherData = mRegistry->get<HierarchyData>(e.mEntity);
-
-			if (otherData.mParent != entt::null) {
+			if (childData.mParent != entt::null) {
 				// Make this node into an orphan
-				e.Orphan(otherData);
+				Orphan(registry, newChild);
 			}
 
-			auto& selfData = mRegistry->get<HierarchyData>(mEntity);
+			auto& selfData = registry.get<HierarchyData>(parent);
 			
 			// Add to the end of linked child list
 			if (selfData.mLastChild != entt::null) {
-				auto& prevLastData = mRegistry->get<HierarchyData>(selfData.mLastChild);
+				auto& prevLastData = registry.get<HierarchyData>(selfData.mLastChild);
 
-				prevLastData.mNext = e.mEntity;
-				otherData.mPrevious = selfData.mLastChild;
-				selfData.mLastChild = e.mEntity;
+				prevLastData.mNext = newChild;
+				childData.mPrevious = selfData.mLastChild;
+				selfData.mLastChild = newChild;
 
 			} else {
-				selfData.mFirstChild = e.mEntity;
-				selfData.mLastChild = e.mEntity;
+				selfData.mFirstChild = newChild;
+				selfData.mLastChild = newChild;
 			}
 
-			otherData.mParent = mEntity;
-		}
-
-		EntityNode CreateChild() {
-			entt::entity e = mRegistry->create();
-			mRegistry->emplace<HierarchyData>(e);
-			EntityNode node(mRegistry, e);
-			AddChild(node);
-			return node;
-		}
-
-		EntityNode CreateChild(entt::entity e) {
-			mRegistry->emplace<HierarchyData>(e);
-			EntityNode node(mRegistry, e);
-			AddChild(node);
-			return node;
-		}
-
-		inline entt::entity GetEntity() const {
-			return mEntity;
-		}
-
-		inline entt::registry* GetRegistry() {
-			return mRegistry;
-		}
-
-		inline void Orphan() {
-			Orphan(mRegistry->get<HierarchyData>(mEntity));
-		}
-
-		inline void SetParent(EntityNode& e) {
-			e.AddChild(*this);
-		}
-
-		void Destroy() {
-			Orphan();
-			DestroyInternal();
-		}
-
-		template <typename T>
-		inline decltype(auto) Get() {
-			return mRegistry->template get<T>(mEntity);
-		}
-
-		template <typename T>
-		inline decltype(auto) TryGet() {
-			return mRegistry->template try_get<T>(mEntity);
-		}
-
-		template <typename T, typename... Args>
-		inline decltype(auto) Add(Args &&... args) {
-			return mRegistry->template emplace<T, Args...>(mEntity, std::forward<Args>(args)...);
-		}
-
-		template<typename Component, typename... Func>
-    	inline decltype(auto) Patch(Func &&... func) {
-			return mRegistry->template patch<Component, Func...>(mEntity, std::forward<Func>(func)...);
-		}
-
-		template<typename Component, typename... Args>
-		inline decltype(auto) Replace(Args &&... args) {
-			if constexpr (IsUniquePointerComponent<Component>()) {
-				static_assert("Cannot used replace with unique pointer components!");
-			} else {
-				return mRegistry->template replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
-			}
-		}
-
-		template <typename Component>
-		inline void Remove() {
-			mRegistry->template remove<Component>(mEntity);
-		}
-
-		template <typename Component, typename... Args>
-		inline decltype(auto) AddOrReplace(Args &&... args) {
-			if constexpr (IsUniquePointerComponent<Component>()) {
-				static_assert("Cannot used replace with unique pointer components!");
-			} else {
-				return mRegistry->template emplace_or_replace<Component, Args...>(mEntity, std::forward<Args>(args)...);
-			}
+			childData.mParent = parent;
 		}
 	};
 }

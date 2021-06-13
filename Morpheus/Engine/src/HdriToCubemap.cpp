@@ -1,9 +1,7 @@
 #include <Engine/HdriToCubemap.hpp>
 #include <Engine/Resources/Resource.hpp>
-#include <Engine/Resources/PipelineResource.hpp>
 #include <Engine/Brdf.hpp>
-#include <Engine/Engine.hpp>
-#include <Engine/Resources/ShaderResource.hpp>
+#include <Engine/Resources/Shader.hpp>
 
 #include "GraphicsUtilities.h"
 #include "MapHelper.hpp"
@@ -40,16 +38,16 @@ namespace Morpheus {
 		else 
 			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
 
-		LoadParams<ShaderResource> vsParams("internal/CubemapFace.vsh",
+		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Cubemap Face Vertex Shader",
-			&config,
+			config,
 			"main");
 
-		LoadParams<ShaderResource> psParams("internal/HdriToCubemap.psh",
+		LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
 			DG::SHADER_TYPE_PIXEL,
 			"HDRI Convert Pixel Shader",
-			&config,
+			config,
 			"main");
 
 		auto cubemapFaceVS = CompileEmbeddedShader(device, vsParams);

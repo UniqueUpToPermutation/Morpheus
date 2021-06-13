@@ -14,9 +14,9 @@
 #include "SphericalHarmonics.hlsl"
 #endif
 
-cbuffer Globals
+cbuffer CameraData
 {
-    RendererGlobalData mGlobals;
+    CameraAttribs mCamera;
 }
 
 Texture2D		mAlbedo;
@@ -79,7 +79,7 @@ void main(in float4 ClipPos : SV_Position,
 
 	// Compute reflection directions
 	float3 N = normalize(Normal);
-	float3 Lo = normalize(mGlobals.mCamera.f4Position.xyz - WorldPos);
+	float3 Lo = normalize(mCamera.f4Position.xyz - WorldPos);
 	float3 Lr = -reflect(Lo, N);
 	float NoR = saturate(dot(Lo, N));
 

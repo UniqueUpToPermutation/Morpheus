@@ -3,22 +3,12 @@
 #include "BasicMath.hpp"
 
 #include <Engine/Entity.hpp>
-#include <Engine/Scene.hpp>
 
 namespace DG = Diligent;
 
 struct btTransform;
 
 namespace Morpheus {
-	class MatrixTransformCache {
-	public:
-		DG::float4x4 mCache;
-
-		MatrixTransformCache(const DG::float4x4& cache) :
-			mCache(cache) {
-		}
-	};
-
 	class Transform {
 	private:
 		DG::float3 mTranslation;

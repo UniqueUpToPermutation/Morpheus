@@ -1,0 +1,10 @@
+Texture2D    mAlbedo;
+SamplerState mAlbedo_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+void main(in float4 ClipPos : SV_Position,
+	in float3 WorldPos 		: WORLD_POS,
+	in float2 UV	      	: UV0,
+    out float4 OutColor 	: SV_Target)
+{
+    OutColor = mAlbedo.Sample(mAlbedo_sampler, UV); 
+}

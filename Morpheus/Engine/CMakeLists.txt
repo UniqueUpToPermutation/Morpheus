@@ -128,36 +128,27 @@ elseif(PLATFORM_IOS)
 endif()
 
 list(APPEND SOURCE
-	src/Engine.cpp
 	src/Brdf.cpp
 	src/HdriToCubemap.cpp
-	src/EditorCameraController.cpp
-	src/PostProcessor.cpp
-	src/Scene.cpp
-	src/DefaultRenderer.cpp
 	src/Camera.cpp
 	src/ThreadPool.cpp
+	src/Graphics.cpp
+	src/RendererTransformCache.cpp
 	src/SpriteBatch.cpp
-	src/Im3d.cpp
-	src/Renderer.cpp
-	src/RendererGlobalsData.cpp
-	src/LightProbe.cpp
-	src/EmptyRenderer.cpp
 	src/Loading.cpp
+	src/GeometryStructures.cpp
 
-	src/Engine2D/Renderer2D.cpp
-	src/Engine2D/Tilemap.cpp
-	src/Engine2D/Editor2D.cpp
-	src/Engine2D/Physics2D.cpp
+	src/Systems/GeometryCache.cpp
+	src/Systems/TextureCache.cpp
+	src/Systems/DefaultRenderer.cpp
+	src/Systems/EmptyRenderer.cpp
+	src/Systems/System.cpp
+	src/Systems/ImGuiSystem.cpp
 
-	src/Resources/ShaderResource.cpp
-	src/Resources/Resource.cpp
-	src/Resources/ResourceManager.cpp
-	src/Resources/PipelineResource.cpp
-	src/Resources/TextureResource.cpp
-	src/Resources/MaterialResource.cpp
-	src/Resources/GeometryResource.cpp
-	src/Resources/ShaderLoader.cpp
+	src/Resources/Shader.cpp
+	src/Resources/Texture.cpp
+	src/Resources/Geometry.cpp
+	src/Resources/ShaderPreprocessor.cpp
 	src/Resources/EmbeddedFileLoader.cpp
 	src/Resources/ResourceData.cpp
 	src/Resources/ResourceSerialization.cpp
@@ -165,26 +156,9 @@ list(APPEND SOURCE
 	src/Resources/RawSampler.cpp
 	src/Resources/RawGeometry.cpp
 	src/Resources/TextureIterator.cpp
+	src/Resources/Resource.cpp
 
 	src/Components/Transform.cpp
-	src/Components/SkyboxComponent.cpp
-	
-	src/Pipelines/PipelineFactory.cpp
-	src/Pipelines/BasicTextured.cpp
-	src/Pipelines/Skybox.cpp
-	src/Pipelines/StaticMeshPBR.cpp
-	src/Pipelines/White.cpp
-	src/Pipelines/ImageBasedLightingView.cpp
-
-	src/Materials/MaterialPrototypes.cpp
-	src/Materials/BasicTexturedMaterial.cpp
-	src/Materials/WhiteMaterial.cpp
-	src/Materials/StaticMeshPBRMaterial.cpp
-
-	src/Systems/RendererBridge.cpp
-	src/Systems/Physics.cpp
-	src/Systems/TransformSystem.cpp
-	src/Systems/ScriptSystem.cpp
 
 	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
 	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp
@@ -194,61 +168,35 @@ list(APPEND SOURCE
 list(APPEND INCLUDE
     include/Engine/Brdf.hpp
     include/Engine/Camera.hpp
-    include/Engine/Core.hpp
-    include/Engine/DefaultRenderer.hpp
-    include/Engine/Defines.hpp
-    include/Engine/EditorCameraController.hpp
-    include/Engine/Engine.hpp
     include/Engine/Entity.hpp
-    include/Engine/Geometry.hpp
-    include/Engine/Graph.hpp
+    include/Engine/GeometryStructures.hpp
     include/Engine/HdriToCubemap.hpp
-    include/Engine/ImGuiObject.hpp
     include/Engine/InputController.hpp
-    include/Engine/LightProbe.hpp
     include/Engine/Platform.hpp
-    include/Engine/PostProcessor.hpp
-    include/Engine/Renderer.hpp
-    include/Engine/Scene.hpp
-    include/Engine/SpriteBatch.hpp
     include/Engine/ThreadPool.hpp
-	include/Engine/Im3d.hpp
-	include/Engine/DynamicGlobalsBuffer.hpp
-	include/Engine/RendererGlobalsData.hpp
-	include/Engine/EmptyRenderer.hpp
+	include/Engine/SpriteBatch.hpp
 	include/Engine/Loading.hpp
 
-	include/Engine/Engine2D/Renderer2D.hpp
-	include/Engine/Engine2D/Sprite.hpp
-	include/Engine/Engine2D/Tilemap.hpp
-	include/Engine/Engine2D/Base2D.hpp
-	include/Engine/Engine2D/Editor2D.hpp
-	include/Engine/Engine2D/Physics2D.hpp
+	include/Engine/Graphics.hpp
+	include/Engine/Frame.hpp
+	include/Engine/RendererTransformCache.hpp
 
-    include/Engine/Materials/BasicTexturedMaterial.hpp
-    include/Engine/Materials/MaterialPrototypes.hpp
-    include/Engine/Materials/StaticMeshPBRMaterial.hpp
-    include/Engine/Materials/WhiteMaterial.hpp
+	include/Engine/Systems/GeometryCache.hpp
+	include/Engine/Systems/TextureCache.hpp
+	include/Engine/Systems/EmptyRenderer.hpp
+	include/Engine/Systems/DefaultRenderer.hpp
+	include/Engine/Systems/Renderer.hpp
+	include/Engine/Systems/System.hpp
+	include/Engine/Systems/ImGuiSystem.hpp
 
-    include/Engine/Pipelines/PipelineFactory.hpp
-	include/Engine/Pipelines/ImageBasedLightingView.hpp
-
-	include/Engine/Components/PhysicsComponents.hpp
-	include/Engine/Components/ResourceComponents.hpp
-	include/Engine/Components/ScriptComponent.hpp
-	include/Engine/Components/SkyboxComponent.hpp
 	include/Engine/Components/Transform.hpp
-	include/Engine/Components/UniquePointerComponent.hpp
 
-    include/Engine/Resources/CollisionShapeResource.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp
-    include/Engine/Resources/GeometryResource.hpp
-    include/Engine/Resources/MaterialResource.hpp
-    include/Engine/Resources/PipelineResource.hpp
+    include/Engine/Resources/Geometry.hpp
     include/Engine/Resources/Resource.hpp
-    include/Engine/Resources/ResourceManager.hpp
-    include/Engine/Resources/ShaderLoader.hpp
-    include/Engine/Resources/TextureResource.hpp
+    include/Engine/Resources/ShaderPreprocessor.hpp
+	include/Engine/Resources/Shader.hpp
+    include/Engine/Resources/Texture.hpp
 	include/Engine/Resources/ImageCopy.hpp
 	include/Engine/Resources/ResourceData.hpp
 	include/Engine/Resources/ResourceSerialization.hpp
@@ -256,11 +204,6 @@ list(APPEND INCLUDE
 	include/Engine/Resources/RawSampler.hpp
 	include/Engine/Resources/RawGeometry.hpp
 	include/Engine/Resources/TextureIterator.hpp
-    
-    include/Engine/Systems/Physics.hpp
-    include/Engine/Systems/RendererBridge.hpp
-	include/Engine/Systems/ScriptSystem.hpp
-	include/Engine/Systems/TransformSystem.hpp
 )
 
 add_library(Morpheus-Engine STATIC ${SOURCE} ${INCLUDE})

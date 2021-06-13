@@ -1,10 +1,28 @@
 #pragma once
 
-#include <Engine/Engine.hpp>
+#include "SwapChain.h"
+#include "BasicMath.hpp"
+
+#include <Engine/Entity.hpp>
+
+#include <shaders/BasicStructures.hlsl>
 
 namespace DG = Diligent;
 
 namespace Morpheus {
+
+	class Graphics;
+
+	HLSL::CameraAttribs CreateCameraAttribs(const DG::float2& viewportSize,
+		const DG::float4x4& view, const DG::float4x4& projection,
+		const DG::float4& eye, float nearPlane, float farPlane);
+
+	DG::float4x4 GetSurfacePretransformMatrix(DG::ISwapChain* swapChain, 
+		const DG::float3& f3CameraViewAxis);
+	DG::float4x4 GetAdjustedProjectionMatrix(DG::ISwapChain* swapChain, 
+		bool bIsGL, float FOV, float NearPlane, float FarPlane);
+	DG::float4x4 GetAdjustedOrthoMatrix(
+		bool bIsGL, const DG::float2& fCameraSize, float zNear, float zFar);
 
 	enum class CameraType {
 		PERSPECTIVE,
@@ -32,7 +50,7 @@ namespace Morpheus {
 		// Does not take into account the transform of this node
 		DG::float4x4 GetView() const;
 		// Does not take into account the transform of this node
-		DG::float4x4 GetProjection(Engine* engine) const;
+		DG::float4x4 GetProjection(DG::ISwapChain* swapChain, bool bIsGL) const;
 		
 		DG::float3 GetEye() const;
 
@@ -110,13 +128,21 @@ namespace Morpheus {
 			mNearPlane = z;
 		}
 
-		static void ComputeTransformations(
-			EntityNode cameraNode,
-			Engine* engine,
+		void ComputeTransformations(
+			entt::entity entity,
+			entt::registry* registry,
+			DG::ISwapChain* swapChain,
+			bool bIsGL,
 			DG::float3* eye,
 			DG::float3* lookAt,
 			DG::float4x4* view,
 			DG::float4x4* proj,
 			DG::float4x4* viewProj);
+		
+		HLSL::CameraAttribs GetLocalAttribs(DG::ISwapChain* swapChain, bool bIsGL);
+		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, DG::ISwapChain* swapChain, bool bIsGL);
+	
+		HLSL::CameraAttribs GetLocalAttribs(Graphics& graphics);
+		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, Graphics& graphics);
 	};
 }

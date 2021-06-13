@@ -33,7 +33,7 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 
-	class IRenderer;
+	class IRendererOld;
 	class Scene;
 
 	struct WindowParams {
@@ -98,8 +98,8 @@ namespace Morpheus {
 			bShowUI = value;
 		}
 
-		virtual IRenderer* ToRenderer();
-		virtual const IRenderer* ToRenderer() const;
+		virtual IRendererOld* ToRenderer();
+		virtual const IRendererOld* ToRenderer() const;
 
 		virtual ~IEngineComponent() {
 		}
@@ -183,7 +183,7 @@ namespace Morpheus {
 		InputController		mInputController;
 		IPlatform*			mPlatform				= nullptr;
 		ResourceManager* 	mResourceManager 		= nullptr;
-		IRenderer*			mRenderer 				= nullptr;
+		IRendererOld*		mRenderer 				= nullptr;
 		ThreadPool			mThreadPool;
 		ScriptFactory		mScriptFactory;
 
@@ -221,7 +221,7 @@ namespace Morpheus {
 			T* result = new T(std::forward(args)...);
 			mComponents.emplace_back(result);
 
-			IRenderer* rendererInterface = result->ToRenderer();
+			IRendererOld* rendererInterface = result->ToRenderer();
 
 			if (rendererInterface) {
 				if (mRenderer) {
@@ -276,10 +276,10 @@ namespace Morpheus {
 		inline IPlatform* GetPlatform() {
 			return mPlatform;
 		}
-		inline IRenderer* GetRenderer() {
+		inline IRendererOld* GetRenderer() {
 			return mRenderer;
 		}
-		inline const IRenderer* GetRenderer() const {
+		inline const IRendererOld* GetRenderer() const {
 			return mRenderer;
 		}
 		inline ResourceManager* GetResourceManager() {

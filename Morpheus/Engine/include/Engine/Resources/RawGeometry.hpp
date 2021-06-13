@@ -6,7 +6,7 @@
 
 #include <vector>
 
-#include <Engine/Geometry.hpp>
+#include <Engine/GeometryStructures.hpp>
 #include <Engine/Resources/Resource.hpp>
 
 namespace DG = Diligent;
@@ -18,22 +18,66 @@ namespace Assimp {
 struct aiScene;
 
 namespace Morpheus {
-	class GeometryResource;
+
+	enum class GeometryType {
+		STATIC_MESH,
+		UNSPECIFIED
+	};
+
+	class IVertexFormatProvider {
+	public:
+		virtual const VertexLayout& GetStaticMeshLayout() const = 0;
+
+		inline const VertexLayout& GetLayout(GeometryType type) const {
+			switch (type) {
+				case GeometryType::STATIC_MESH:
+					return GetStaticMeshLayout();
+					break;
+				default:
+					return GetStaticMeshLayout();
+					break;
+			}
+		}
+	};
 
 	template <>
-	struct LoadParams<GeometryResource> {
+	struct LoadParams<Geometry> {
 		// Geometry resource will be loaded with this layout
 		VertexLayout mVertexLayout;
 		// Geometry resource will be loaded from this file
 		std::string mSource;
-		// If this is not null, the pipeline's vertex layout will be used instead of mVertexLayout
-		PipelineResource* mPipeline = nullptr;
-		// If this is not null, the material's vertex layout will be used instead of mVertexLayout
-		MaterialResource* mMaterial = nullptr;
+		// Only need to set this if we are loading from a geometry cache
+		GeometryType mType = GeometryType::UNSPECIFIED;
 
-		static LoadParams<GeometryResource> FromString(const std::string& str) {
-			throw std::runtime_error("Geometry cannot be created from string, pipeline must be specified!");
+		inline LoadParams() {
 		}
+
+		inline LoadParams(const std::string& source, const VertexLayout& layout) : 
+			mSource(source), mVertexLayout(layout) {
+		}
+
+		inline LoadParams(const char* source, const VertexLayout& layout) : 
+			mSource(source), mVertexLayout(layout) {
+		}
+
+		inline LoadParams(const std::string& source, GeometryType type) :
+			mSource(source), mType(type) {
+		}
+
+		inline LoadParams(const char* source, GeometryType type) :
+			mSource(source), mType(type) {
+		}
+
+		bool operator==(const LoadParams<Geometry>& t) const {
+			return mSource == t.mSource;
+		}
+
+		struct Hasher {
+			inline std::size_t operator()(const LoadParams<Geometry>& k) const
+			{
+				return std::hash<std::string>()(k.mSource);
+			}
+		};
 	};
 
 	class RawGeometry {
@@ -107,8 +151,12 @@ namespace Morpheus {
 		inline RawGeometry() {
 			bIsLoaded = false;
 		}
+
 		RawGeometry(const RawGeometry& other) = delete;
 		RawGeometry(RawGeometry&& other);
+
+		RawGeometry& operator=(const RawGeometry& other) = delete;
+		RawGeometry& operator=(RawGeometry&& other);
 
 		void Set(const VertexLayout& layout,
 			const DG::BufferDesc& vertexBufferDesc, 
@@ -147,10 +195,10 @@ namespace Morpheus {
 			DG::IBuffer** indexBufferOut);
 
 		void SpawnOnGPU(DG::IRenderDevice* device,
-			GeometryResource* writeTo);
+			Geometry* writeTo);
 
-		Task LoadAssimpTask(const LoadParams<GeometryResource>& params);
-		inline void LoadAssimp(const LoadParams<GeometryResource>& params) {
+		Task LoadAssimpTask(const LoadParams<Geometry>& params);
+		inline void LoadAssimp(const LoadParams<Geometry>& params) {
 			LoadAssimpTask(params)();
 		}
 
@@ -160,13 +208,13 @@ namespace Morpheus {
 			LoadArchiveTask(source)();
 		}
 
-		Task LoadTask(const LoadParams<GeometryResource>& params);
-		inline void Load(const LoadParams<GeometryResource>& params) {
+		Task LoadTask(const LoadParams<Geometry>& params);
+		inline void Load(const LoadParams<Geometry>& params) {
 			LoadTask(params)();
 		}
 
 		inline void Load(const std::string& source) {
-			Load(LoadParams<GeometryResource>::FromString(source));
+			Load(source);
 		}
 
 		Task SaveTask(const std::string& destination);
@@ -175,19 +223,18 @@ namespace Morpheus {
 		}
 		
 		void Clear();
+		void AdoptData(RawGeometry&& other);
 
 		inline RawGeometry(const std::string& source) {
 			Load(source);
 		}
 
 		inline RawGeometry(const std::string& source, const VertexLayout& layout) {
-			LoadParams<GeometryResource> params;
-			params.mSource = source;
-			params.mVertexLayout = layout;
+			LoadParams<Geometry> params(source, layout);
 			Load(params);
 		}
 
-		inline RawGeometry(const LoadParams<GeometryResource>& params) {
+		inline RawGeometry(const LoadParams<Geometry>& params) {
 			Load(params);
 		}
 

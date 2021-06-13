@@ -3,7 +3,7 @@
 
 cbuffer Globals 
 {
-	RendererGlobalData mGlobals;
+	CameraAttribs mCamera;
 };
 
 void main(in SpriteBatchVSInput VSIn,
@@ -35,9 +35,9 @@ void main(in SpriteBatchVSInput VSIn,
 
 	pos.xy += toCenter;
 
-	GSIn.mPos = mul(pos, mGlobals.mCamera.mViewProj);
-	GSIn.mUVX = mul(float4(uvx, 0.0, 0.0), mGlobals.mCamera.mViewProj);
-	GSIn.mUVY = mul(float4(uvy, 0.0, 0.0), mGlobals.mCamera.mViewProj);
+	GSIn.mPos = mul(pos, mCamera.mViewProj);
+	GSIn.mUVX = mul(float4(uvx, 0.0, 0.0), mCamera.mViewProj);
+	GSIn.mUVY = mul(float4(uvy, 0.0, 0.0), mCamera.mViewProj);
 
 	GSIn.mUVTop = VSIn.mUVTop;
 	GSIn.mUVBottom = VSIn.mUVBottom;

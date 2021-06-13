@@ -5,8 +5,6 @@
 
 namespace DG = Diligent;
 
-#include <Engine/Resources/ResourceManager.hpp>
-
 namespace Morpheus {
 	class HDRIToCubemapConverter {
 	private:

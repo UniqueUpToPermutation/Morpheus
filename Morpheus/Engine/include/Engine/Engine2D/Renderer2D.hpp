@@ -68,7 +68,7 @@ namespace Morpheus {
 		RenderLayer2DComponent* mRenderLayer;
 	};
 
-	class Renderer2D : public IRenderer {
+	class Renderer2D : public IRendererOld {
 	private:
 		DynamicGlobalsBuffer<RendererGlobalData> mGlobals;
 		Engine* mEngine;

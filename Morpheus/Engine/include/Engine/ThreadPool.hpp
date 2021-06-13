@@ -8,13 +8,14 @@
 #include <atomic>
 #include <future>
 #include <set>
+#include <memory>
 #include <unordered_map>
 
 #define ASSIGN_THREAD_ANY -1
 #define ASSIGN_THREAD_MAIN 0
 
 #ifndef NDEBUG
-#define THREAD_POOL_DEBUG
+// #define THREAD_POOL_DEBUG
 #endif
 
 typedef uint TaskId;
@@ -82,10 +83,19 @@ namespace Morpheus {
 
 		inline TaskNodeInLock& Connect(ITask* task);
 		inline TaskNodeInLock& Connect(Task* task);
+
+		inline TaskNodeInLock& Connect(Task& task) {
+			return Connect(&task);
+		}
+		inline TaskNodeInLock& Connect(TaskNodeOut& out) {
+			return Connect(&out);
+		}
+
 		inline TaskNodeInLock& Reset();
 		inline uint InputsLeft() const;
 		inline bool IsStarted() const;
 		inline bool IsReady() const;
+		inline void Clear();
 
 		inline bool ShouldWait() const {
 			return bWait;
@@ -166,6 +176,7 @@ namespace Morpheus {
 
 		inline bool IsFinished() const;
 		inline TaskNodeOutLock& Reset();
+		inline void Clear();
 	};
 
 	class TaskNodeOut {
@@ -209,6 +220,11 @@ namespace Morpheus {
 			mOut.Lock().Reset();
 		}
 
+		inline void Clear() {
+			mIn.Lock().Clear();
+			mOut.Lock().Clear();
+		}
+
 		// Trigger via immediate mode.
 		void Trigger();
 	};
@@ -239,12 +255,14 @@ namespace Morpheus {
 			}
 		}
 
-		inline bool SubTask() {
+		inline bool BeginSubTask() {
 			bool result = mStagesFinished <= mCurrentStage;
 			++mCurrentStage;
-			if (result)
-				++mStagesFinished;
 			return result;
+		}
+
+		inline void EndSubTask() {
+			++mStagesFinished;
 		}
 
 		inline TaskNodeIn& In() {
@@ -297,6 +315,31 @@ namespace Morpheus {
 		inline void operator()();
 	};
 
+	template <typename ...Args>
+	class IParameterizedTask : public ITask {
+	private:
+		std::tuple<Args...> mArgs;
+
+		virtual TaskResult InternalParameterizedRun(const TaskParams& params, const Args&... args) = 0;
+
+		TaskResult InternalRun(const TaskParams& params) override {
+			TaskResult result;
+			std::apply([this, &params, &result](const Args&... args) {
+				result = InternalParameterizedRun(params, args...);
+			}, mArgs);
+			return result;
+		}
+
+	public:
+		inline void SetParameters(Args&&... args) {
+			mArgs = std::make_tuple<Args...>(std::forward<Args...>(args)...);
+		}
+
+		inline IParameterizedTask(TaskType taskType, int assignedThread = ASSIGN_THREAD_ANY) : 
+			ITask(taskType, assignedThread) {
+		}
+	};
+
 	template <typename LambdaT, bool IsVoid>
 	struct TaskResultCast {
 	};
@@ -313,6 +356,49 @@ namespace Morpheus {
 	struct TaskResultCast<LambdaT, false> {
 		static TaskResult Perform(LambdaT& l, const TaskParams& e) {
 			return l(e);
+		}
+	};
+
+	template <typename T, typename... Args>
+	inline auto ParameterizedTaskPerform(T& delegate, const TaskParams& params, const Args&... args) {
+		return delegate(params, args...);
+	}
+
+	template <typename T, typename... Args>
+	class ParameterizedLambdaTask : public IParameterizedTask<Args...> {
+	private:
+		T mDelegate;
+		std::string mName;
+
+		inline TaskResult PerformAndConvert(void(*func)(T& delegate, const TaskParams& params, const Args&... args), 
+			const TaskParams& params, 
+			const Args&... args) {
+			(*func)(mDelegate, params, args...);
+			return TaskResult::FINISHED;
+		}
+
+		inline TaskResult PerformAndConvert(TaskResult(*func)(T& delegate, const TaskParams& params, const Args&... args), 
+			const TaskParams& params, 
+			const Args&... args) {
+			return (*func)(mDelegate, params, args...);
+		}
+
+	public:
+		inline ParameterizedLambdaTask(T&& func, const std::string& name = "",
+			TaskType type = TaskType::UNSPECIFIED,
+			int assignedThread = ASSIGN_THREAD_ANY) :
+			IParameterizedTask<Args...>(type, assignedThread),
+			mName(name), mDelegate(std::move(func)) {
+		}
+
+		TaskResult InternalParameterizedRun(const TaskParams& params, const Args&... args) override {
+			static_assert(!std::is_same_v<T, const ITask*>);
+			return PerformAndConvert(&ParameterizedTaskPerform<T, Args...>,
+				params, args...);
+		}
+
+		std::string GetName() const override {
+			return mName;
 		}
 	};
 
@@ -339,6 +425,87 @@ namespace Morpheus {
 		std::string GetName() const override {
 			return mName;
 		}
+	};
+
+	template <typename ...Args>
+	struct ParameterizedTask {
+	private:
+		IParameterizedTask<Args...>* mPtr;
+
+	public:
+		inline ParameterizedTask() : mPtr(nullptr) {
+		}
+
+		inline ParameterizedTask(IParameterizedTask<Args...>* ptr) : mPtr(ptr) {
+		}
+
+		inline ParameterizedTask(const IParameterizedTask<Args...>* ptr) : mPtr(nullptr) {
+			throw std::runtime_error("Cannot create task from const pointer!");
+		}
+
+		inline ParameterizedTask(TaskNodeIn* n) : mPtr(nullptr) {
+			throw std::runtime_error("Cannot create task from TaskNodeIn!");
+		}
+
+		inline IParameterizedTask<Args...>* Ptr() {
+			return mPtr;
+		}
+
+		inline const IParameterizedTask<Args...>* Ptr() const {
+			return mPtr;
+		}
+
+		ParameterizedTask(const ParameterizedTask<Args...>& task) = delete;
+		ParameterizedTask& operator=(const ParameterizedTask<Args...>& task) = delete;
+
+		template <typename T>
+		inline ParameterizedTask(T&& lambda, 
+			const std::string& name = "",
+			TaskType type = TaskType::UNSPECIFIED, 
+			int assignedThread = ASSIGN_THREAD_ANY) {
+			mPtr = new ParameterizedLambdaTask<T, Args...>(std::move(lambda), name, type, assignedThread);
+		}
+
+		inline void Swap(ParameterizedTask<Args...>& task) {
+			std::swap(task.mPtr, mPtr);
+		}
+
+		inline ParameterizedTask(ParameterizedTask<Args...>&& task) : mPtr(nullptr) {
+			Swap(task);
+		}
+
+		inline ParameterizedTask<Args...>& operator=(ParameterizedTask<Args...>&& task) {
+			Swap(task);
+			return *this;
+		}
+
+		~ParameterizedTask() {
+			if (!mPtr) {
+				delete mPtr;
+			}
+		}
+
+		inline IParameterizedTask<Args...>* operator->() {
+			return mPtr;
+		}
+
+		inline const IParameterizedTask<Args...>* operator->() const {
+			return mPtr;
+		}
+
+		inline void operator()() {
+			mPtr->operator()();
+		}
+
+		inline void SetParameters(Args&&... args) {
+			mPtr->SetParameters(std::forward(args)...);
+		}
+
+		inline void SetParameters(const Args&... args) {
+			mPtr->SetParameters(args...);
+		}
+
+		friend struct Task;
 	};
 
 	struct Task {
@@ -387,6 +554,12 @@ namespace Morpheus {
 			Swap(task);
 		}
 
+		template <typename ...Args>
+		inline Task(ParameterizedTask<Args...>&& other) : 
+			mPtr(other.mPtr) {
+			other.mPtr = nullptr;
+		}
+
 		inline Task& operator=(Task&& task) {
 			Swap(task);
 			return *this;
@@ -409,6 +582,10 @@ namespace Morpheus {
 		inline void operator()() {
 			mPtr->operator()();
 		}
+
+		inline operator bool() const {
+			return mPtr;
+		}
 	};
 
 	class TaskGroup {
@@ -421,6 +598,18 @@ namespace Morpheus {
 		std::vector<TaskGroup*> mSubGroups;
 
 	public:
+		inline TaskGroup() {
+			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
+		}
+
+		inline std::vector<ITask*>& GetExternalMembers() {
+			return mMembers;
+		}
+
+		inline std::vector<Task>& GetOwnedMembers() {
+			return mOwnedMembers;
+		}
+
 		inline TaskBarrier& BarrierIn() {
 			return mBarrierIn;
 		}
@@ -438,24 +627,30 @@ namespace Morpheus {
 		}
 
 		inline void Add(ITask* member) {
-			mMembers.push_back(member);
+			if (member) {
+				mMembers.push_back(member);
 
-			member->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&member->Out());
+				member->In().Lock().Connect(&mBarrierIn.mOut);
+				mBarrierOut.mIn.Lock().Connect(&member->Out());
+			}
 		}
 
 		inline void Adopt(Task&& member) {
-			member->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&member->Out());
+			if (member.Ptr()) {
+				member->In().Lock().Connect(&mBarrierIn.mOut);
+				mBarrierOut.mIn.Lock().Connect(&member->Out());
 
-			mOwnedMembers.push_back(std::move(member));
+				mOwnedMembers.push_back(std::move(member));
+			}
 		}
 
 		inline void Add(TaskGroup* subGroup) {
-			mSubGroups.push_back(subGroup);
+			if (subGroup) {
+				mSubGroups.push_back(subGroup);
 
-			subGroup->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&subGroup->Out());
+				subGroup->In().Lock().Connect(&mBarrierIn.mOut);
+				mBarrierOut.mIn.Lock().Connect(&subGroup->Out());
+			}
 		}
 
 		inline void Reset() {
@@ -463,6 +658,138 @@ namespace Morpheus {
 			mBarrierOut.Reset();
 
 			for (auto& mem : mMembers) {
+				mem->Reset();
+			}
+
+			for (auto& mem : mOwnedMembers) {
+				mem->Reset();
+			}
+
+			for (auto& sub : mSubGroups) {
+				sub->Reset();
+			}
+		}
+
+		inline void Clear() {
+			mBarrierIn.Clear();
+			mBarrierOut.Clear();
+			mMembers.clear();
+			mOwnedMembers.clear();
+			mSubGroups.clear();
+
+			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
+		}
+
+		inline bool IsFinished() {
+			return Out().Lock().IsFinished();
+		}
+
+		inline bool IsStarted() {
+			return In().Lock().IsStarted();
+		}
+
+		inline void operator()();
+
+		friend class ITaskQueue;
+	};
+
+	template <typename ...Args>
+	class ParameterizedTaskGroup {
+	private:
+		std::string mName;
+		TaskBarrier mBarrierIn;
+		TaskBarrier mBarrierOut;
+		std::vector<IParameterizedTask<Args...>*> mMembers;
+		std::vector<ParameterizedTask<Args...>> mOwnedMembers;
+		std::vector<ParameterizedTaskGroup<Args...>*> mSubGroups;
+
+	public:
+		inline ParameterizedTaskGroup() {
+			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
+		}
+
+		inline std::vector<IParameterizedTask<Args...>*>& GetExternalMembers() {
+			return mMembers;
+		}
+
+		inline std::vector<ParameterizedTask<Args...>>& GetOwnedMembers() {
+			return mOwnedMembers;
+		}
+
+		inline std::vector<ParameterizedTaskGroup<Args...>>& GetSubGroups() {
+			return mSubGroups;
+		}
+
+		inline void SetParameters(Args... args) {
+			for (auto& mem : mMembers) {
+				mem->SetParameters(std::forward<Args...>(args)...);
+			}
+
+			for (auto& mem : mOwnedMembers) {
+				mem->SetParameters(std::forward<Args...>(args)...);
+			}
+
+			for (auto& group : mSubGroups) {
+				group->SetParameters(std::forward<Args...>(args)...);
+			}
+		}
+
+		inline TaskBarrier& BarrierIn() {
+			return mBarrierIn;
+		}
+
+		inline TaskBarrier& BarrierOut() {
+			return mBarrierOut;
+		}
+
+		inline TaskNodeIn& In() {
+			return mBarrierIn.mIn;
+		}
+
+		inline TaskNodeOut& Out() {
+			return mBarrierOut.mOut;
+		}
+
+		inline void Add(IParameterizedTask<Args...>* member) {
+			mMembers.push_back(member);
+
+			member->In().Lock().Connect(&mBarrierIn.mOut);
+			mBarrierOut.mIn.Lock().Connect(&member->Out());
+		}
+
+		inline void Adopt(ParameterizedTask<Args...>&& member) {
+			member->In().Lock().Connect(&mBarrierIn.mOut);
+			mBarrierOut.mIn.Lock().Connect(&member->Out());
+
+			mOwnedMembers.push_back(std::move(member));
+		}
+
+		inline void Add(ParameterizedTaskGroup<Args...>* subGroup) {
+			mSubGroups.push_back(subGroup);
+
+			subGroup->In().Lock().Connect(&mBarrierIn.mOut);
+			mBarrierOut.mIn.Lock().Connect(&subGroup->Out());
+		}
+
+		inline void Clear() {
+			mBarrierIn.Clear();
+			mBarrierOut.Clear();
+			mMembers.clear();
+			mOwnedMembers.clear();
+			mSubGroups.clear();
+
+			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
+		}
+
+		inline void Reset() {
+			mBarrierIn.Reset();
+			mBarrierOut.Reset();
+
+			for (auto& mem : mMembers) {
+				mem->Reset();
+			}
+
+			for (auto& mem : mOwnedMembers) {
 				mem->Reset();
 			}
 
@@ -484,6 +811,103 @@ namespace Morpheus {
 		friend class ITaskQueue;
 	};
 
+	template <typename T>
+	class Future;
+
+	template <typename T>
+	class Promise {
+	private:
+		struct Internal {
+			T mData;
+			TaskNodeOut mOut;
+		};
+
+		std::shared_ptr<Internal> mInternal;
+		
+	public:
+		inline Promise() {
+			mInternal = std::make_shared<Internal>();
+		}
+
+		inline TaskNodeOut* Out() {
+			return &mInternal->mOut;
+		}
+
+		inline bool IsAvailable() const {
+			return mInternal->mOut.Lock().IsFinished();
+		}
+
+		inline const T& Get() const {
+			return mInternal->mData;
+		}
+
+		inline T& Get() {
+			return mInternal->mData;
+		}
+
+		void Set(const T& value, ITaskQueue* queue);
+		void Set(T&& value, ITaskQueue* queue);
+
+		friend class Future<T>;
+	};
+
+	template <typename T>
+	class Future {
+	private:
+		typedef typename Promise<T>::Internal Internal;
+
+		std::shared_ptr<Internal> mInternal;
+
+	public:
+
+		inline uint RefCount() const {
+			return mInternal.use_count();
+		}
+
+		inline Future() {
+		}
+
+		inline Future(const Promise<T>& promise) {
+			mInternal = promise.mInternal;
+		}
+
+		inline TaskNodeOut* Out() {
+			return &mInternal->mOut;
+		}
+
+		inline bool IsAvailable() const {
+			return mInternal->mOut.Lock().IsFinished();
+		}
+
+		inline const T& Get() const {
+			return mInternal->mData;
+		}
+
+		inline T& Get() {
+			return mInternal->mData;
+		}
+
+		struct Comparer {
+			inline bool operator()(const Future<T>& f1, const Future<T>& f2) {
+				return f1.mInternal < f2.mInternal;
+			}
+		};
+	};
+
+	template <typename T>
+	struct ResourceTask {
+		Task mTask;
+		Future<T> mFuture;
+
+		inline void operator()() {
+			mTask();
+		}
+
+		inline operator bool() const {
+			return mTask;
+		}
+	};
+
 	class ITaskQueue {
 	protected:
 		void Trigger(TaskNodeIn* in, bool bFromNodeOut);
@@ -496,8 +920,17 @@ namespace Morpheus {
 		inline void Trigger(TaskGroup* group);
 		inline void Trigger(ITask* task);
 		inline void Trigger(TaskBarrier* barrier);
+		template <typename ...Args>
+		inline void Trigger(ParameterizedTaskGroup<Args...>* group);
 
 		virtual ITask* Adopt(Task&& task) = 0;
+
+		template <typename T>
+		inline Future<T> AdoptAndTrigger(ResourceTask<T>&& task) {
+			auto future = task.mFuture;
+			Trigger(Adopt(std::move(task.mTask)));
+			return future;
+		}
 
 		inline void AdoptAndTrigger(Task&& task) {
 			Trigger(Adopt(std::move(task)));
@@ -539,6 +972,13 @@ namespace Morpheus {
 			});
 		}
 
+		template <typename ...Args>
+		inline void YieldUntilFinished(ParameterizedTaskGroup<Args...>* group) {
+			YieldUntilCondition([=]() {
+				return group->IsFinished();
+			});
+		}
+
 		template <typename T>
 		inline void YieldUntil(const std::future<T>& future) {
 			YieldUntilCondition([&]() {
@@ -546,7 +986,15 @@ namespace Morpheus {
 			});
 		}
 
+		template <typename T>
+		inline void YieldUntil(Future<T>& future) {
+			YieldUntilFinished(future.Out());
+		}
+
 		virtual void YieldUntilEmpty() = 0;
+
+		template <typename T>
+		friend class Promise;
 	};
 
 	class ImmediateTaskQueue : public ITaskQueue {
@@ -667,6 +1115,11 @@ namespace Morpheus {
 		Trigger(&barrier->mIn, false);
 	}
 
+	template <typename ...Args>
+	void ITaskQueue::Trigger(ParameterizedTaskGroup<Args...>* group) {
+		Trigger(&group->In(), false);
+	}
+
 	TaskNodeInLock::TaskNodeInLock(TaskNodeIn* in) : mLock(in->mMutex), mNode(in) {
 	}
 
@@ -698,8 +1151,19 @@ namespace Morpheus {
 		return mNode->IsReadyUnsafe();
 	}
 
+	void TaskNodeInLock::Clear() {
+		mNode->bIsStarted = false;
+		mNode->mInputs.clear();
+		mNode->mInputsLeft = 0;
+	}
+
 	bool TaskNodeOutLock::IsFinished() const {
 		return mNode->IsFinishedUnsafe();
+	}
+
+	void TaskNodeOutLock::Clear() {
+		mNode->bIsFinished = false;
+		mNode->mOutputs.clear();
 	}
 
 	TaskNodeOutLock& TaskNodeOutLock::Reset() {
@@ -708,5 +1172,17 @@ namespace Morpheus {
 	}
 
 	TaskNodeOutLock::TaskNodeOutLock(TaskNodeOut* out) : mLock(out->mMutex), mNode(out) {
+	}
+
+	template <typename T>
+	void Promise<T>::Set(const T& value, ITaskQueue* queue) {
+		mInternal->mData = value;
+		queue->Fire(&mInternal->mOut);
+	}
+
+	template <typename T>
+	void Promise<T>::Set(T&& value, ITaskQueue* queue) {
+		mInternal->mData = std::move(value);
+		queue->Fire(&mInternal->mOut);
 	}
 }

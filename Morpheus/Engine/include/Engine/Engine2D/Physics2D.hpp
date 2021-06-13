@@ -6,7 +6,7 @@
 namespace Morpheus {
 	typedef UniquePointerComponent<b2Body> PhysicsBody2DComponent;
 
-	class PhysicsSystem2D : public ISystem {
+	class PhysicsSystem2D : public ISystemOld {
 	private:
 		b2World mWorld;
 

@@ -8,7 +8,7 @@
 namespace Morpheus {
 	Task CreateStaticMeshPBRPipeline(DG::IRenderDevice* device,
 		ResourceManager* manager,
-		IRenderer* renderer,
+		IRendererOld* renderer,
 		PipelineResource* into,
 		const ShaderPreprocessorConfig* overrides) {
 

@@ -1,6 +1,4 @@
-#include <Engine/Resources/TextureResource.hpp>
-#include <Engine/Resources/ResourceManager.hpp>
-#include <Engine/Engine.hpp>
+#include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 #include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ImageCopy.hpp>
@@ -758,7 +756,7 @@ namespace Morpheus {
 		}
 	}
 
-	void LoadStbDataRaw(const LoadParams<TextureResource>& params,
+	void LoadStbDataRaw(const LoadParams<Texture>& params,
 		bool bIsHDR,
 		int x,
 		int y,
@@ -899,7 +897,7 @@ namespace Morpheus {
 		rawTexture->SetLoaded(true);
 	}
 
-	void LoadGliDataRaw(const LoadParams<TextureResource>& params,
+	void LoadGliDataRaw(const LoadParams<Texture>& params,
 		gli::texture* tex,
 		RawTexture* into) {
 		if (tex->empty()) {
@@ -982,7 +980,7 @@ namespace Morpheus {
 		into->SetLoaded(true);
 	}
 
-	void LoadPngDataRaw(const LoadParams<TextureResource>& params, 
+	void LoadPngDataRaw(const LoadParams<Texture>& params, 
 		const std::vector<uint8_t>& image,
 		uint32_t width, uint32_t height,
 		RawTexture* into) {
@@ -1026,7 +1024,7 @@ namespace Morpheus {
 		Morpheus::Load(ar, this);
 	}
 
-	void RawTexture::LoadPng(const LoadParams<TextureResource>& params,
+	void RawTexture::LoadPng(const LoadParams<Texture>& params,
 		const uint8_t* rawData, const size_t length) {
 		std::vector<uint8_t> image;
 		uint32_t width, height;
@@ -1042,7 +1040,7 @@ namespace Morpheus {
 			LoadPngDataRaw(params, image, width, height, this);
 	}
 
-	Task RawTexture::LoadPngTask(const LoadParams<TextureResource>& params) {
+	Task RawTexture::LoadPngTask(const LoadParams<Texture>& params) {
 
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
@@ -1063,7 +1061,7 @@ namespace Morpheus {
 		ARCHIVE
 	};
 
-	Task LoadDeferred(RawTexture* texture, const LoadParams<TextureResource>& params, LoadType type) {
+	Task LoadDeferred(RawTexture* texture, const LoadParams<Texture>& params, LoadType type) {
 
 		Task task([texture, type, params](const TaskParams& e) {
 		
@@ -1104,7 +1102,7 @@ namespace Morpheus {
 		return task;
 	}
 
-	Task RawTexture::LoadStbTask(const LoadParams<TextureResource>& params) {
+	Task RawTexture::LoadStbTask(const LoadParams<Texture>& params) {
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
@@ -1117,7 +1115,7 @@ namespace Morpheus {
 		return task;
 	}
 
-	Task RawTexture::LoadTask(const LoadParams<TextureResource>& params) {
+	Task RawTexture::LoadTask(const LoadParams<Texture>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -1137,7 +1135,7 @@ namespace Morpheus {
 		}
 	}
 
-	void RawTexture::LoadGli(const LoadParams<TextureResource>& params, 
+	void RawTexture::LoadGli(const LoadParams<Texture>& params, 
 		const uint8_t* rawData, const size_t length) {
 		gli::texture tex = gli::load((const char*)rawData, length);
 
@@ -1149,7 +1147,7 @@ namespace Morpheus {
 		LoadGliDataRaw(params, &tex, this);
 	}
 
-	Task RawTexture::LoadGliTask(const LoadParams<TextureResource>& params) {
+	Task RawTexture::LoadGliTask(const LoadParams<Texture>& params) {
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
@@ -1162,7 +1160,7 @@ namespace Morpheus {
 		return task;
 	}
 
-	void RawTexture::LoadStb(const LoadParams<TextureResource>& params,
+	void RawTexture::LoadStb(const LoadParams<Texture>& params,
 		const uint8_t* data, size_t length) {
 		unsigned char* pixel_data = nullptr;
 		std::unique_ptr<unsigned char[]> pixels_uc = nullptr;
