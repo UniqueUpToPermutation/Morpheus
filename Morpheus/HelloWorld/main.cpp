@@ -9,13 +9,12 @@ using namespace Morpheus;
 
 MAIN() {
 	Platform platform;
-	platform->Startup();
-
-	SystemCollection systems;
+	platform.Startup();
 
 	Graphics graphics(platform);
 	graphics.Startup();
 
+	SystemCollection systems;
 	systems.Add<DefaultRenderer>(graphics);
 	systems.Startup();
 
@@ -27,10 +26,9 @@ MAIN() {
 
 	ImmediateTaskQueue queue;
 
-	while (platform->IsValid()) {
-
+	while (platform.IsValid()) {
 		time.UpdateFrom(timer);
-		platform->MessagePump();
+		platform.MessagePump();
 
 		systems.RunFrame(time, &queue);
 		systems.WaitOnRender(&queue);

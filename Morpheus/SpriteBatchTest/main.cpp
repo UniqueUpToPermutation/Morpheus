@@ -8,7 +8,7 @@ using namespace Morpheus;
 MAIN() {
 	// Create windowing stuff
 	Platform platform;
-	platform->Startup();
+	platform.Startup();
 
 	// Create graphics device and swap chain
 	Graphics graphics(platform);
@@ -76,9 +76,9 @@ MAIN() {
 			obj.mOscillatorX = distribution1(generator) * DG::PI;
 		}
 
-		while (platform->IsValid()) {
+		while (platform.IsValid()) {
 			// Perform window IO
-			platform->MessagePump();
+			platform.MessagePump();
 
 			// Clear the screen
 			auto context = graphics.ImmediateContext();
@@ -120,5 +120,5 @@ MAIN() {
 	}
 
 	graphics.Shutdown();
-	platform->Shutdown();
+	platform.Shutdown();
 }

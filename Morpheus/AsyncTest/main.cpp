@@ -9,7 +9,7 @@ std::mutex mOutput;
 
 MAIN() {
 	Platform platform;
-	platform->Startup();
+	platform.Startup();
 
 	Graphics graphics(platform);
 	graphics.Startup();
@@ -76,9 +76,9 @@ MAIN() {
 		DG::Timer timer;
 		FrameTime time(timer);
 
-		while (platform->IsValid()) {
+		while (platform.IsValid()) {
 			time.UpdateFrom(timer);
-			platform->MessagePump();
+			platform.MessagePump();
 
 			systems.RunFrame(time, &taskQueue);
 			systems.WaitOnRender(&taskQueue);
@@ -90,5 +90,5 @@ MAIN() {
 	systems.Shutdown();
 	taskQueue.Shutdown();
 	graphics.Shutdown();
-	platform->Shutdown();
+	platform.Shutdown();
 }

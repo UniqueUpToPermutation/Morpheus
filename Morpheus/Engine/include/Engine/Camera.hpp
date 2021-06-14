@@ -51,6 +51,7 @@ namespace Morpheus {
 		DG::float4x4 GetView() const;
 		// Does not take into account the transform of this node
 		DG::float4x4 GetProjection(DG::ISwapChain* swapChain, bool bIsGL) const;
+		DG::float4x4 GetProjection(Graphics& graphics) const;
 		
 		DG::float3 GetEye() const;
 
@@ -133,6 +134,16 @@ namespace Morpheus {
 			entt::registry* registry,
 			DG::ISwapChain* swapChain,
 			bool bIsGL,
+			DG::float3* eye,
+			DG::float3* lookAt,
+			DG::float4x4* view,
+			DG::float4x4* proj,
+			DG::float4x4* viewProj);
+
+		void ComputeTransformations(
+			entt::entity entity,
+			entt::registry* registry,
+			Graphics& graphics,
 			DG::float3* eye,
 			DG::float3* lookAt,
 			DG::float4x4* view,

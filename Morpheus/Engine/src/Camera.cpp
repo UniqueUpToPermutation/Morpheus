@@ -158,6 +158,19 @@ namespace Morpheus {
 		*viewProj = (*view) * (*proj);
 	}
 
+	void Camera::ComputeTransformations(
+		entt::entity entity,
+		entt::registry* registry,
+		Graphics& graphics,
+		DG::float3* eye,
+		DG::float3* lookAt,
+		DG::float4x4* view,
+		DG::float4x4* proj,
+		DG::float4x4* viewProj) {
+		ComputeTransformations(entity, registry, graphics.SwapChain(), graphics.IsGL(),
+			eye, lookAt, view, proj, viewProj);
+	}
+
 	HLSL::CameraAttribs Camera::GetLocalAttribs(DG::ISwapChain* swapChain, bool bIsGL) {
 		auto eye = DG::float4(GetEye(), 1.0f);
 		auto view = GetView();
@@ -249,6 +262,10 @@ namespace Morpheus {
 		} else {
 			throw std::runtime_error("Invalid Camera Type!");
 		}
+	}
+
+	DG::float4x4 Camera::GetProjection(Graphics& graphics) const {
+		return GetProjection(graphics.SwapChain(), graphics.IsGL());
 	}
 
 	DG::float3 Camera::GetEye() const {
