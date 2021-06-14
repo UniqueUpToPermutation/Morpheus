@@ -92,7 +92,7 @@ namespace Morpheus {
 			return mParams;
 		}
 
-		inline DG::IRenderDevice* Device() {
+		inline DG::IRenderDevice* Device() const {
 			return mDevice;
 		}
 
@@ -112,11 +112,11 @@ namespace Morpheus {
 			return mDevice->GetDeviceCaps().IsMetalDevice();
 		}
 
-		inline IPlatform* GetPlatform() {
+		inline IPlatform* GetPlatform() const {
 			return mPlatform;
 		}
 
-		inline DG::IDeviceContext* ImmediateContext() {
+		inline DG::IDeviceContext* ImmediateContext() const {
 			return mImmediateContext;
 		}
 
@@ -124,7 +124,7 @@ namespace Morpheus {
 			return mDeferredContexts;
 		}
 
-		inline DG::ISwapChain* SwapChain() {
+		inline DG::ISwapChain* SwapChain() const {
 			return mSwapChain;
 		}
 

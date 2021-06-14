@@ -109,7 +109,7 @@ namespace Morpheus {
 					return TaskResult::WAITING;
 			}
 
-			SpriteBatchPipeline pipeline = SpriteBatchPipeline::Create(device, globals, 
+			SpriteBatchPipeline pipeline(device, globals, 
 				backbufferFormat, depthbufferFormat, samples,
 				filterType, data.mShaders.Get());
 
@@ -124,16 +124,14 @@ namespace Morpheus {
 		return loadTask;
 	}
 
-	DG::IPipelineState* CreateSpriteBatchPipeline(
+	SpriteBatchPipeline::SpriteBatchPipeline(
 		DG::IRenderDevice* device,
+		SpriteBatchGlobals* globals,
 		DG::TEXTURE_FORMAT backbufferFormat,
 		DG::TEXTURE_FORMAT depthbufferFormat,
 		uint samples,
-		const ShaderPreprocessorConfig* overrides,
 		DG::FILTER_TYPE filterType,
-		DG::IShader* vertexShader,
-		DG::IShader* geoShader,
-		DG::IShader* pixelShader) {
+		const SpriteShaders& shaders) {
 
 		DG::SamplerDesc SamDesc
 		{
@@ -192,9 +190,9 @@ namespace Morpheus {
 		GraphicsPipeline.InputLayout.NumElements = layoutElements.size();
 		GraphicsPipeline.InputLayout.LayoutElements = &layoutElements[0];
 
-		PSOCreateInfo.pVS = vertexShader;
-		PSOCreateInfo.pGS = geoShader;
-		PSOCreateInfo.pPS = pixelShader;
+		PSOCreateInfo.pVS = shaders.mVS;
+		PSOCreateInfo.pGS = shaders.mGS;
+		PSOCreateInfo.pPS = shaders.mPS;
 
 		PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 
@@ -222,31 +220,11 @@ namespace Morpheus {
 		layout.mElements = std::move(layoutElements);
 		layout.mPosition = 0;
 		layout.mStride = sizeof(SpriteBatchVSInput);
+		
+		mPipeline = result;
+		mShaders = shaders;
 
-		return result;
-	}
-
-	SpriteBatchPipeline SpriteBatchPipeline::Create(
-		DG::IRenderDevice* device,
-		SpriteBatchGlobals* globals,
-		DG::TEXTURE_FORMAT backbufferFormat,
-		DG::TEXTURE_FORMAT depthbufferFormat,
-		uint samples,
-		DG::FILTER_TYPE filterType,
-		SpriteShaders shaders) {
-
-		DG::IPipelineState* pipeline = CreateSpriteBatchPipeline(device, backbufferFormat, 
-			depthbufferFormat, samples, nullptr, filterType, shaders.mVS.Ptr(),
-			shaders.mGS.Ptr(), shaders.mPS.Ptr());
-
-		SpriteBatchPipeline result(pipeline, globals);
-		pipeline->Release();
-
-		result.mVS = shaders.mVS;
-		result.mGS = shaders.mGS;
-		result.mPS = shaders.mPS;
-
-		return result;
+		result->Release();
 	}
 
 	SpriteBatchState SpriteBatchPipeline::CreateState() {

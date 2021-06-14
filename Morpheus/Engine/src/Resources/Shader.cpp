@@ -36,20 +36,19 @@ namespace Morpheus {
 		return raw.SpawnOnGPU(device);
 	}
 
-	// Loads resource and adds resulting task to the specified barrier
-	ResourceTask<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
-		const LoadParams<RawShader>& params,
-		IVirtualFileSystem* system,
+	template <typename T>
+	ResourceTask<T> LoadShaderTemplated(DG::IRenderDevice* device, 
+		const LoadParams<RawShader>& shader,
+		IVirtualFileSystem* fileSystem,
 		ShaderPreprocessorConfig* defaults) {
-
 		struct Data {
 			RawShader mRawShader;
 		};
 
-		Promise<DG::IShader*> promise;
-		Future<DG::IShader*> future(promise);
+		Promise<T> promise;
+		Future<T> future(promise);
 
-		Task task([params = LoadParams<RawShader>(params), device, system, 
+		Task task([params = shader, device, fileSystem,
 			defaults, data = Data(), promise = std::move(promise)](const TaskParams& e) mutable {
 			if (e.mTask->BeginSubTask()) {
 				ShaderPreprocessorConfig nothing;
@@ -57,7 +56,7 @@ namespace Morpheus {
 					defaults = &nothing;
 
 				ShaderPreprocessorOutput output;
-				ShaderPreprocessor::Load(params.mSource, system, &output, defaults, &params.mOverrides);
+				ShaderPreprocessor::Load(params.mSource, fileSystem, &output, defaults, &params.mOverrides);
 				data.mRawShader = RawShader(output, params.mShaderType, params.mName, params.mEntryPoint);
 
 				e.mTask->EndSubTask();
@@ -68,18 +67,38 @@ namespace Morpheus {
 			if (e.mTask->BeginSubTask()) {
 				DG::IShader* shader = data.mRawShader.SpawnOnGPU(device);
 				promise.Set(shader, e.mQueue);
+
+				if constexpr (std::is_same_v<T, Handle<DG::IShader>>) {
+					shader->Release();
+				}
+
 				e.mTask->EndSubTask();
 			}
 
 			return TaskResult::FINISHED;
 		}, 
-		std::string("Load Shader ") + params.mSource,
+		std::string("Load Shader ") + shader.mSource,
 		TaskType::FILE_IO);
 
-		ResourceTask<DG::IShader*> resTask;
+		ResourceTask<T> resTask;
 		resTask.mFuture = std::move(future);
 		resTask.mTask = std::move(task);
 		
 		return resTask;
+	}
+
+	ResourceTask<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
+		const LoadParams<RawShader>& shader,
+		IVirtualFileSystem* fileSystem,
+		ShaderPreprocessorConfig* defaults) {
+		return LoadShaderTemplated<Handle<DG::IShader>>(device, shader, fileSystem, defaults);
+	}
+
+	// Loads resource and adds resulting task to the specified barrier
+	ResourceTask<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
+		const LoadParams<RawShader>& params,
+		IVirtualFileSystem* system,
+		ShaderPreprocessorConfig* defaults) {
+		return LoadShaderTemplated<DG::IShader*>(device, params, system, defaults);
 	}
 }

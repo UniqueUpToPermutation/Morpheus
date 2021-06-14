@@ -86,11 +86,39 @@ namespace Morpheus {
 	class SpriteBatchPipeline {
 	public:
 		Handle<DG::IPipelineState> mPipeline;
-		Handle<DG::IShader> mVS;
-		Handle<DG::IShader> mGS;
-		Handle<DG::IShader> mPS;
+		SpriteShaders mShaders;
 
 		inline SpriteBatchPipeline() {
+		}
+
+		SpriteBatchPipeline(DG::IRenderDevice* device,
+			SpriteBatchGlobals* globals,
+			DG::TEXTURE_FORMAT backbufferFormat,
+			DG::TEXTURE_FORMAT depthbufferFormat,
+			uint samples,
+			DG::FILTER_TYPE filterType,
+			const SpriteShaders& shaders);
+
+		inline SpriteBatchPipeline(Graphics& graphics,
+			SpriteBatchGlobals* globals,
+			DG::TEXTURE_FORMAT backbufferFormat,
+			DG::TEXTURE_FORMAT depthbufferFormat,
+			uint samples,
+			DG::FILTER_TYPE filterType,
+			const SpriteShaders& shaders) : SpriteBatchPipeline(graphics.Device(),
+				globals, backbufferFormat, depthbufferFormat, samples, filterType, shaders) {
+		}
+
+		inline SpriteBatchPipeline(Graphics& graphics,
+			SpriteBatchGlobals* globals,
+			DG::FILTER_TYPE filterType,
+			const SpriteShaders& shaders) : SpriteBatchPipeline(graphics.Device(),
+				globals, 
+				graphics.SwapChain()->GetDesc().ColorBufferFormat,
+				graphics.SwapChain()->GetDesc().DepthBufferFormat,
+				1,
+				filterType,
+				shaders) {
 		}
 
 		inline SpriteBatchPipeline(
@@ -103,15 +131,6 @@ namespace Morpheus {
 
 		SpriteBatchState CreateState();
 
-		static SpriteBatchPipeline Create(
-			DG::IRenderDevice* device,
-			SpriteBatchGlobals* globals,
-			DG::TEXTURE_FORMAT backbufferFormat,
-			DG::TEXTURE_FORMAT depthbufferFormat,
-			uint samples,
-			DG::FILTER_TYPE filterType,
-			SpriteShaders shaders);
-
 		static ResourceTask<SpriteBatchPipeline> LoadDefault(
 			DG::IRenderDevice* device,
 			SpriteBatchGlobals* globals,
@@ -120,19 +139,6 @@ namespace Morpheus {
 			uint samples,
 			DG::FILTER_TYPE filterType,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
-
-		inline static SpriteBatchPipeline Create(
-			Graphics& graphics,
-			SpriteBatchGlobals* globals,
-			DG::TEXTURE_FORMAT backbufferFormat,
-			DG::TEXTURE_FORMAT depthbufferFormat,
-			uint samples,
-			DG::FILTER_TYPE filterType,
-			SpriteShaders shaders) {
-			return Create(graphics.Device(), globals, 
-				backbufferFormat, depthbufferFormat, 
-				samples, filterType, shaders);
-		}
 
 		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(
 			Graphics& graphics,
@@ -144,17 +150,6 @@ namespace Morpheus {
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
 			return LoadDefault(graphics.Device(), globals, backbufferFormat, 
 				depthbufferFormat, samples, filterType, system);
-		}
-
-		inline static SpriteBatchPipeline Create(
-			Graphics& graphics,
-			SpriteBatchGlobals* globals,
-			DG::FILTER_TYPE filterType,
-			SpriteShaders shaders) {
-			auto& scDesc = graphics.SwapChain()->GetDesc();
-			return Create(graphics.Device(), globals, 
-				scDesc.ColorBufferFormat, scDesc.DepthBufferFormat, 
-				1, filterType, shaders);
 		}
 
 		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(

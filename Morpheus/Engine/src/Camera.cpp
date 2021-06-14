@@ -244,7 +244,7 @@ namespace Morpheus {
 			auto srfPreTransform = GetSurfacePretransformMatrix(swapChain, DG::float3{0, 0, 1});
 
 			// Get projection matrix adjusted to the current screen orientation
-			auto proj = GetAdjustedOrthoMatrix(swapChain, mOrthoSize, mNearPlane, mFarPlane);
+			auto proj = GetAdjustedOrthoMatrix(bIsGL, mOrthoSize, mNearPlane, mFarPlane);
 			return srfPreTransform * proj;
 		} else {
 			throw std::runtime_error("Invalid Camera Type!");

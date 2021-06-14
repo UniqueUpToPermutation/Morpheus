@@ -3,93 +3,81 @@
 
 using namespace Morpheus;
 
-#if PLATFORM_WIN32
-int __stdcall WinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR     lpCmdLine,
-	int       nShowCmd) {
-#endif
+MAIN() {
 
-#if PLATFORM_LINUX
-int main(int argc, char** argv) {
-#endif
+	Platform platform;
+	platform.Startup();
 
-	Engine en;
-	en.Startup();
+	Graphics graphics(platform);
+	graphics.Startup();
 
-	std::unique_ptr<Im3dRenderer> im3drenderer;
-	std::unique_ptr<Im3dGlobalsBuffer> im3dglobals(
-		new Im3dGlobalsBuffer(en.GetDevice()));
+	EmbeddedFileLoader fileSystem;
 
 	{
-		Im3dRendererFactory factory;
-		factory.Initialize(en.GetDevice(),
-			im3dglobals.get(),
-			en.GetSwapChain()->GetDesc().ColorBufferFormat,
-			en.GetSwapChain()->GetDesc().DepthBufferFormat);
-		im3drenderer.reset(new Im3dRenderer(en.GetDevice(), &factory));
-	}	
-	
-	std::unique_ptr<Scene> scene(new Scene());
+		// Create the Im3d renderer and state
+		Im3dGlobalsBuffer im3dGlobals(graphics);
+		Im3dShaders im3dShaders = Im3dShaders::LoadDefault(graphics, &fileSystem)();
+		Im3dPipeline im3dPipeline(graphics, &im3dGlobals, im3dShaders);
+		Im3dRenderer im3dRenderer(graphics);
 
-	auto camera = scene->GetCamera();
-	camera->SetType(CameraType::ORTHOGRAPHIC);
-	camera->SetOrthoSize(2.0f, 2.0f);
-	camera->SetClipPlanes(-1.0f, 1.0f);
+		// Camera setup
+		Camera camera;
+		camera.SetType(CameraType::ORTHOGRAPHIC);
+		camera.SetOrthoSize(2.0f, 2.0f);
+		camera.SetClipPlanes(-1.0f, 1.0f);
+		camera.SetEye(0.0, 0.0, 0.0);
 
-	en.InitializeDefaultSystems(scene.get());
-	scene->Begin();
+		while (platform.IsValid()) {
+			
+			platform.MessagePump();
+			
+			auto context = graphics.ImmediateContext();
+			auto swapChain = graphics.SwapChain();
 
-	while (en.IsReady()) {
-		en.Update(scene.get());
-		
-		auto context = en.GetImmediateContext();
+			DG::ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
+			DG::ITextureView* pDSV = swapChain->GetDepthBufferDSV();
 
-		auto swapChain = en.GetSwapChain();
-		DG::ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
-		DG::ITextureView* pDSV = swapChain->GetDepthBufferDSV();
+			// Clear screen
+			float rgba[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+			context->SetRenderTargets(1, &pRTV, pDSV,
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearRenderTarget(pRTV, rgba, 
+				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			context->ClearDepthStencil(pDSV, DG::CLEAR_DEPTH_FLAG,
+				1.0f, 0, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-		float rgba[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-		context->SetRenderTargets(1, &pRTV, pDSV,
-			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		context->ClearRenderTarget(pRTV, rgba, 
-			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		context->ClearDepthStencil(pDSV, DG::CLEAR_DEPTH_FLAG,
-			1.0f, 0, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			// Render Im3d Test
+			Im3d::NewFrame();
 
-		Im3d::NewFrame();
+			Im3d::BeginTriangles();
+			Im3d::Vertex(-0.75f, -0.75f, 0.0f, Im3d::Color_Blue);
+			Im3d::Vertex(-0.5f, -0.25f, 0.0f, Im3d::Color_Green);
+			Im3d::Vertex(-0.25f, -0.75f, 0.0f, Im3d::Color_Red);
+			Im3d::End();
 
-		Im3d::BeginTriangles();
-		Im3d::Vertex(-0.75f, -0.75f, 0.0f, Im3d::Color_Blue);
-		Im3d::Vertex(-0.5f, -0.25f, 0.0f, Im3d::Color_Green);
-		Im3d::Vertex(-0.25f, -0.75f, 0.0f, Im3d::Color_Red);
-		Im3d::End();
+			Im3d::BeginLineLoop();
+			Im3d::Vertex(-0.75f, 0.25f, 0.0f, 4.0f, Im3d::Color_Blue);
+			Im3d::Vertex(-0.5f, 0.75f, 0.0f, 4.0f, Im3d::Color_Green);
+			Im3d::Vertex(-0.25f, 0.25f, 0.0f, 4.0f, Im3d::Color_Red);
+			Im3d::End();
 
-		Im3d::BeginLineLoop();
-		Im3d::Vertex(-0.75f, 0.25f, 0.0f, 4.0f, Im3d::Color_Blue);
-		Im3d::Vertex(-0.5f, 0.75f, 0.0f, 4.0f, Im3d::Color_Green);
-		Im3d::Vertex(-0.25f, 0.25f, 0.0f, 4.0f, Im3d::Color_Red);
-		Im3d::End();
+			Im3d::DrawPoint(Im3d::Vec3(0.5f, 0.5f, 0.0f), 
+				50.0f, Im3d::Color_Black);
 
-		Im3d::DrawPoint(Im3d::Vec3(0.5f, 0.5f, 0.0f), 
-			50.0f, Im3d::Color_Black);
+			Im3d::DrawCircleFilled(Im3d::Vec3(0.5f, -0.5f, 0.0f), 
+				Im3d::Vec3(0.0f, 0.0f, -1.0f), 0.25f);
 
-		Im3d::DrawCircleFilled(Im3d::Vec3(0.5f, -0.5f, 0.0f), 
-			Im3d::Vec3(0.0f, 0.0f, -1.0f), 0.25f);
+			Im3d::EndFrame();
 
-		Im3d::EndFrame();
+			// Write the camera data to GPU
+			im3dGlobals.WriteWithoutTransformCache(context, graphics, camera);
+			// Draw everything submitted to the Im3d queue.
+			im3dRenderer.Draw(context, im3dPipeline);
 
-		im3dglobals->Write(context, scene->GetCameraNode(), &en);
-		im3drenderer->Draw(context);
-
-		en.RenderUI();
-		en.Present();
+			graphics.Present(1);
+		}
 	}
 
-	im3drenderer.reset();
-	im3dglobals.reset();
-	scene.reset();
-
-	en.Shutdown();
+	graphics.Shutdown();
+	platform.Shutdown();
 }

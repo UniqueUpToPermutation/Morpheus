@@ -47,12 +47,12 @@ namespace Morpheus {
 
 	Task DefaultRenderer::Startup(SystemCollection& collection) {
 		struct Data {
-			Future<DG::IShader*> mStaticMeshResult;
-			Future<DG::IShader*> mLambertVSResult;
-			Future<DG::IShader*> mLambertPSResult;
-			Future<DG::IShader*> mCookTorrenceResult;
-			Future<DG::IShader*> mSkyboxVSResult;
-			Future<DG::IShader*> mSkyboxPSResult;
+			Future<Handle<DG::IShader>> mStaticMeshResult;
+			Future<Handle<DG::IShader>> mLambertVSResult;
+			Future<Handle<DG::IShader>> mLambertPSResult;
+			Future<Handle<DG::IShader>> mCookTorrenceResult;
+			Future<Handle<DG::IShader>> mSkyboxVSResult;
+			Future<Handle<DG::IShader>> mSkyboxPSResult;
 		};
 
 		Task startupTask([this, data = Data()](const TaskParams& e) mutable {
@@ -93,12 +93,12 @@ namespace Morpheus {
 
 				auto device = mGraphics->Device();
 
-				auto staticMeshLoad			= LoadShader(device, staticMeshParams);
-				auto lambertVSLoad			= LoadShader(device, lambertVSParams);
-				auto lambertPSLoad			= LoadShader(device, lambertPSParams);
-				auto cookTorrenceLoad		= LoadShader(device, cookTorrenceParams);
-				auto skyboxVSLoad			= LoadShader(device, skyboxVSParams);
-				auto skyboxPSLoad			= LoadShader(device, skyboxPSParams);
+				auto staticMeshLoad			= LoadShaderHandle(device, staticMeshParams);
+				auto lambertVSLoad			= LoadShaderHandle(device, lambertVSParams);
+				auto lambertPSLoad			= LoadShaderHandle(device, lambertPSParams);
+				auto cookTorrenceLoad		= LoadShaderHandle(device, cookTorrenceParams);
+				auto skyboxVSLoad			= LoadShaderHandle(device, skyboxVSParams);
+				auto skyboxPSLoad			= LoadShaderHandle(device, skyboxPSParams);
 
 				data.mStaticMeshResult 		= e.mQueue->AdoptAndTrigger(std::move(staticMeshLoad));
 				data.mLambertVSResult 		= e.mQueue->AdoptAndTrigger(std::move(lambertVSLoad));
@@ -143,7 +143,7 @@ namespace Morpheus {
 			// Skybox stuff
 			DG::IShaderResourceBinding* skyboxBinding = nullptr;
 			mResources.mSkybox.mPipeline->CreateShaderResourceBinding(&skyboxBinding, true);
-			mResources.mSkybox.mSkyboxBinding = skyboxBinding;
+			mResources.mSkybox.mSkyboxBinding.Adopt(skyboxBinding);
 			
 			skyboxBinding->GetVariableByName(DG::SHADER_TYPE_VERTEX, 
 				"CameraData")->Set(mResources.mCameraData.Get());
@@ -387,6 +387,7 @@ namespace Morpheus {
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 
 		mResources.mLambert.mStaticMeshPipeline	= result;
+		result->Release();
 	}
 
 	void DefaultRenderer::CreateCookTorrenceIBLPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps) {
@@ -511,6 +512,7 @@ namespace Morpheus {
 			lutVar->Set(mResources.mCookTorrenceLUT.GetShaderView());
 		
 		mResources.mCookTorrenceIBL.mStaticMeshPipeline = result;
+		result->Release();
 	}
 
 	void DefaultRenderer::CreateSkyboxPipeline(Handle<DG::IShader> vs, 
@@ -579,6 +581,7 @@ namespace Morpheus {
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 
 		mResources.mSkybox.mPipeline 	= result;
+		result->Release();
 	}
 
 	bool DefaultRenderer::IsInitialized() const {

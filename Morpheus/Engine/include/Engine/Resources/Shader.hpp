@@ -67,6 +67,11 @@ namespace Morpheus {
 		IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance(),
 		ShaderPreprocessorConfig* defaults = nullptr);
 
+	ResourceTask<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
+		const LoadParams<RawShader>& shader,
+		IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance(),
+		ShaderPreprocessorConfig* defaults = nullptr);
+
 	DG::IShader* CompileShader(DG::IRenderDevice* device, 
 		const ShaderPreprocessorOutput& preprocessorOutput,
 		DG::SHADER_TYPE type, 

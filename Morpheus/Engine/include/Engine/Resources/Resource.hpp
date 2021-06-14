@@ -78,6 +78,13 @@ namespace Morpheus {
 			h.mResource = nullptr;
 		}
 
+		inline void Adopt(T* resource) {
+			if (mResource)
+				mResource->Release();
+
+			mResource = resource;
+		}
+
 		inline Handle<T>& operator=(const Handle<T>& h) {
 			if (mResource)
 				mResource->Release();
@@ -104,19 +111,23 @@ namespace Morpheus {
 				mResource->Release();
 		}
 
-		inline T* Ptr() {
+		inline T* Ptr() const {
 			return mResource;
 		}
 
-		inline T* operator->() {
+		inline T* operator->() const {
 			return mResource;
 		}
 
-		inline operator bool() {
+		inline T** Ref() {
+			return &mResource;
+		}
+
+		inline operator bool() const {
 			return mResource;
 		}
 
-		inline operator T*() {
+		inline operator T*() const {
 			return mResource;
 		}
 

@@ -137,6 +137,7 @@ list(APPEND SOURCE
 	src/SpriteBatch.cpp
 	src/Loading.cpp
 	src/GeometryStructures.cpp
+	src/Im3d.cpp
 
 	src/Systems/GeometryCache.cpp
 	src/Systems/TextureCache.cpp
@@ -176,6 +177,7 @@ list(APPEND INCLUDE
     include/Engine/ThreadPool.hpp
 	include/Engine/SpriteBatch.hpp
 	include/Engine/Loading.hpp
+	include/Engine/Im3d.hpp
 
 	include/Engine/Graphics.hpp
 	include/Engine/Frame.hpp

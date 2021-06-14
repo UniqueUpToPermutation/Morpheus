@@ -2,9 +2,18 @@
 
 #include <im3d.h>
 
-#include <Engine/Resources/PipelineResource.hpp>
-#include <Engine/Renderer.hpp>
+#include <Engine/Entity.hpp>
 #include <Engine/DynamicGlobalsBuffer.hpp>
+#include <Engine/ThreadPool.hpp>
+#include <Engine/Resources/Resource.hpp>
+#include <Engine/Graphics.hpp>
+#include <Engine/Resources/EmbeddedFileLoader.hpp>
+
+#include "BasicMath.hpp"
+
+#define DEFAULT_IM3D_BUFFER_SIZE 200u
+
+namespace DG = Diligent;
 
 namespace Morpheus {
 
@@ -25,77 +34,114 @@ namespace Morpheus {
 			DynamicGlobalsBuffer<Im3dGlobals>(device) {
 		}
 
+		inline Im3dGlobalsBuffer(Graphics& graphics) :
+			DynamicGlobalsBuffer<Im3dGlobals>(graphics.Device()) {
+		}
+
 		void Write(DG::IDeviceContext* context, 
 			const DG::float4x4& viewProjection,
 			const DG::float2& screenSize);
+		void WriteWithoutTransformCache(DG::IDeviceContext* context,
+			Graphics& graphics,
+			const Camera& camera);
 		void Write(DG::IDeviceContext* context,
-			EntityNode camera,
-			Engine* engine);
+			Graphics& graphics,
+			entt::entity camera,
+			entt::registry* registry);
 	};
 
-	class Im3dRendererFactory {
-	private:
-		DG::IPipelineState* mPipelineStateVertices = nullptr;
-		DG::IPipelineState* mPipelineStateLines = nullptr;
-		DG::IPipelineState* mPipelineStateTriangles = nullptr;
-		DG::IShaderResourceBinding* mVertexSRB = nullptr;
-		DG::IShaderResourceBinding* mLinesSRB = nullptr;
-		DG::IShaderResourceBinding* mTriangleSRB = nullptr;
+	struct Im3dShaders {
+		Handle<DG::IShader> mTrianglesVS;
+		Handle<DG::IShader> mOtherVS;
+		Handle<DG::IShader> mPointsGS;
+		Handle<DG::IShader> mLinesGS;
+		Handle<DG::IShader> mTrianglesPS;
+		Handle<DG::IShader> mLinesPS;
+		Handle<DG::IShader> mPointsPS;
 
-	public:
-		friend class Im3dRenderer;
+		static ResourceTask<Im3dShaders> LoadDefault(DG::IRenderDevice* device, 
+			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 
-		inline ~Im3dRendererFactory() {
-			if (mPipelineStateVertices)
-				mPipelineStateVertices->Release();
-			if (mPipelineStateLines)
-				mPipelineStateLines->Release();
-			if (mPipelineStateTriangles)
-				mPipelineStateTriangles->Release();
-			if (mVertexSRB)
-				mVertexSRB->Release();
-			if (mLinesSRB)
-				mLinesSRB->Release();
-			if (mTriangleSRB)
-				mTriangleSRB->Release();
+		static inline ResourceTask<Im3dShaders> LoadDefault(Graphics& graphics,
+			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
+			return LoadDefault(graphics.Device(), system);
 		}
+	};
 
-		// Make sure that the Im3dGlobalsBuffer remains in scope for
-		// the lifetime of all Im3dRenderers
-		void Initialize(DG::IRenderDevice* device,
+	struct Im3dState;
+
+	struct Im3dPipeline {
+		Handle<DG::IPipelineState> mPipelineStateVertices;
+		Handle<DG::IPipelineState> mPipelineStateLines;
+		Handle<DG::IPipelineState> mPipelineStateTriangles;
+		Handle<DG::IShaderResourceBinding> mVertexSRB;
+		Handle<DG::IShaderResourceBinding> mLinesSRB;
+		Handle<DG::IShaderResourceBinding> mTriangleSRB;
+		Im3dShaders mShaders;
+
+		Im3dPipeline(DG::IRenderDevice* device,
 			Im3dGlobalsBuffer* globals,
 			DG::TEXTURE_FORMAT backbufferColorFormat,
 			DG::TEXTURE_FORMAT backbufferDepthFormat,
-			uint backbufferMSAASamples = 1);
+			uint samples,
+			const Im3dShaders& shaders);
+
+		inline Im3dPipeline(Graphics& graphics,
+			Im3dGlobalsBuffer* globals,
+			DG::TEXTURE_FORMAT backbufferColorFormat,
+			DG::TEXTURE_FORMAT backbufferDepthFormat,
+			uint samples,
+			const Im3dShaders& shaders) :
+			Im3dPipeline(graphics.Device(), globals, backbufferColorFormat,
+				backbufferDepthFormat, samples, shaders) {
+		}
+
+		inline Im3dPipeline(Graphics& graphics,
+			Im3dGlobalsBuffer* globals,
+			uint samples,
+			const Im3dShaders& shaders) :
+			Im3dPipeline(graphics.Device(), globals, 
+				graphics.SwapChain()->GetDesc().ColorBufferFormat,
+				graphics.SwapChain()->GetDesc().DepthBufferFormat,
+				samples,
+				shaders) {
+		}
+
+		inline Im3dPipeline(Graphics& graphics,
+			Im3dGlobalsBuffer* globals,
+			const Im3dShaders& shaders) : Im3dPipeline(graphics.Device(), globals, 
+				graphics.SwapChain()->GetDesc().ColorBufferFormat,
+				graphics.SwapChain()->GetDesc().DepthBufferFormat,
+				1,
+				shaders) {
+		}
+
+		inline Im3dPipeline() {
+		}
+
+		Im3dState CreateState();
+
+		static ResourceTask<Im3dPipeline> LoadDefault(DG::IRenderDevice* device, 
+			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 	};
 
 	class Im3dRenderer {
 	private:
-		DG::IPipelineState* mPipelineStateVertices;
-		DG::IPipelineState* mPipelineStateLines;
-		DG::IPipelineState* mPipelineStateTriangles;
-		DG::IShaderResourceBinding* mVertexSRB;
-		DG::IShaderResourceBinding* mLinesSRB;
-		DG::IShaderResourceBinding* mTriangleSRB;
-		DG::IBuffer* mGeometryBuffer;
+		Handle<DG::IBuffer> mGeometryBuffer;
 		uint mBufferSize;
 
 	public:
-		Im3dRenderer(DG::IRenderDevice* device, 
-			Im3dRendererFactory* factory,
-			uint bufferSize = 200u);
+		Im3dRenderer(DG::IRenderDevice* device,
+			uint bufferSize = DEFAULT_IM3D_BUFFER_SIZE);
+
+		inline Im3dRenderer(Graphics& graphics,
+			uint bufferSize = DEFAULT_IM3D_BUFFER_SIZE) : 
+			Im3dRenderer(graphics.Device(), bufferSize) {
+		}
 
 		void Draw(DG::IDeviceContext* deviceContext,
+			const Im3dPipeline& state,
 			Im3d::Context* im3dContext = &Im3d::GetContext());
-
-		inline ~Im3dRenderer() {
-			mPipelineStateVertices->Release();
-			mPipelineStateTriangles->Release();
-			mPipelineStateLines->Release();
-			mVertexSRB->Release();
-			mLinesSRB->Release();
-			mTriangleSRB->Release();
-		}
 
 		inline uint GetBufferSize() const {
 			return mBufferSize;

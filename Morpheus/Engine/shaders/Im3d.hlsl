@@ -38,6 +38,7 @@ struct VS_OUTPUT
 		#endif
 		ret.m_size = max(_in.m_positionSize.w, kAntialiasing);
 		ret.m_position = mul(uViewProjMatrix, float4(_in.m_positionSize.xyz, 1.0));
+
 		return ret;
 	}
 #endif
