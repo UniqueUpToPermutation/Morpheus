@@ -128,7 +128,7 @@ elseif(PLATFORM_IOS)
 endif()
 
 list(APPEND SOURCE
-	src/Brdf.cpp
+	src/LightProbeProcessor.cpp
 	src/HdriToCubemap.cpp
 	src/Camera.cpp
 	src/ThreadPool.cpp
@@ -145,6 +145,8 @@ list(APPEND SOURCE
 	src/Systems/EmptyRenderer.cpp
 	src/Systems/System.cpp
 	src/Systems/ImGuiSystem.cpp
+	src/Systems/Renderer.cpp
+	src/Systems/SimpleFPSCameraSystem.cpp
 
 	src/Resources/Shader.cpp
 	src/Resources/Texture.cpp
@@ -167,7 +169,7 @@ list(APPEND SOURCE
 )
 
 list(APPEND INCLUDE
-    include/Engine/Brdf.hpp
+    include/Engine/LightProbeProcessor.hpp
     include/Engine/Camera.hpp
     include/Engine/Entity.hpp
     include/Engine/GeometryStructures.hpp
@@ -190,6 +192,7 @@ list(APPEND INCLUDE
 	include/Engine/Systems/Renderer.hpp
 	include/Engine/Systems/System.hpp
 	include/Engine/Systems/ImGuiSystem.hpp
+	include/Engine/Systems/SimpleFPSCameraSystem.hpp
 
 	include/Engine/Components/Transform.hpp
 

@@ -30,6 +30,14 @@ namespace Morpheus {
 		gc_t mGarbageCollector;
 
 	public:
+		inline IVertexFormatProvider* GetFormatProvider() const {
+			return mFormatProvider;
+		}
+
+		inline DG::IRenderDevice* GetDevice() const {
+			return mDevice;
+		}
+
 		inline cache_t& Cache() { return mCache; }
 		inline loader_t& Loader() { return mLoader; }
 		inline gc_t& GarbageCollector() { return mGarbageCollector; } 

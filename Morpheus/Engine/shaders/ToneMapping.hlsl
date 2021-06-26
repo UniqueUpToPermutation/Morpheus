@@ -1,4 +1,4 @@
-#include "ToneMappingStructures.hlsl"
+#include "BasicStructures.hlsl"
 
 #ifndef TONE_MAPPING_MODE
 #define TONE_MAPPING_MODE TONE_MAPPING_MODE_REINHARD

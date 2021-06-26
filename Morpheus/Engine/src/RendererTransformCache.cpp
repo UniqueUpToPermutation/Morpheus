@@ -20,7 +20,7 @@ namespace Morpheus {
 				return result;
 			}
 		}
-		return result;
+		return entt::null;
 	}
 
 	void TransformCacheUpdater::UpdateAll() {
@@ -44,15 +44,15 @@ namespace Morpheus {
 			auto& transform = mFrame->mRegistry.get<Transform>(node);
 			auto cache = mFrame->mRegistry.emplace_or_replace<RendererTransformCache>(node, transform);
 			UpdateDescendants(node, cache.mCache);
-		}
-		
-		auto parentCache = mFrame->mRegistry.try_get<RendererTransformCache>(parent);
+		} else {
+			auto parentCache = mFrame->mRegistry.try_get<RendererTransformCache>(parent);
 
-		// If parent doesn't have transform cache, it will get caught eventually and descendents will be updated
-		if (parentCache) {
-			auto& transform = mFrame->mRegistry.get<Transform>(node);
-			auto cache = mFrame->mRegistry.emplace_or_replace<RendererTransformCache>(node, transform, parentCache->mCache);
-			UpdateDescendants(node, cache.mCache);
+			// If parent doesn't have transform cache, it will get caught eventually and descendents will be updated
+			if (parentCache) {
+				auto& transform = mFrame->mRegistry.get<Transform>(node);
+				auto cache = mFrame->mRegistry.emplace_or_replace<RendererTransformCache>(node, transform, parentCache->mCache);
+				UpdateDescendants(node, cache.mCache);
+			}
 		}
 	}
 

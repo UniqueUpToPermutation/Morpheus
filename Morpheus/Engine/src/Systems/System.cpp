@@ -153,4 +153,11 @@ namespace Morpheus {
 	void FrameProcessor::AddRenderTask(ParameterizedTask<RenderParams>&& task) {
 		mRender.Adopt(std::move(task));
 	}
+
+	void FrameProcessor::AddRenderGroup(ParameterizedTaskGroup<RenderParams>* group) {
+		mRender.Add(group);
+	}
+	void FrameProcessor::AddUpdateGroup(ParameterizedTaskGroup<UpdateParams>* group) {
+		mUpdate.Add(group);
+	}
 }

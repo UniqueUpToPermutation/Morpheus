@@ -175,6 +175,8 @@ namespace Morpheus
 
 		mMode = PlatformLinuxMode::XCB;
 
+		mInput.InitXCBKeysms(mXCBInfo.connection);
+
 		return 1;
 	}
 #endif
@@ -338,6 +340,8 @@ namespace Morpheus
 	}
 				
 	void PlatformLinux::MessagePump() {
+		mInput.NewFrame();
+
 		if (mParams.mDeviceType == DG::RENDER_DEVICE_TYPE_GL) {
 			XEvent xev;
 			// Handle all events in the queue

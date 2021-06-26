@@ -45,7 +45,7 @@ namespace Morpheus {
 	}
 
 	MaterialId EmptyRenderer::CreateUnmanagedMaterial(const MaterialDesc& desc) {
-		return entt::null;
+		return NullMaterialId;
 	}
 
 	void EmptyRenderer::AddMaterialRef(MaterialId id) {

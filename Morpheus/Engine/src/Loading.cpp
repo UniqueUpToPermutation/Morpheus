@@ -29,7 +29,8 @@ namespace Morpheus {
 		float thickness = 10.0f;
 
 		DG::Timer timer;
-		FrameTime time(timer);
+
+		double time = 0.0;
 
 		while (platform->IsValid() && !barrier->mOut.Lock().IsFinished()) {
 
@@ -59,18 +60,18 @@ namespace Morpheus {
 
 			bkg->PathClear();
 
-			float time = timer.GetElapsedTimef();
+			double time = timer.GetElapsedTime();
 
 			int num_segments = 30;
-			int start = abs(sin(time * 1.8f)*(num_segments-5));
-			const float a_min = M_PI*2.0f * ((float)start) / (float)num_segments;
-			const float a_max = M_PI*2.0f * ((float)num_segments-3) / (float)num_segments;
+		
+			const float a_min = M_PI*2.0f * time;
+			const float a_max = a_min + 1.5;
 			const ImVec2 centre = ImVec2(desc.Width / 2, desc.Height / 2);
 		
 			for (int i = 0; i < num_segments; i++) {
 				const float a = a_min + ((float)i / (float)num_segments) * (a_max - a_min);
-				bkg->PathLineTo(ImVec2(centre.x + cos(a + time * 8) * radius,
-													centre.y + sin(a + time * 8) * radius));
+				bkg->PathLineTo(ImVec2(centre.x + cos(a) * radius,
+													centre.y + sin(a) * radius));
 			}
 			bkg->PathStroke(color, false, thickness);
 

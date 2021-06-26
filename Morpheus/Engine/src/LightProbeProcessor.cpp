@@ -1,4 +1,4 @@
-#include <Engine/Brdf.hpp>
+#include <Engine/LightProbeProcessor.hpp>
 
 #include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/Shader.hpp>
@@ -7,6 +7,84 @@
 #include "MapHelper.hpp"
 
 namespace Morpheus {
+
+	ResourceTask<LightProbeProcessorShaders> LightProbeProcessorShaders::Load(
+		DG::IRenderDevice* device,
+		const LightProbeProcessorConfig& config,
+		IVirtualFileSystem* fileSystem) {
+
+		Promise<LightProbeProcessorShaders> promise;
+		Promise<LightProbeProcessorShaders> future(promise);
+
+		struct {
+			Future<Handle<DG::IShader>> mVS;
+			Future<Handle<DG::IShader>> mPS;
+			Future<Handle<DG::IShader>> mCS;
+		} data;
+
+		Task task([promise = std::move(promise), device, config, fileSystem, data]
+			(const TaskParams& e) mutable {
+			
+			if (e.mTask->BeginSubTask()) {
+				ShaderPreprocessorConfig prefilterEnvConfig;
+				ShaderPreprocessorConfig irradianceSHConfig;
+
+				prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
+				irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
+
+				LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Cubemap Face Vertex Shader");
+
+				LoadParams<RawShader> envPsParams("internal/PrefilterEnvironment.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"Compute Environment Pixel Shader",
+					prefilterEnvConfig);
+
+				LoadParams<RawShader> irrSHParams("internal/ComputeIrradianceSH.csh",
+					DG::SHADER_TYPE_COMPUTE,
+					"Compute Irradiance SH Compute Shader",
+					irradianceSHConfig);
+
+				LightProbeProcessorShaders shaders;
+
+				auto loadVS = 
+					LoadShaderHandle(device, vsParams, fileSystem);
+				auto loadPS = 
+					LoadShaderHandle(device, envPsParams, fileSystem);
+				auto loadSHCS = 
+					LoadShaderHandle(device, irrSHParams, fileSystem);
+
+				data.mVS = e.mQueue->AdoptAndTrigger(std::move(loadVS));
+				data.mPS = e.mQueue->AdoptAndTrigger(std::move(loadPS));
+				data.mCS = e.mQueue->AdoptAndTrigger(std::move(loadSHCS));
+
+				e.mTask->EndSubTask();
+
+				if (e.mTask->In().Lock()
+					.Connect(data.mVS.Out())
+					.Connect(data.mPS.Out())
+					.Connect(data.mCS.Out())
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			LightProbeProcessorShaders shaders;
+			shaders.mPrefilterEnvVS = data.mVS.Get();
+			shaders.mPrefilterEnvPS = data.mPS.Get();
+			shaders.mSHShaderCS = data.mCS.Get();
+
+			promise.Set(std::move(shaders), e.mQueue);
+
+			return TaskResult::FINISHED;
+		}, "Load Light Probe Shaders", TaskType::FILE_IO);
+
+		ResourceTask<LightProbeProcessorShaders> res;
+		res.mTask = std::move(task);
+		res.mFuture = std::move(future);
+
+		return res;
+	}
 
 	void CookTorranceLUT::Compute(DG::IRenderDevice* device,
 		DG::IDeviceContext* context,
@@ -95,7 +173,10 @@ namespace Morpheus {
 		texture.SavePng(path);
 	}
 
-	LightProbeProcessor::LightProbeProcessor(DG::IRenderDevice* device) : 
+	LightProbeProcessor::LightProbeProcessor(DG::IRenderDevice* device,
+		const LightProbeProcessorShaders& shaders,
+		const LightProbeProcessorConfig& config) : 
+
 		mPrefilterEnvPipeline(nullptr), 
 		mPrefilterEnvSRB(nullptr),
 		mSHIrradianceSRB(nullptr),
@@ -103,59 +184,9 @@ namespace Morpheus {
 
 		DG::CreateUniformBuffer(device, sizeof(PrecomputeEnvMapAttribs),
 			"Light Probe Processor Constants Buffer", 
-			&mTransformConstantBuffer);
-	}
+			mTransformConstantBuffer.Ref());
 
-	LightProbeProcessor::~LightProbeProcessor() {
-
-		if (mPrefilterEnvSRB)
-			mPrefilterEnvSRB->Release();
-		if (mSHIrradianceSRB)
-			mSHIrradianceSRB->Release();
-
-		if (mPrefilterEnvPipeline)
-			mPrefilterEnvPipeline->Release();
-		if (mSHIrradiancePipeline)
-			mSHIrradiancePipeline->Release();
-
-		mTransformConstantBuffer->Release();
-	}
-
-	void LightProbeProcessor::Initialize(
-		DG::IRenderDevice* device,
-		DG::TEXTURE_FORMAT prefilterEnvFormat,
-		const LightProbeProcessorConfig& config) {
-
-		mPrefilteredEnvFormat = prefilterEnvFormat;
-
-		mEnvironmentMapSamples = config.mEnvMapSamples;
-		
-		ShaderPreprocessorConfig irradianceConfig;
-		ShaderPreprocessorConfig prefilterEnvConfig;
-		ShaderPreprocessorConfig irradianceSHConfig;
-
-		irradianceConfig.mDefines["NUM_PHI_SAMPLES"] = std::to_string(config.mIrradianceSamplesPhi);
-		irradianceConfig.mDefines["NUM_THETA_SAMPLES"] = std::to_string(config.mIrradianceSamplesTheta);
-		prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
-		irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
-
-		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
-			DG::SHADER_TYPE_VERTEX,
-			"Cubemap Face Vertex Shader");
-
-		LoadParams<RawShader> envPsParams("internal/PrefilterEnvironment.psh",
-			DG::SHADER_TYPE_PIXEL,
-			"Compute Environment Pixel Shader",
-			prefilterEnvConfig);
-
-		LoadParams<RawShader> irrSHParams("internal/ComputeIrradianceSH.csh",
-			DG::SHADER_TYPE_COMPUTE,
-			"Compute Irradiance SH Compute Shader",
-			irradianceSHConfig);
-
-		auto cubemapFaceVS = CompileEmbeddedShader(device, vsParams);
-		auto environmentPS = CompileEmbeddedShader(device, envPsParams);
-		auto irradianceSHCS = CompileEmbeddedShader(device, irrSHParams);
+		mConfig = config;
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -173,13 +204,13 @@ namespace Morpheus {
 			PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
 
 			GraphicsPipeline.NumRenderTargets             = 1;
-			GraphicsPipeline.RTVFormats[0]                = prefilterEnvFormat;
+			GraphicsPipeline.RTVFormats[0]                = mConfig.mPrefilteredEnvFormat;
 			GraphicsPipeline.PrimitiveTopology            = DG::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
 			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
 
-			PSOCreateInfo.pVS = cubemapFaceVS;
-			PSOCreateInfo.pPS = environmentPS;
+			PSOCreateInfo.pVS = shaders.mPrefilterEnvVS.Ptr();
+			PSOCreateInfo.pPS = shaders.mPrefilterEnvPS.Ptr();
 
 			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 			// clang-format off
@@ -200,12 +231,12 @@ namespace Morpheus {
 			PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
 			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
 
-			device->CreateGraphicsPipelineState(PSOCreateInfo, &mPrefilterEnvPipeline);
+			device->CreateGraphicsPipelineState(PSOCreateInfo, mPrefilterEnvPipeline.Ref());
 			mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "mTransform")->Set(mTransformConstantBuffer);
 			auto filterAttribs = mPrefilterEnvPipeline->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "FilterAttribs");
 			if (filterAttribs)
 				filterAttribs->Set(mTransformConstantBuffer);
-			mPrefilterEnvPipeline->CreateShaderResourceBinding(&mPrefilterEnvSRB, true);
+			mPrefilterEnvPipeline->CreateShaderResourceBinding(mPrefilterEnvSRB.Ref(), true);
 		}
 
 		{
@@ -237,15 +268,11 @@ namespace Morpheus {
 			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
 
 			PSODesc.Name      = "Irradiance SH PSO";
-			PSOCreateInfo.pCS = irradianceSHCS;
+			PSOCreateInfo.pCS = shaders.mSHShaderCS.Ptr();
 
-			device->CreateComputePipelineState(PSOCreateInfo, &mSHIrradiancePipeline);
-			mSHIrradiancePipeline->CreateShaderResourceBinding(&mSHIrradianceSRB, true);
+			device->CreateComputePipelineState(PSOCreateInfo, mSHIrradiancePipeline.Ref());
+			mSHIrradiancePipeline->CreateShaderResourceBinding(mSHIrradianceSRB.Ref(), true);
 		}
-
-		cubemapFaceVS->Release();
-		environmentPS->Release();
-		irradianceSHCS->Release();
 	}
 
 	void LightProbeProcessor::ComputeIrradiance(
@@ -314,7 +341,7 @@ namespace Morpheus {
 		if (!mPrefilterEnvPipeline) {
 			throw std::runtime_error("Initialize has not been called!");
 		}
-		if (outputCubemap->GetDesc().Format != mPrefilteredEnvFormat) {
+		if (outputCubemap->GetDesc().Format != mConfig.mPrefilteredEnvFormat) {
 			throw std::runtime_error("Output cubemap does not have correct format!");
 		}
 
@@ -355,7 +382,7 @@ namespace Morpheus {
 					Attribs->Rotation   = Matrices[face];
 					Attribs->Roughness  = static_cast<float>(mip) / static_cast<float>(PrefilteredEnvMapDesc.MipLevels);
 					Attribs->EnvMapDim  = static_cast<float>(PrefilteredEnvMapDesc.Width);
-					Attribs->NumSamples = mEnvironmentMapSamples;
+					Attribs->NumSamples = mConfig.mEnvMapSamples;
 				}
 
 				DG::DrawAttribs drawAttrs(4, DG::DRAW_FLAG_VERIFY_ALL);
@@ -386,12 +413,28 @@ namespace Morpheus {
 		desc.Type = DG::RESOURCE_DIM_TEX_CUBE;
 		desc.Usage = DG::USAGE_DEFAULT;
 		desc.Name = "Light Probe Prefiltered Environment";
-		desc.Format = mPrefilteredEnvFormat;
+		desc.Format = mConfig.mPrefilteredEnvFormat;
 
 		DG::ITexture* result = nullptr;
 		device->CreateTexture(desc, nullptr, &result);
 
 		ComputePrefilteredEnvironment(context, incommingEnvironmentSRV, result);
 		return result;
+	}
+
+	LightProbe LightProbeProcessor::ComputeLightProbe(
+		DG::IRenderDevice* device,
+		DG::IDeviceContext* context,
+		DG::ITextureView* incommingEnvironmentSRV,
+		uint prefilteredEnvironmentSize) {
+
+		Handle<Texture> texture;
+		texture.Adopt(new Texture(ComputePrefilteredEnvironment(device, context,
+			incommingEnvironmentSRV, prefilteredEnvironmentSize)));
+
+		Handle<DG::IBuffer> shBuffer;
+		shBuffer.Adopt(ComputeIrradiance(device, context, incommingEnvironmentSRV));
+
+		return LightProbe(std::move(shBuffer), std::move(texture));
 	}
 }

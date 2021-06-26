@@ -131,6 +131,10 @@ namespace Morpheus {
 			return mResource;
 		}
 
+		inline bool operator==(const Handle<T>& other) const {
+			return other.mResource == mResource;
+		}
+
 		inline T* Release() {
 			T* result = mResource;
 			if (mResource) {

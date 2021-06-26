@@ -6,7 +6,7 @@
 #include <Engine/DynamicGlobalsBuffer.hpp>
 #include <Engine/Components/Transform.hpp>
 #include <Engine/RendererTransformCache.hpp>
-#include <Engine/Brdf.hpp>
+#include <Engine/LightProbeProcessor.hpp>
 #include <Engine/Resources/EmbeddedFileLoader.hpp>
 #include <Engine/Systems/Renderer.hpp>
 #include <Engine/Resources/Geometry.hpp>
@@ -14,28 +14,66 @@
 #include <shaders/BasicStructures.hlsl>
 
 namespace Morpheus {
-	struct DefaultMaterialData {
-		MaterialDesc mDesc;
-		DG::IShaderResourceBinding* mBinding;
-		std::atomic<int> mRefCount;
-	};
-
-	VertexLayout DefaultStaticMeshLayout();
+	VertexLayout DefaultInstancedStaticMeshLayout();
 
 	class DefaultRenderer : public ISystem, 
 		public IRenderer, public IVertexFormatProvider {
 	private:
-		TransformCacheUpdater mUpdater;
-		VertexLayout mStaticMeshLayout = DefaultStaticMeshLayout();
+		struct Material {
+			MaterialDesc mDesc;
+			DG::IPipelineState* mPipeline = nullptr;
+			DG::IShaderResourceBinding* mBinding = nullptr;
+			std::atomic<int> mRefCount = 0;
 
-		entt::registry mMaterialRegistry;
+			inline Material(const MaterialDesc& desc,
+				DG::IPipelineState* pipeline,
+				DG::IShaderResourceBinding* binding) :
+				mDesc(desc),
+				mPipeline(pipeline),
+				mBinding(binding) {
+			}
+
+			inline Material() {
+			}
+
+			inline Material(Material&& data) :
+				mDesc(std::move(data.mDesc)) {
+				std::swap(data.mPipeline, mPipeline);
+				std::swap(data.mBinding, mBinding);
+				mRefCount = data.mRefCount.exchange(mRefCount);
+			}
+
+			inline Material& operator=(Material&& data) {
+				mDesc = std::move(data.mDesc);
+				std::swap(data.mPipeline, mPipeline);
+				std::swap(data.mBinding, mBinding);
+				mRefCount = data.mRefCount.exchange(mRefCount);
+				return *this;
+			}
+		};
+
+
+		TransformCacheUpdater mUpdater;
+		VertexLayout mStaticMeshLayout = DefaultInstancedStaticMeshLayout();
+
+		std::mutex mMaterialAddRefMutex;
+		std::mutex mMaterialReleaseMutex;
+		std::vector<MaterialId> mMaterialsToAddRef;
+		std::vector<MaterialId> mMaterialsToRelease;
+
+		std::unordered_map<MaterialId, Material> mMaterials;
+		MaterialId mCurrentMaterialId = 0;
+
+		MaterialId CreateNewMaterialId();
 
 		EmbeddedFileLoader mLoader;
 		Graphics* mGraphics;
 		uint mInstanceBatchSize = 512;
 
+		std::unique_ptr<ParameterizedTaskGroup<RenderParams>> mRenderGroup;
+
 		struct Resources {
-			DynamicGlobalsBuffer<HLSL::CameraAttribs> mCameraData;
+			DynamicGlobalsBuffer<HLSL::ViewAttribs> mViewData;
 
 			Handle<DG::IShader>		mStaticMeshVS = nullptr;
 
@@ -73,6 +111,9 @@ namespace Morpheus {
 
 		bool bIsInitialized = false;
 
+		Material CreateCookTorrenceMaterial(const MaterialDesc& desc);
+		Material CreateLambertMaterial(const MaterialDesc& desc);
+
 		void CreateLambertPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps);
 		void CreateCookTorrenceIBLPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps);
 		void CreateSkyboxPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps);
@@ -80,8 +121,11 @@ namespace Morpheus {
 
 		ParameterizedTask<RenderParams> BeginRender();
 		ParameterizedTask<RenderParams> DrawBackground();
+		ParameterizedTask<RenderParams> DrawStaticMeshes();
 
 	public:
+		void ApplyMaterial(DG::IDeviceContext* context, MaterialId id);
+
 		inline auto& Resources() {
 			return mResources;
 		}

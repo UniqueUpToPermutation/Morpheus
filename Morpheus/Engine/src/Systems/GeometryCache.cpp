@@ -4,8 +4,19 @@ namespace Morpheus {
 
 	GeometryCacheSystem::loader_t::cache_load_t 
 	GeometryCacheSystem::GetLoaderFunction() {
-		return [device = mDevice](const LoadParams<Geometry>& params) {
-			return Geometry::Load(device, params);
+
+		return [this](const LoadParams<Geometry>& params) {
+			auto device = GetDevice();
+			auto formatProvider = GetFormatProvider();
+
+			LoadParams<Geometry> modifiedParams = params;
+
+			// Get the correct geometry format for this geometry type
+			if (modifiedParams.mType != GeometryType::UNSPECIFIED) {
+				modifiedParams.mVertexLayout = formatProvider->GetLayout(modifiedParams.mType);
+			}
+
+			return Geometry::Load(device, modifiedParams);
 		};
 	}
 	
@@ -24,6 +35,7 @@ namespace Morpheus {
 	Task GeometryCacheSystem::Startup(SystemCollection& systems) {
 
 		mFormatProvider = systems.QueryInterface<IVertexFormatProvider>();
+
 		if (!mFormatProvider) {
 			throw std::runtime_error(
 				"Geometry cache cannot be created without an IVertexFormatProvider!");

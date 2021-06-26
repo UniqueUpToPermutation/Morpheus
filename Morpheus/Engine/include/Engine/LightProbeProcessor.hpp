@@ -5,7 +5,8 @@
 #include "BasicMath.hpp"
 
 #include <Engine/Graphics.hpp>
-#include <Engine/LightProbe.hpp>
+#include <Engine/Components/LightProbe.hpp>
+#include <Engine/Resources/Shader.hpp>
 
 namespace DG = Diligent;
 
@@ -47,41 +48,36 @@ namespace Morpheus {
     };
 
 	struct LightProbeProcessorConfig {
-		uint mIrradianceSamplesTheta = 32;
-		uint mIrradianceSamplesPhi = 64;
 		uint mIrradianceSHSamples = 5000;
 		bool bEnvMapOptimizeSamples = true;
 		uint mEnvMapSamples = 256;
+		DG::TEXTURE_FORMAT mPrefilteredEnvFormat;
 	};
+
+	struct LightProbeProcessorShaders {
+		Handle<DG::IShader> mPrefilterEnvVS;
+		Handle<DG::IShader> mPrefilterEnvPS;
+		Handle<DG::IShader> mSHShaderCS;
+
+		static ResourceTask<LightProbeProcessorShaders> Load(
+			DG::IRenderDevice* device,
+			const LightProbeProcessorConfig& config,
+			IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance());
+	};
+
 	class LightProbeProcessor {
 	private:
-		DG::IPipelineState* mPrefilterEnvPipeline;
-		DG::IPipelineState* mSHIrradiancePipeline;
-		DG::IBuffer* mTransformConstantBuffer;
-		DG::IShaderResourceBinding* mPrefilterEnvSRB;
-		DG::IShaderResourceBinding* mSHIrradianceSRB;
-
-		DG::TEXTURE_FORMAT mPrefilteredEnvFormat;
-
-		uint mEnvironmentMapSamples;
-		uint mIrradianceSHSamples;
+		Handle<DG::IPipelineState> mPrefilterEnvPipeline;
+		Handle<DG::IPipelineState> mSHIrradiancePipeline;
+		Handle<DG::IBuffer> mTransformConstantBuffer;
+		Handle<DG::IShaderResourceBinding> mPrefilterEnvSRB;
+		Handle<DG::IShaderResourceBinding> mSHIrradianceSRB;
+		LightProbeProcessorConfig mConfig;
 
 	public:
-		LightProbeProcessor(DG::IRenderDevice* device);
-		~LightProbeProcessor();
-
-		void Initialize(
-			DG::IRenderDevice* device,
-			DG::TEXTURE_FORMAT prefilterEnvFormat,
-			const LightProbeProcessorConfig& config = LightProbeProcessorConfig());
-
-		inline void SetEnvironmentMapSamples(uint envMapSamples) {
-			mEnvironmentMapSamples = envMapSamples;
-		}
-
-		inline uint GetEnvironmentMapSamples() const {
-			return mEnvironmentMapSamples;
-		}
+		LightProbeProcessor(DG::IRenderDevice* device, 
+			const LightProbeProcessorShaders& shaders,
+			const LightProbeProcessorConfig& config);
 
 		void ComputeIrradiance(
 			DG::IDeviceContext* context,

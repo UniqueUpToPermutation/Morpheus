@@ -1,10 +1,12 @@
 #include <Engine/Systems/DefaultRenderer.hpp>
 #include <Engine/Resources/Shader.hpp>
 #include <Engine/Components/SkyboxComponent.hpp>
+#include <Engine/Components/StaticMeshComponent.hpp>
+#include <Engine/RendererTransformCache.hpp>
 
 namespace Morpheus {
 
-	VertexLayout DefaultStaticMeshLayout() {
+	VertexLayout DefaultInstancedStaticMeshLayout() {
 		uint stride = 12 * sizeof(float);
 
 		VertexLayout layout;
@@ -28,7 +30,7 @@ namespace Morpheus {
 		layout.mPosition = 0;
 		layout.mUV = 1;
 		layout.mNormal = 2;
-		layout.mTangent = 4;
+		layout.mTangent = 3;
 		layout.mStride = stride;
 
 		return layout;
@@ -46,16 +48,16 @@ namespace Morpheus {
 	};
 
 	Task DefaultRenderer::Startup(SystemCollection& collection) {
-		struct Data {
+		struct {
 			Future<Handle<DG::IShader>> mStaticMeshResult;
 			Future<Handle<DG::IShader>> mLambertVSResult;
 			Future<Handle<DG::IShader>> mLambertPSResult;
 			Future<Handle<DG::IShader>> mCookTorrenceResult;
 			Future<Handle<DG::IShader>> mSkyboxVSResult;
 			Future<Handle<DG::IShader>> mSkyboxPSResult;
-		};
+		} data;
 
-		Task startupTask([this, data = Data()](const TaskParams& e) mutable {
+		Task startupTask([this, data](const TaskParams& e) mutable {
 			if (e.mTask->BeginSubTask()) {
 				ShaderPreprocessorConfig config;
 				config.mDefines["USE_IBL"] = "1";
@@ -144,10 +146,9 @@ namespace Morpheus {
 			DG::IShaderResourceBinding* skyboxBinding = nullptr;
 			mResources.mSkybox.mPipeline->CreateShaderResourceBinding(&skyboxBinding, true);
 			mResources.mSkybox.mSkyboxBinding.Adopt(skyboxBinding);
-			
-			skyboxBinding->GetVariableByName(DG::SHADER_TYPE_VERTEX, 
-				"CameraData")->Set(mResources.mCameraData.Get());
-			mResources.mSkybox.mTexture = skyboxBinding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture");
+		
+			mResources.mSkybox.mTexture = skyboxBinding->GetVariableByName(
+				DG::SHADER_TYPE_PIXEL, "mTexture");
 
 			bIsInitialized = true;
 			return TaskResult::FINISHED;
@@ -159,25 +160,12 @@ namespace Morpheus {
 			CacheUpdater().UpdateChanges();
 		});
 		
-		// Just clear the screen
-		ParameterizedTask<RenderParams> renderTask([this](const TaskParams& e, const RenderParams& params) {
-			auto graphics = mGraphics;
-			auto context = graphics->ImmediateContext();
-			auto swapChain = graphics->SwapChain();
-			auto rtv = swapChain->GetCurrentBackBufferRTV();
-			auto dsv = swapChain->GetDepthBufferDSV();
-			float color[] = { 0.5f, 0.5f, 1.0f, 1.0f };
-			context->SetRenderTargets(1, &rtv, dsv, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-			context->ClearRenderTarget(rtv, color, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-			context->ClearDepthStencil(dsv, DG::CLEAR_DEPTH_FLAG, 1.0f, 0, 
-				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		}, "Clear Screen", TaskType::RENDER, ASSIGN_THREAD_MAIN);
-
-		renderTask->In().Lock().Connect(&updateTransformCache->Out());
+		mRenderGroup.reset(CreateRenderGroup());
+		mRenderGroup->In().Lock().Connect(&updateTransformCache->Out());
 
 		// Give this task to the frame processor
 		collection.GetFrameProcessor().AddRenderTask(std::move(updateTransformCache));
-		collection.GetFrameProcessor().AddRenderTask(std::move(renderTask));
+		collection.GetFrameProcessor().AddRenderGroup(mRenderGroup.get());
 		
 		return startupTask;
 	}
@@ -190,6 +178,8 @@ namespace Morpheus {
 			auto rtv = swapChain->GetCurrentBackBufferRTV();
 			auto dsv = swapChain->GetDepthBufferDSV();
 			float color[] = { 0.5f, 0.5f, 1.0f, 1.0f };
+
+			// Clear the back buffer (if necessary) and the depth buffer
 			context->SetRenderTargets(1, &rtv, dsv, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			
 			if (params.mFrame->mRegistry.view<SkyboxComponent>().size() == 0)
@@ -197,7 +187,114 @@ namespace Morpheus {
 			
 			context->ClearDepthStencil(dsv, DG::CLEAR_DEPTH_FLAG, 1.0f, 0, 
 				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+			// Write global camera data
+			if (params.mFrame->mCamera != entt::null) {
+				auto& cameraData = params.mFrame->CameraData();
+				
+				HLSL::ViewAttribs gpuViewData;
+				gpuViewData.mCamera = cameraData.GetTransformedAttribs(
+					params.mFrame->mCamera, 
+					&params.mFrame->mRegistry,
+					*graphics);
+
+				Resources().mViewData.Write(graphics->ImmediateContext(), gpuViewData);
+
+			} else {
+				Camera camera;
+				HLSL::ViewAttribs gpuViewData;
+				gpuViewData.mCamera = camera.GetLocalAttribs(*graphics);
+				Resources().mViewData.Write(graphics->ImmediateContext(), gpuViewData);
+				
+				std::cout << "WARNING: No camera entity found!" << std::endl;
+			}
+			
 		}, "Begin Render", TaskType::RENDER, ASSIGN_THREAD_MAIN);
+	}
+
+	ParameterizedTask<RenderParams> DefaultRenderer::DrawStaticMeshes() {
+		return ParameterizedTask<RenderParams>([this](const TaskParams& e, const RenderParams& params) {
+			auto skyboxes = params.mFrame->mRegistry.view<SkyboxComponent>();
+
+			auto ent = skyboxes.front();
+			if (ent != entt::null) {
+				auto& skybox = skyboxes.get<SkyboxComponent>(ent);
+				auto lightProbe = params.mFrame->TryGet<LightProbe>(ent);
+
+				MaterialId currentMaterial = NullMaterialId;
+
+				auto context = GetGraphics()->ImmediateContext();
+				auto meshView = params.mFrame->mRegistry.view<StaticMeshComponent>();
+
+				auto currentIt = meshView.begin();
+				auto endIt = meshView.end();
+
+				while (currentIt != endIt) {
+					auto instanceBuffer = Resources().mInstanceBuffer.Ptr();
+
+					// First upload transforms to GPU buffer
+					void* mappedData;
+					context->MapBuffer(instanceBuffer, DG::MAP_WRITE, 
+						DG::MAP_FLAG_DISCARD, mappedData);
+
+					DG::float4x4* ptr = reinterpret_cast<DG::float4x4*>(mappedData);
+					int maxInstances = instanceBuffer->GetDesc().uiSizeInBytes / sizeof(DG::float4x4);
+					int transformWriteIdx = 0;
+					int transformReadIdx = 0;
+
+					auto matrixCopyIt = currentIt;
+					for (; matrixCopyIt != endIt && transformWriteIdx < maxInstances;
+						++transformWriteIdx, ++matrixCopyIt) {
+						auto transformCache = params.mFrame->TryGet<RendererTransformCache>(*matrixCopyIt);
+						
+						if (transformCache)
+							ptr[transformWriteIdx] = transformCache->mCache.Transpose();
+						else 
+							ptr[transformWriteIdx] = DG::float4x4::Identity();
+					}
+
+					context->UnmapBuffer(instanceBuffer, DG::MAP_WRITE);
+
+					while (currentIt != matrixCopyIt) {
+						auto& staticMesh = meshView.get<StaticMeshComponent>(*currentIt);
+
+						auto& material = staticMesh.mMaterial;
+						auto& geometry = staticMesh.mGeometry;
+
+						// Change pipeline
+						if (material != NullMaterialId) {
+							ApplyMaterial(context, material);
+							currentMaterial = material;
+						}
+
+						// Count the number of instances of this specific mesh to render
+						int instanceCount = 1;
+						for (++currentIt; currentIt != matrixCopyIt
+							&& meshView.get<StaticMeshComponent>(*currentIt).mGeometry == geometry 
+							&& meshView.get<StaticMeshComponent>(*currentIt).mMaterial == material;
+							++instanceCount, ++currentIt);
+
+						if (material != NullMaterialId) {
+							// Render all of these static meshes in a batch
+							DG::Uint32  offsets[] = { 0, (DG::Uint32)(transformReadIdx * sizeof(DG::float4x4)) };
+							DG::IBuffer* pBuffs[] = { geometry->GetVertexBuffer(), instanceBuffer };
+							context->SetVertexBuffers(0, 2, pBuffs, offsets, 
+								DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, 
+								DG::SET_VERTEX_BUFFERS_FLAG_RESET);
+							context->SetIndexBuffer( geometry->GetIndexBuffer(), 0, 
+								DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+							DG::DrawIndexedAttribs attribs = geometry->GetIndexedDrawAttribs();
+							attribs.Flags = DG::DRAW_FLAG_VERIFY_ALL;
+							attribs.NumInstances = instanceCount;
+							context->DrawIndexed(attribs);
+						}
+
+						transformReadIdx += instanceCount;
+					}
+				}
+			}
+		}, "Draw Static Meshes", TaskType::RENDER, ASSIGN_THREAD_MAIN);
 	}
 	
 	ParameterizedTask<RenderParams> DefaultRenderer::DrawBackground() {
@@ -206,8 +303,12 @@ namespace Morpheus {
 
 			auto ent = skyboxes.front();
 			if (ent != entt::null) {
+				auto& skybox = skyboxes.get<SkyboxComponent>(ent);
+
 				// Render skybox
 				auto context = GetGraphics()->ImmediateContext();
+				Resources().mSkybox.mTexture->Set(skybox.mCubemap->GetShaderView());
+
 				context->SetPipelineState(Resources().mSkybox.mPipeline.Ptr());
 				context->CommitShaderResources(Resources().mSkybox.mSkyboxBinding.Ptr(),
 					DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -218,18 +319,22 @@ namespace Morpheus {
 			}
 		}, "Draw Skybox", TaskType::RENDER, ASSIGN_THREAD_MAIN);
 	}
+	
 
 	ParameterizedTaskGroup<RenderParams>* DefaultRenderer::CreateRenderGroup() {
 		auto group = new ParameterizedTaskGroup<RenderParams>();
 
 		auto beginRender = BeginRender();
 		auto drawBackground = DrawBackground();
+		auto drawStaticMeshes = DrawStaticMeshes();
 		
 		// Draw background after begin render stuff
 		drawBackground->In().Lock().Connect(beginRender->Out());
+		drawStaticMeshes->In().Lock().Connect(beginRender->Out());
 
 		group->Adopt(std::move(beginRender));
 		group->Adopt(std::move(drawBackground));
+		group->Adopt(std::move(drawStaticMeshes));
 
 		return group;
 	}
@@ -317,6 +422,46 @@ namespace Morpheus {
 
 		context->SetRenderTargets(0, nullptr, nullptr,
 			DG::RESOURCE_STATE_TRANSITION_MODE_NONE);
+
+		mResources.mViewData.Initialize(mGraphics->Device());
+	}
+
+	MaterialId DefaultRenderer::CreateNewMaterialId() {
+		++mCurrentMaterialId;
+		mCurrentMaterialId = std::max(0, mCurrentMaterialId);
+		return mCurrentMaterialId;
+	}
+	
+	void DefaultRenderer::ApplyMaterial(DG::IDeviceContext* context, MaterialId id) {
+		auto it = mMaterials.find(id);
+
+		if (it != mMaterials.end()) {
+			auto& data = it->second;
+			context->SetPipelineState(data.mPipeline);
+			context->CommitShaderResources(data.mBinding, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		} else {
+			std::cout << "WARNING: Material Id: " << id << " cannot be found!" << std::endl;
+		}
+	}
+
+	DefaultRenderer::Material DefaultRenderer::CreateCookTorrenceMaterial(const MaterialDesc& desc) {
+		throw std::runtime_error("Not implemented!");
+	}
+
+	DefaultRenderer::Material DefaultRenderer::CreateLambertMaterial(const MaterialDesc& desc) {
+		
+		DG::IShaderResourceBinding* binding = nullptr;
+
+		Resources().mLambert.mStaticMeshPipeline
+			->CreateShaderResourceBinding(&binding, true);
+
+		// Optimize later
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, 
+			"mAlbedo")->Set(desc.mAlbedo->GetShaderView());
+
+		return Material(desc, 
+			Resources().mLambert.mStaticMeshPipeline.Ptr(), 
+			binding);
 	}
 
 	void DefaultRenderer::CreateLambertPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps) {
@@ -342,7 +487,7 @@ namespace Morpheus {
 		DG::PipelineStateDesc&              PSODesc          = PSOCreateInfo.PSODesc;
 		DG::GraphicsPipelineDesc&           GraphicsPipeline = PSOCreateInfo.GraphicsPipeline;
 
-		PSODesc.Name         = "Basic Textured Pipeline";
+		PSODesc.Name         = "Lambert Pipeline";
 		PSODesc.PipelineType = DG::PIPELINE_TYPE_GRAPHICS;
 
 		GraphicsPipeline.NumRenderTargets             = 1;
@@ -367,8 +512,8 @@ namespace Morpheus {
 		// clang-format off
 		DG::ShaderResourceVariableDesc Vars[] = 
 		{
-			//{DG::SHADER_TYPE_PIXEL, "CameraData", DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
-			{DG::SHADER_TYPE_VERTEX, "CameraData", DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+			{DG::SHADER_TYPE_VERTEX, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
+			{DG::SHADER_TYPE_PIXEL, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
 			{DG::SHADER_TYPE_PIXEL, "mAlbedo", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC},
 		};
 		// clang-format on
@@ -386,8 +531,12 @@ namespace Morpheus {
 		
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 
-		mResources.mLambert.mStaticMeshPipeline	= result;
-		result->Release();
+		result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "ViewData")
+			->Set(Resources().mViewData.Get());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "ViewData")
+			->Set(Resources().mViewData.Get());
+
+		mResources.mLambert.mStaticMeshPipeline.Adopt(result);
 	}
 
 	void DefaultRenderer::CreateCookTorrenceIBLPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps) {
@@ -447,6 +596,17 @@ namespace Morpheus {
 		PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 		
 		std::vector<DG::ShaderResourceVariableDesc> Vars;
+
+		Vars.emplace_back(DG::ShaderResourceVariableDesc{
+			DG::SHADER_TYPE_VERTEX,
+			"ViewData",
+			DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE
+		});
+		Vars.emplace_back(DG::ShaderResourceVariableDesc{
+			DG::SHADER_TYPE_PIXEL,
+			"ViewData",
+			DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE
+		});
 
 		Vars.emplace_back(DG::ShaderResourceVariableDesc{
 			DG::SHADER_TYPE_PIXEL, 
@@ -511,8 +671,7 @@ namespace Morpheus {
 		if (lutVar)
 			lutVar->Set(mResources.mCookTorrenceLUT.GetShaderView());
 		
-		mResources.mCookTorrenceIBL.mStaticMeshPipeline = result;
-		result->Release();
+		mResources.mCookTorrenceIBL.mStaticMeshPipeline.Adopt(result);
 	}
 
 	void DefaultRenderer::CreateSkyboxPipeline(Handle<DG::IShader> vs, 
@@ -563,7 +722,8 @@ namespace Morpheus {
 		DG::ShaderResourceVariableDesc Vars[] = 
 		{
 			{DG::SHADER_TYPE_PIXEL, "mTexture", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC},
-			{DG::SHADER_TYPE_VERTEX, "CameraData", DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+			{DG::SHADER_TYPE_VERTEX, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
+			{DG::SHADER_TYPE_PIXEL, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
 		};
 		// clang-format on
 		PSODesc.ResourceLayout.NumVariables = _countof(Vars);
@@ -580,8 +740,12 @@ namespace Morpheus {
 		
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 
-		mResources.mSkybox.mPipeline 	= result;
-		result->Release();
+		result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "ViewData")
+			->Set(Resources().mViewData.Get());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "ViewData")
+			->Set(Resources().mViewData.Get());
+
+		mResources.mSkybox.mPipeline.Adopt(result);
 	}
 
 	bool DefaultRenderer::IsInitialized() const {
@@ -625,15 +789,32 @@ namespace Morpheus {
 	}
 
 	MaterialId DefaultRenderer::CreateUnmanagedMaterial(const MaterialDesc& desc) {
-		return entt::null;
+		Material mat;
+		
+		switch (desc.mType) {
+			case MaterialType::COOK_TORRENCE:
+				mat = CreateCookTorrenceMaterial(desc);
+				break;
+			case MaterialType::LAMBERT:
+				mat = CreateLambertMaterial(desc);
+				break;
+			case MaterialType::CUSTOM:
+				return NullMaterialId;
+		}
+
+		auto id = CreateNewMaterialId();
+		mMaterials.emplace(id, std::move(mat));
+		return id;
 	}
 
 	void DefaultRenderer::AddMaterialRef(MaterialId id) {
-
+		std::lock_guard<std::mutex> lock(mMaterialAddRefMutex);
+		mMaterialsToAddRef.emplace_back(id);
 	}
 
 	void DefaultRenderer::ReleaseMaterial(MaterialId id) {
-
+		std::lock_guard<std::mutex> lock(mMaterialReleaseMutex);
+		mMaterialsToRelease.emplace_back(id);
 	}
 
 	void DefaultRenderer::OnAddedTo(SystemCollection& collection) {

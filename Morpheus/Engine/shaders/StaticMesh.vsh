@@ -14,9 +14,9 @@ struct VSInput
 	float4 World3 	: ATTRIB7;
 };
 
-cbuffer Globals
+cbuffer ViewData
 {
-    RendererGlobalData mGlobals;
+    ViewAttribs mViewData;
 }
 
 void main(in  VSInput VSIn,
@@ -43,6 +43,6 @@ void main(in  VSInput VSIn,
 	Tangent = Tangent / max(length(Tangent), 1e-5);
 
 	WorldPos = transformWorldPos.xyz / transformWorldPos.w;
-	ClipPos  = mul(float4(WorldPos, 1.0), mGlobals.mCamera.mViewProj);
+	ClipPos  = mul(float4(WorldPos, 1.0), mViewData.mCamera.mViewProj);
     UV 	  = VSIn.UV0;
 }

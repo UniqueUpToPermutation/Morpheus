@@ -1,57 +1,88 @@
 #include <Engine/HdriToCubemap.hpp>
 #include <Engine/Resources/Resource.hpp>
-#include <Engine/Brdf.hpp>
+#include <Engine/LightProbeProcessor.hpp>
 #include <Engine/Resources/Shader.hpp>
 
 #include "GraphicsUtilities.h"
 #include "MapHelper.hpp"
 
 namespace Morpheus {
-	HDRIToCubemapConverter::HDRIToCubemapConverter(DG::IRenderDevice* device) :
-		mPipelineState(nullptr),
-		mSRB(nullptr),
-		mTransformConstantBuffer(nullptr) {
-		
+	ResourceTask<HDRIToCubemapShaders> HDRIToCubemapShaders::Load(
+		DG::IRenderDevice* device,
+		bool bConvertSRGBToLinear,
+		IVirtualFileSystem* fileSystem) {
+
+		Promise<HDRIToCubemapShaders> promise;
+		Future<HDRIToCubemapShaders> future(promise);
+
+		struct {
+			Future<DG::IShader*> mVS;
+			Future<DG::IShader*> mPS;
+		} data;
+
+		Task task([device, promise = std::move(promise), data, 
+			bConvertSRGBToLinear, fileSystem]
+			(const TaskParams& e) mutable {
+			if (e.mTask->BeginSubTask()) {
+
+				ShaderPreprocessorConfig config;
+				if (bConvertSRGBToLinear)
+					config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "1";
+				else 
+					config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
+
+				LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+					DG::SHADER_TYPE_VERTEX,
+					"Cubemap Face Vertex Shader",
+					config,
+					"main");
+
+				LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
+					DG::SHADER_TYPE_PIXEL,
+					"HDRI Convert Pixel Shader",
+					config,
+					"main");
+
+				auto vsTask = LoadShader(device, vsParams, fileSystem);
+				auto psTask = LoadShader(device, psParams, fileSystem);
+
+				data.mVS = e.mQueue->AdoptAndTrigger(std::move(vsTask));
+				data.mPS = e.mQueue->AdoptAndTrigger(std::move(psTask));
+
+				e.mTask->EndSubTask();
+
+				if (e.mTask->In().Lock()
+					.Connect(data.mVS.Out())
+					.Connect(data.mPS.Out())
+					.ShouldWait())
+					return TaskResult::WAITING;
+			}
+
+			HDRIToCubemapShaders shaders;
+			shaders.mVS.Adopt(data.mVS.Get());
+			shaders.mPS.Adopt(data.mPS.Get());
+
+			promise.Set(std::move(shaders), e.mQueue);
+
+			return TaskResult::FINISHED;
+		}, "Load HDRI To Cubemap Shaders", TaskType::FILE_IO);
+
+		ResourceTask<HDRIToCubemapShaders> result;
+		result.mTask = std::move(task);
+		result.mFuture = std::move(future);
+
+		return result;
+	}
+
+	HDRIToCubemapConverter::HDRIToCubemapConverter(DG::IRenderDevice* device, 
+		const HDRIToCubemapShaders& shaders,
+		DG::TEXTURE_FORMAT cubemapFormat) {
+
 		DG::CreateUniformBuffer(device, sizeof(PrecomputeEnvMapAttribs),
 			"Light Probe Processor Constants Buffer", 
-			&mTransformConstantBuffer);
-	}
-
-	HDRIToCubemapConverter::~HDRIToCubemapConverter() {
-		mTransformConstantBuffer->Release();
-
-		if (mSRB)
-			mSRB->Release();
-		if (mPipelineState)
-			mPipelineState->Release();
-	}
-
-	void HDRIToCubemapConverter::Initialize(DG::IRenderDevice* device,
-		DG::TEXTURE_FORMAT cubemapFormat,
-		bool bConvertSRGBToLinear) {
-
+			mTransformConstantBuffer.Ref());
+		
 		mCubemapFormat = cubemapFormat;
-
-		ShaderPreprocessorConfig config;
-		if (bConvertSRGBToLinear)
-			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "1";
-		else 
-			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
-
-		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
-			DG::SHADER_TYPE_VERTEX,
-			"Cubemap Face Vertex Shader",
-			config,
-			"main");
-
-		LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
-			DG::SHADER_TYPE_PIXEL,
-			"HDRI Convert Pixel Shader",
-			config,
-			"main");
-
-		auto cubemapFaceVS = CompileEmbeddedShader(device, vsParams);
-		auto cubemapFacePS = CompileEmbeddedShader(device, psParams);
 
 		DG::SamplerDesc SamLinearClampDesc
 		{
@@ -74,8 +105,8 @@ namespace Morpheus {
 			GraphicsPipeline.RasterizerDesc.CullMode      = DG::CULL_MODE_NONE;
 			GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
 
-			PSOCreateInfo.pVS = cubemapFaceVS;
-			PSOCreateInfo.pPS = cubemapFacePS;
+			PSOCreateInfo.pVS = shaders.mVS;
+			PSOCreateInfo.pPS = shaders.mPS;
 
 			PSODesc.ResourceLayout.DefaultVariableType = DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 			// clang-format off
@@ -96,13 +127,10 @@ namespace Morpheus {
 			PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
 			PSODesc.ResourceLayout.ImmutableSamplers    = ImtblSamplers;
 
-			device->CreateGraphicsPipelineState(PSOCreateInfo, &mPipelineState);
+			device->CreateGraphicsPipelineState(PSOCreateInfo, mPipelineState.Ref());
 			mPipelineState->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "mTransform")->Set(mTransformConstantBuffer);
-			mPipelineState->CreateShaderResourceBinding(&mSRB, true);
+			mPipelineState->CreateShaderResourceBinding(mSRB.Ref(), true);
 		}
-
-		cubemapFaceVS->Release();
-		cubemapFacePS->Release();
 	}
 
 	void HDRIToCubemapConverter::Convert(DG::IDeviceContext* context, 
@@ -141,8 +169,8 @@ namespace Morpheus {
 				RTVDesc.MostDetailedMip = mip;
 				RTVDesc.FirstArraySlice = face;
 				RTVDesc.NumArraySlices  = 1;
-				DG::RefCntAutoPtr<DG::ITextureView> pRTV;
-				pIrradianceCube->CreateView(RTVDesc, &pRTV);
+				Handle<DG::ITextureView> pRTV;
+				pIrradianceCube->CreateView(RTVDesc, pRTV.Ref());
 				DG::ITextureView* ppRTVs[] = {pRTV};
 				context->SetRenderTargets(_countof(ppRTVs), ppRTVs, nullptr, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 				{

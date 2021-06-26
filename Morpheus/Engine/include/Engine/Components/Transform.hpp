@@ -58,6 +58,11 @@ namespace Morpheus {
 			return *this;
 		}
 
+		inline Transform& SetRotation(const DG::float3& axis, const float angle) {
+			mRotation = DG::Quaternion::RotationFromAxisAngle(axis, angle);
+			return *this;
+		}
+
 		inline Transform& SetScale(const DG::float3& s) {
 			mScale = s;
 			return *this;

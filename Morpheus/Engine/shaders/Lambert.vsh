@@ -14,9 +14,9 @@ struct VSInput
 	float4 World3 	: ATTRIB7;
 };
 
-cbuffer CameraData
+cbuffer ViewData
 {
-    CameraAttribs mCamera;
+    ViewAttribs mViewData;
 }
 
 void main(in  VSInput VSIn,
@@ -33,6 +33,6 @@ void main(in  VSInput VSIn,
 	float4 transformWorldPos = mul(Transform, float4(VSIn.Pos, 1.0));
     
 	WorldPos = transformWorldPos.xyz / transformWorldPos.w;
-	ClipPos  = mul(float4(WorldPos, 1.0), mCamera.mViewProj);
+	ClipPos  = mul(float4(WorldPos, 1.0), mViewData.mCamera.mViewProj);
     UV 	  = VSIn.UV0;
 }

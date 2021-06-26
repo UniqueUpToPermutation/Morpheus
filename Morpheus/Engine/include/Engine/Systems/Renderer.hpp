@@ -1,6 +1,8 @@
 #pragma once
 
+#include <Engine/ThreadPool.hpp>
 #include <Engine/Systems/System.hpp>
+#include <Engine/Systems/Renderer.hpp>
 
 namespace Morpheus {
 
@@ -27,7 +29,31 @@ namespace Morpheus {
 		DG::float3 mDisplacementFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
 	};
 
-	typedef entt::entity MaterialId;
+	struct MaterialDescFuture : public IVirtualTaskNodeOut {
+		MaterialType mType = MaterialType::COOK_TORRENCE;
+
+		Future<Texture*> mAlbedo;
+		Future<Texture*> mNormal;
+		Future<Texture*> mRoughness;
+		Future<Texture*> mMetallic;
+		Future<Texture*> mDisplacement;
+
+		DG::float3 mAlbedoFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
+		DG::float3 mRoughnessFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
+		DG::float3 mMetallicFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
+		DG::float3 mDisplacementFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
+
+		MaterialDesc Get() const;
+		bool IsAvailable() const;
+		void Connect(TaskNodeInLock& lock) override;
+
+		inline IVirtualTaskNodeOut& Out() {
+			return *this;
+		}
+	};
+
+	typedef int32_t MaterialId;
+	constexpr MaterialId NullMaterialId = -1;
 
 	class Material {
 	private:
@@ -35,7 +61,7 @@ namespace Morpheus {
 		MaterialId mId;
 
 	public:
-		inline Material() : mRenderer(nullptr), mId(entt::null) {
+		inline Material() : mRenderer(nullptr), mId(NullMaterialId) {
 		}
 
 		inline Material(IRenderer* renderer, MaterialId id);
@@ -43,6 +69,18 @@ namespace Morpheus {
 
 		inline Material(const Material& mat);
 		inline Material(Material&& mat);
+
+		inline MaterialId Id() const {
+			return mId;
+		}
+
+		inline operator MaterialId() const {
+			return mId;
+		}
+
+		inline bool operator==(const Material& other) const {
+			return mId == other.mId;
+		}
 
 		inline Material& operator=(const Material& mat);
 		inline Material& operator=(Material&& mat);
@@ -71,8 +109,9 @@ namespace Morpheus {
 		mRenderer(renderer), mId(id) {
 		renderer->AddMaterialRef(id);
 	}
+
 	Material::~Material() {
-		if (mId != entt::null) {
+		if (mId != NullMaterialId) {
 			mRenderer->ReleaseMaterial(mId);
 		}
 	}
@@ -85,7 +124,7 @@ namespace Morpheus {
 	Material::Material(Material&& mat) : 
 		mRenderer(mat.mRenderer),
 		mId(mat.mId) {
-		mat.mId = entt::null;
+		mat.mId = NullMaterialId;
 	}
 
 	Material& Material::operator=(const Material& mat) {

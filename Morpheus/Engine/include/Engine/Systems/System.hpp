@@ -114,6 +114,8 @@ namespace Morpheus {
 		void AddInjector(const InjectProc& proc);
 		void AddUpdateTask(ParameterizedTask<UpdateParams>&& task);
 		void AddRenderTask(ParameterizedTask<RenderParams>&& task);
+		void AddRenderGroup(ParameterizedTaskGroup<RenderParams>* group);
+		void AddUpdateGroup(ParameterizedTaskGroup<UpdateParams>* group);
 		void Apply(const FrameTime& time, 
 			ITaskQueue* queue,
 			bool bUpdate = true, 

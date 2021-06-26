@@ -1,6 +1,7 @@
 #include "BasicStructures.hlsl"
 #include "Math.hlsl"
 #include "Gamma.hlsl"
+#include "ToneMapping.hlsl"
 
 #ifndef USE_IBL
 	#define USE_IBL true
@@ -14,9 +15,9 @@
 #include "SphericalHarmonics.hlsl"
 #endif
 
-cbuffer CameraData
+cbuffer ViewData
 {
-    CameraAttribs mCamera;
+    ViewAttribs mViewData;
 }
 
 Texture2D		mAlbedo;
@@ -79,7 +80,7 @@ void main(in float4 ClipPos : SV_Position,
 
 	// Compute reflection directions
 	float3 N = normalize(Normal);
-	float3 Lo = normalize(mCamera.f4Position.xyz - WorldPos);
+	float3 Lo = normalize(mViewData.mCamera.f4Position.xyz - WorldPos);
 	float3 Lr = -reflect(Lo, N);
 	float NoR = saturate(dot(Lo, N));
 
@@ -111,5 +112,11 @@ void main(in float4 ClipPos : SV_Position,
 	float3 specularIBL = (F0 * specularBRDF.x + specularBRDF.y) * specularIrradiance;
 	float3 ambientLighting = diffuseIBL + specularIBL;
 
-	OutColor = float4(ambientLighting, 1.0);
+	// Tone mapping
+	float3 outputColor = ToneMap(ambientLighting, mViewData.mPostProcessor.mToneMapping);
+		
+	// Gamma correction
+	outputColor = LinearToSRGB(outputColor, mViewData.mPostProcessor.mGamma);
+
+	OutColor = float4(outputColor, 1.0);
 }

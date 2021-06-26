@@ -1,6 +1,14 @@
+#include "BasicStructures.hlsl"
+#include "ToneMapping.hlsl"
+#include "Gamma.hlsl"
 
 TextureCube  mTexture;
 SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+cbuffer ViewData
+{
+   	ViewAttribs mViewData;
+};
 
 struct PSInput 
 { 
@@ -16,7 +24,16 @@ struct PSOutput
 void main(in PSInput PSIn,
 	out PSOutput PSOut) {
 
-	float3 color = mTexture.Sample(mTexture_sampler, PSIn.Direction).rgb;
+	float3 dir = PSIn.Direction;
+	dir.x = -dir.x; // Diligent uses left-handed coordinate system
 
-	PSOut.Color = float4(color, 1.0);
+	float3 color = mTexture.Sample(mTexture_sampler, dir).rgb;
+
+	// Tone mapping
+	float3 outputColor = ToneMap(color, mViewData.mPostProcessor.mToneMapping);
+		
+	// Gamma correction
+	outputColor = LinearToSRGB(outputColor, mViewData.mPostProcessor.mGamma);
+
+	PSOut.Color = float4(outputColor, 1.0);
 }

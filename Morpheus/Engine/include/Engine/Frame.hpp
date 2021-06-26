@@ -101,8 +101,8 @@ namespace Morpheus {
 		entt::entity mCamera = entt::null;
 
 		inline entt::entity SpawnDefaultCamera(Camera** cameraOut = nullptr) {
-			auto cameraNode = CreateChild(mRoot);
-			auto& camera = mRegistry.emplace<Camera>(cameraNode);
+			auto cameraNode = CreateEntity();
+			auto& camera = Emplace<Camera>(cameraNode);
 
 			if (cameraOut)
 				*cameraOut = &camera;
@@ -124,11 +124,14 @@ namespace Morpheus {
 		inline void SetParent(entt::entity child, entt::entity parent) {
 			AddChild(parent, child);
 		}
-		inline entt::entity CreateChild(entt::entity parent) {
+		inline entt::entity CreateEntity(entt::entity parent) {
 			auto e = mRegistry.create();
 			mRegistry.emplace<HierarchyData>(e);
 			AddChild(parent, e);
 			return e;
+		}
+		inline entt::entity CreateEntity() {
+			return CreateEntity(mRoot);
 		}
 		inline entt::entity GetParent(entt::entity ent) {
 			return mRegistry.get<HierarchyData>(ent).mParent;
@@ -166,6 +169,39 @@ namespace Morpheus {
 				Destroy(child);
 
 			mRegistry.destroy(ent);
+		}
+
+		inline Camera& CameraData() {
+			return mRegistry.get<Camera>(mCamera);
+		}
+
+		inline const Camera& CameraData() const {
+			return mRegistry.get<Camera>(mCamera);
+		}
+
+		template <typename T>
+		inline T& Get(entt::entity e) {
+			return mRegistry.get<T>(e);
+		}
+
+		template <typename T>
+		inline T* TryGet(entt::entity e) {
+			return mRegistry.try_get<T>(e);
+		}
+
+		template <typename T>
+		inline T& Replace(entt::entity e, const T& obj) {
+			return mRegistry.replace<T>(e, obj);
+		}
+
+		template <typename T>
+		inline T& Replace(entt::entity e, T&& obj) {
+			return mRegistry.replace<T>(e, std::move(obj));
+		}
+
+		template <typename T, typename... Args>
+		inline T& Emplace(entt::entity e, Args&&... args) {
+			return mRegistry.emplace<T>(e, std::forward<Args>(args)...);
 		}
 	};
 }

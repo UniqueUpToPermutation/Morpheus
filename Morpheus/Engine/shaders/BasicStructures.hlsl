@@ -158,12 +158,39 @@ struct CameraAttribs
     CHECK_STRUCT_ALIGNMENT(CameraAttribs);
 #endif
 
-struct RendererGlobalData {
-	CameraAttribs mCamera;
-	LightAttribs mGlobalLighting;
+// Tone mapping mode
+#define TONE_MAPPING_MODE_REINHARD 0
+
+struct ToneMappingAttribs
+{
+	float mExposure		DEFAULT_VALUE(1.0f);
+	float mPureWhite	DEFAULT_VALUE(1.0f);
+	float mPadding0;
+	float mPadding1;
 };
 #ifdef CHECK_STRUCT_ALIGNMENT
-    CHECK_STRUCT_ALIGNMENT(RendererGlobalData);
+    CHECK_STRUCT_ALIGNMENT(ToneMappingAttribs);
+#endif
+
+struct PostProcessorAttribs {
+	ToneMappingAttribs mToneMapping;
+	float mGamma		DEFAULT_VALUE(2.2);
+	float mPadding0;
+	float mPadding1;
+	float mPadding2;
+};
+
+#ifdef CHECK_STRUCT_ALIGNMENT
+    CHECK_STRUCT_ALIGNMENT(PostProcessorAttribs);
+#endif
+
+struct ViewAttribs {
+	CameraAttribs mCamera;
+	PostProcessorAttribs mPostProcessor;
+};
+
+#ifdef CHECK_STRUCT_ALIGNMENT
+    CHECK_STRUCT_ALIGNMENT(ViewAttribs);
 #endif
 
 #ifdef __cplusplus

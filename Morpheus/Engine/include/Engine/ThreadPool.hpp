@@ -70,6 +70,13 @@ namespace Morpheus {
 		BARRIER
 	};
 
+	struct TaskNodeInLock;
+
+	class IVirtualTaskNodeOut {
+	public:
+		virtual void Connect(TaskNodeInLock& lock) = 0;
+	};
+
 	struct TaskNodeInLock {
 	private:
 		std::unique_lock<std::mutex> mLock;
@@ -89,6 +96,10 @@ namespace Morpheus {
 		}
 		inline TaskNodeInLock& Connect(TaskNodeOut& out) {
 			return Connect(&out);
+		}
+		inline TaskNodeInLock& Connect(IVirtualTaskNodeOut& connector) {
+			connector.Connect(*this);
+			return *this;
 		}
 
 		inline TaskNodeInLock& Reset();
@@ -885,6 +896,10 @@ namespace Morpheus {
 
 		inline T& Get() {
 			return mInternal->mData;
+		}
+
+		inline operator bool() const {
+			return mInternal != nullptr;
 		}
 
 		struct Comparer {
