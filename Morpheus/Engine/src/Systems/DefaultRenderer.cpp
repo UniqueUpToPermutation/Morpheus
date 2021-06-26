@@ -472,13 +472,13 @@ namespace Morpheus {
 		auto anisotropyFactor = GetMaxAnisotropy();
 		auto filterType = anisotropyFactor > 1 ? DG::FILTER_TYPE_ANISOTROPIC : DG::FILTER_TYPE_LINEAR;
 
-		DG::SamplerDesc SamLinearClampDesc
+		DG::SamplerDesc SamLinearWrapDesc
 		{
 			filterType, filterType, filterType, 
-			DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_CLAMP
+			DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP
 		};
 
-		SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
+		SamLinearWrapDesc.MaxAnisotropy = anisotropyFactor;
 
 		DG::IPipelineState* result = nullptr;
 
@@ -523,7 +523,7 @@ namespace Morpheus {
 		// clang-format off
 		DG::ImmutableSamplerDesc ImtblSamplers[] =
 		{
-			{DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearClampDesc}
+			{DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearWrapDesc}
 		};
 		// clang-format on
 		PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
@@ -667,9 +667,12 @@ namespace Morpheus {
 		
 		device->CreateGraphicsPipelineState(PSOCreateInfo, &result);
 
-		auto lutVar = result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT");
-		if (lutVar)
-			lutVar->Set(mResources.mCookTorrenceLUT.GetShaderView());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "mBRDF_LUT")
+			->Set(mResources.mCookTorrenceLUT.GetShaderView());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "ViewData")
+			->Set(mResources.mViewData.Get());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "ViewData")
+			->Set(mResources.mViewData.Get());
 		
 		mResources.mCookTorrenceIBL.mStaticMeshPipeline.Adopt(result);
 	}
