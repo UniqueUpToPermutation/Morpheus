@@ -475,7 +475,7 @@ namespace Morpheus {
 		DG::SamplerDesc SamLinearClampDesc
 		{
 			filterType, filterType, filterType, 
-			DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP, DG::TEXTURE_ADDRESS_CLAMP
+			DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_WRAP, DG::TEXTURE_ADDRESS_CLAMP
 		};
 
 		SamLinearClampDesc.MaxAnisotropy = anisotropyFactor;
