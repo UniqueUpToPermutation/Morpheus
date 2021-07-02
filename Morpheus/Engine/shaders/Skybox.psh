@@ -25,7 +25,6 @@ void main(in PSInput PSIn,
 	out PSOutput PSOut) {
 
 	float3 dir = PSIn.Direction;
-	dir.x = -dir.x; // Diligent uses left-handed coordinate system
 
 	float3 color = mTexture.Sample(mTexture_sampler, dir).rgb;
 

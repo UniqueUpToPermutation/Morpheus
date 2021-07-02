@@ -184,6 +184,19 @@ struct PostProcessorAttribs {
     CHECK_STRUCT_ALIGNMENT(PostProcessorAttribs);
 #endif
 
+struct MaterialAttribs {
+	float4 mAlbedoFactor;
+	float mMetallicFactor;
+	float mRoughnessFactor;
+	float mDisplacementFactor;
+	float mPadding;
+};
+
+#ifdef CHECK_STRUCT_ALIGNMENT
+    CHECK_STRUCT_ALIGNMENT(MaterialAttribs);
+#endif
+
+
 struct ViewAttribs {
 	CameraAttribs mCamera;
 	PostProcessorAttribs mPostProcessor;

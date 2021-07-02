@@ -14,9 +14,9 @@ namespace Morpheus {
 		layout.mElements = {
 			DG::LayoutElement(0, 0, 3, DG::VT_FLOAT32, false, 
 				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-			DG::LayoutElement(1, 0, 3, DG::VT_FLOAT32, false, 
+			DG::LayoutElement(1, 0, 2, DG::VT_FLOAT32, false, 
 				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
-			DG::LayoutElement(2, 0, 2, DG::VT_FLOAT32, false, 
+			DG::LayoutElement(2, 0, 3, DG::VT_FLOAT32, false, 
 				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
 			DG::LayoutElement(3, 0, 3, DG::VT_FLOAT32, false, 
 				DG::LAYOUT_ELEMENT_AUTO_OFFSET, stride, DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX),
@@ -50,7 +50,6 @@ namespace Morpheus {
 	Task DefaultRenderer::Startup(SystemCollection& collection) {
 		struct {
 			Future<Handle<DG::IShader>> mStaticMeshResult;
-			Future<Handle<DG::IShader>> mLambertVSResult;
 			Future<Handle<DG::IShader>> mLambertPSResult;
 			Future<Handle<DG::IShader>> mCookTorrenceResult;
 			Future<Handle<DG::IShader>> mSkyboxVSResult;
@@ -68,17 +67,12 @@ namespace Morpheus {
 					"Static Mesh VS", 
 					config);
 
-				LoadParams<RawShader> lambertVSParams("internal/Lambert.vsh",
-					DG::SHADER_TYPE_VERTEX,
-					"Lambert VS",
-					config);
-
-				LoadParams<RawShader> lambertPSParams("internal/Lambert.psh",
+				LoadParams<RawShader> lambertPSParams("internal/LambertIBL.psh",
 					DG::SHADER_TYPE_PIXEL,
 					"Lambert PS",
 					config);
 
-				LoadParams<RawShader> cookTorrenceParams("internal/PBR.psh",
+				LoadParams<RawShader> cookTorrenceParams("internal/CookTorranceIBL.psh",
 					DG::SHADER_TYPE_PIXEL,
 					"Cook Torrence IBL PS",
 					config);
@@ -96,14 +90,12 @@ namespace Morpheus {
 				auto device = mGraphics->Device();
 
 				auto staticMeshLoad			= LoadShaderHandle(device, staticMeshParams);
-				auto lambertVSLoad			= LoadShaderHandle(device, lambertVSParams);
 				auto lambertPSLoad			= LoadShaderHandle(device, lambertPSParams);
 				auto cookTorrenceLoad		= LoadShaderHandle(device, cookTorrenceParams);
 				auto skyboxVSLoad			= LoadShaderHandle(device, skyboxVSParams);
 				auto skyboxPSLoad			= LoadShaderHandle(device, skyboxPSParams);
 
 				data.mStaticMeshResult 		= e.mQueue->AdoptAndTrigger(std::move(staticMeshLoad));
-				data.mLambertVSResult 		= e.mQueue->AdoptAndTrigger(std::move(lambertVSLoad));
 				data.mLambertPSResult 		= e.mQueue->AdoptAndTrigger(std::move(lambertPSLoad));
 				data.mCookTorrenceResult 	= e.mQueue->AdoptAndTrigger(std::move(cookTorrenceLoad));
 				data.mSkyboxVSResult 		= e.mQueue->AdoptAndTrigger(std::move(skyboxVSLoad));
@@ -114,7 +106,6 @@ namespace Morpheus {
 				// Wait for resources to load.
 				if (e.mTask->In().Lock()
 					.Connect(data.mStaticMeshResult.Out())
-					.Connect(data.mLambertVSResult.Out())
 					.Connect(data.mLambertPSResult.Out())
 					.Connect(data.mCookTorrenceResult.Out())
 					.Connect(data.mSkyboxVSResult.Out())
@@ -130,13 +121,12 @@ namespace Morpheus {
 			mResources.mCookTorrenceIBL.mCookTorrencePS 
 											= data.mCookTorrenceResult.Get();
 			mResources.mStaticMeshVS 		= data.mStaticMeshResult.Get();
-			mResources.mLambert.mLambertPS 	= data.mLambertPSResult.Get();
-			mResources.mLambert.mLambertVS 	= data.mLambertVSResult.Get();
+			mResources.mLambertIBL.mLambertPS 	= data.mLambertPSResult.Get();
 			mResources.mSkybox.mVS 			= data.mSkyboxVSResult.Get();
 			mResources.mSkybox.mPS 			= data.mSkyboxPSResult.Get();
 
 			InitializeDefaultResources();
-			CreateLambertPipeline(mResources.mLambert.mLambertVS, mResources.mLambert.mLambertPS);
+			CreateLambertPipeline(mResources.mStaticMeshVS, mResources.mLambertIBL.mLambertPS);
 			CreateCookTorrenceIBLPipeline(mResources.mStaticMeshVS, mResources.mCookTorrenceIBL.mCookTorrencePS);
 			CreateSkyboxPipeline(mResources.mSkybox.mVS, mResources.mSkybox.mPS);
 		
@@ -221,6 +211,9 @@ namespace Morpheus {
 				auto& skybox = skyboxes.get<SkyboxComponent>(ent);
 				auto lightProbe = params.mFrame->TryGet<LightProbe>(ent);
 
+				MaterialApplyParams applyParams;
+				applyParams.mGlobalLightProbe = lightProbe;
+
 				MaterialId currentMaterial = NullMaterialId;
 
 				auto context = GetGraphics()->ImmediateContext();
@@ -263,7 +256,7 @@ namespace Morpheus {
 
 						// Change pipeline
 						if (material != NullMaterialId) {
-							ApplyMaterial(context, material);
+							ApplyMaterial(context, material, applyParams);
 							currentMaterial = material;
 						}
 
@@ -320,7 +313,6 @@ namespace Morpheus {
 		}, "Draw Skybox", TaskType::RENDER, ASSIGN_THREAD_MAIN);
 	}
 	
-
 	ParameterizedTaskGroup<RenderParams>* DefaultRenderer::CreateRenderGroup() {
 		auto group = new ParameterizedTaskGroup<RenderParams>();
 
@@ -424,6 +416,7 @@ namespace Morpheus {
 			DG::RESOURCE_STATE_TRANSITION_MODE_NONE);
 
 		mResources.mViewData.Initialize(mGraphics->Device());
+		mResources.mMaterialData.Initialize(mGraphics->Device());
 	}
 
 	MaterialId DefaultRenderer::CreateNewMaterialId() {
@@ -432,36 +425,138 @@ namespace Morpheus {
 		return mCurrentMaterialId;
 	}
 	
-	void DefaultRenderer::ApplyMaterial(DG::IDeviceContext* context, MaterialId id) {
+	void DefaultRenderer::ApplyMaterial(DG::IDeviceContext* context, MaterialId id, 
+		const MaterialApplyParams& params) {
 		auto it = mMaterials.find(id);
 
 		if (it != mMaterials.end()) {
-			auto& data = it->second;
-			context->SetPipelineState(data.mPipeline);
-			context->CommitShaderResources(data.mBinding, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			auto& mat = it->second;
+			switch (mat.mDesc.mType) {
+			case MaterialType::COOK_TORRENCE:
+				OnApplyCookTorrence(mat, params);
+				break;
+			case MaterialType::LAMBERT:
+				OnApplyLambert(mat, params);
+				break;
+			case MaterialType::CUSTOM:
+				break;
+			}
+
+			HLSL::MaterialAttribs attribs;
+			attribs.mAlbedoFactor = mat.mDesc.mAlbedoFactor;
+			attribs.mDisplacementFactor = mat.mDesc.mDisplacementFactor;
+			attribs.mMetallicFactor = mat.mDesc.mMetallicFactor;
+			attribs.mRoughnessFactor = mat.mDesc.mRoughnessFactor;
+
+			mResources.mMaterialData.Write(context, attribs);
+
+			context->SetPipelineState(mat.mPipeline);
+			context->CommitShaderResources(mat.mBinding, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		} else {
 			std::cout << "WARNING: Material Id: " << id << " cannot be found!" << std::endl;
 		}
 	}
 
 	DefaultRenderer::Material DefaultRenderer::CreateCookTorrenceMaterial(const MaterialDesc& desc) {
-		throw std::runtime_error("Not implemented!");
+		DG::IShaderResourceBinding* binding = nullptr;
+
+		Resources().mCookTorrenceIBL.mStaticMeshPipeline
+			->CreateShaderResourceBinding(&binding, true);
+
+		DG::ITextureView* albedo = nullptr;
+		DG::ITextureView* normal = nullptr;
+		DG::ITextureView* roughness = nullptr;
+		DG::ITextureView* metallic = nullptr;
+
+		if (desc.mAlbedo)
+			albedo = desc.mAlbedo->GetShaderView();
+		else
+			albedo = Resources().mWhiteSRV;
+
+		if (desc.mNormal)
+			normal = desc.mNormal->GetShaderView();
+		else
+			normal = Resources().mDefaultNormalSRV;
+	
+		if (desc.mRoughness)
+			roughness = desc.mRoughness->GetShaderView();
+		else
+			roughness = Resources().mWhiteSRV;
+	
+		if (desc.mMetallic)
+			metallic = desc.mMetallic->GetShaderView();
+		else
+			metallic = Resources().mWhiteSRV;
+
+		// Optimize Later
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL,
+			"mAlbedo")->Set(albedo);
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL,
+			"mNormalMap")->Set(normal);
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL,
+			"mRoughness")->Set(roughness);
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL,
+			"mMetallic")->Set(metallic);
+
+		Material mat(desc, 
+			Resources().mCookTorrenceIBL.mStaticMeshPipeline.Ptr(), 
+			binding);
+
+		mat.mIrradianceSHVariable = binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "IrradianceSH");
+		mat.mEnvMapVariable = binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mPrefilteredEnvMap");
+	
+		return mat;
+	}
+
+	void DefaultRenderer::OnApplyCookTorrence(
+		DefaultRenderer::Material& mat, 
+		const DefaultRenderer::MaterialApplyParams& params) {
+		if (params.mGlobalLightProbe) {
+			mat.mIrradianceSHVariable->Set(params.mGlobalLightProbe->GetIrradianceSH());
+			mat.mEnvMapVariable->Set(params.mGlobalLightProbe->GetPrefilteredEnvView());
+		}
+	}
+
+	void DefaultRenderer::OnApplyLambert(DefaultRenderer::Material& mat, 
+		const MaterialApplyParams& params) {
+		if (params.mGlobalLightProbe) {
+			mat.mIrradianceSHVariable->Set(params.mGlobalLightProbe->GetIrradianceSH());
+		}
 	}
 
 	DefaultRenderer::Material DefaultRenderer::CreateLambertMaterial(const MaterialDesc& desc) {
-		
 		DG::IShaderResourceBinding* binding = nullptr;
 
-		Resources().mLambert.mStaticMeshPipeline
+		Resources().mLambertIBL.mStaticMeshPipeline
 			->CreateShaderResourceBinding(&binding, true);
+
+		DG::ITextureView* albedo = nullptr;
+		DG::ITextureView* normal = nullptr;
+
+		if (desc.mAlbedo)
+			albedo = desc.mAlbedo->GetShaderView();
+		else
+			albedo = Resources().mWhiteSRV;
+
+		if (desc.mNormal)
+			normal = desc.mNormal->GetShaderView();
+		else
+			normal = Resources().mDefaultNormalSRV;
 
 		// Optimize later
 		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, 
-			"mAlbedo")->Set(desc.mAlbedo->GetShaderView());
+			"mAlbedo")->Set(albedo);
+		binding->GetVariableByName(DG::SHADER_TYPE_PIXEL,
+			"mNormalMap")->Set(normal);
 
-		return Material(desc, 
-			Resources().mLambert.mStaticMeshPipeline.Ptr(), 
+		Material mat(desc, 
+			Resources().mLambertIBL.mStaticMeshPipeline.Ptr(), 
 			binding);
+
+		mat.mIrradianceSHVariable = 
+			binding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "IrradianceSH");
+
+		return mat;
 	}
 
 	void DefaultRenderer::CreateLambertPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps) {
@@ -513,8 +608,12 @@ namespace Morpheus {
 		DG::ShaderResourceVariableDesc Vars[] = 
 		{
 			{DG::SHADER_TYPE_VERTEX, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
+
 			{DG::SHADER_TYPE_PIXEL, "ViewData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
+			{DG::SHADER_TYPE_PIXEL, "BatchData", DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC},
 			{DG::SHADER_TYPE_PIXEL, "mAlbedo", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC},
+			{DG::SHADER_TYPE_PIXEL, "mNormalMap", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC},
+			{DG::SHADER_TYPE_PIXEL, "IrradianceSH", DG::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
 		};
 		// clang-format on
 		PSODesc.ResourceLayout.NumVariables = _countof(Vars);
@@ -523,7 +622,8 @@ namespace Morpheus {
 		// clang-format off
 		DG::ImmutableSamplerDesc ImtblSamplers[] =
 		{
-			{DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearWrapDesc}
+			{DG::SHADER_TYPE_PIXEL, "mAlbedo_sampler", SamLinearWrapDesc},
+			{DG::SHADER_TYPE_PIXEL, "mNormalMap_sampler", SamLinearWrapDesc}
 		};
 		// clang-format on
 		PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
@@ -535,8 +635,10 @@ namespace Morpheus {
 			->Set(Resources().mViewData.Get());
 		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "ViewData")
 			->Set(Resources().mViewData.Get());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "BatchData")
+			->Set(Resources().mMaterialData.Get());
 
-		mResources.mLambert.mStaticMeshPipeline.Adopt(result);
+		mResources.mLambertIBL.mStaticMeshPipeline.Adopt(result);
 	}
 
 	void DefaultRenderer::CreateCookTorrenceIBLPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps) {
@@ -600,12 +702,12 @@ namespace Morpheus {
 		Vars.emplace_back(DG::ShaderResourceVariableDesc{
 			DG::SHADER_TYPE_VERTEX,
 			"ViewData",
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE
+			DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC
 		});
 		Vars.emplace_back(DG::ShaderResourceVariableDesc{
 			DG::SHADER_TYPE_PIXEL,
 			"ViewData",
-			DG::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE
+			DG::SHADER_RESOURCE_VARIABLE_TYPE_STATIC
 		});
 
 		Vars.emplace_back(DG::ShaderResourceVariableDesc{
@@ -673,6 +775,8 @@ namespace Morpheus {
 			->Set(mResources.mViewData.Get());
 		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "ViewData")
 			->Set(mResources.mViewData.Get());
+		result->GetStaticVariableByName(DG::SHADER_TYPE_PIXEL, "BatchData")
+			->Set(mResources.mMaterialData.Get());
 		
 		mResources.mCookTorrenceIBL.mStaticMeshPipeline.Adopt(result);
 	}
@@ -807,6 +911,7 @@ namespace Morpheus {
 
 		auto id = CreateNewMaterialId();
 		mMaterials.emplace(id, std::move(mat));
+
 		return id;
 	}
 

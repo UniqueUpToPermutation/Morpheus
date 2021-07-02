@@ -2,22 +2,14 @@
 #include "Math.hlsl"
 #include "Gamma.hlsl"
 #include "ToneMapping.hlsl"
-
-#ifndef USE_IBL
-	#define USE_IBL true
-#endif
-
-#ifndef USE_SH
-	#define USE_SH true
-#endif
-
-#if USE_SH
 #include "SphericalHarmonics.hlsl"
-#endif
 
-cbuffer ViewData
-{
+cbuffer ViewData {
     ViewAttribs mViewData;
+}
+
+cbuffer BatchData {
+	MaterialAttribs mMaterial;
 }
 
 Texture2D		mAlbedo;
@@ -32,27 +24,16 @@ SamplerState	mRoughness_sampler;
 Texture2D		mNormalMap;
 SamplerState	mNormalMap_sampler;
 
-#if USE_IBL
-#if USE_SH
-
 // Use spherical harmonics for diffuse IBL
 cbuffer IrradianceSH {
 	float4 mIrradianceSH[9]; 
 };
-
-#else 
-
-// Use precomputed irradiance map for diffuse IBL (tends to be noisy)
-TextureCube   mIrradianceMap;
-SamplerState  mIrradianceMap_sampler;
-#endif
 
 TextureCube   mPrefilteredEnvMap;
 SamplerState  mPrefilteredEnvMap_sampler;
 
 Texture2D     mBRDF_LUT;
 SamplerState  mBRDF_LUT_sampler;
-#endif
 
 // Constant normal incidence Fresnel factor for all dielectrics.
 const float3 Fdielectric = float3(0.04);
@@ -70,9 +51,9 @@ void main(in float4 ClipPos : SV_Position,
 	mPrefilteredEnvMap.GetDimensions(0, env_width, env_height, env_levels);
 
 	// Sample available textures
-	float3 albedo = mAlbedo.Sample(mAlbedo_sampler, UV).rgb;
-	float metalness = mMetallic.Sample(mMetallic_sampler, UV).r;
-	float roughness = mRoughness.Sample(mRoughness_sampler, UV).r;
+	float3 albedo = mAlbedo.Sample(mAlbedo_sampler, UV).rgb * mMaterial.mAlbedoFactor.rgb;
+	float metalness = mMetallic.Sample(mMetallic_sampler, UV).r * mMaterial.mMetallicFactor;
+	float roughness = mRoughness.Sample(mRoughness_sampler, UV).r * mMaterial.mRoughnessFactor;
 	float3 normalPerturb = mNormalMap.Sample(mNormalMap_sampler, UV).rgb;
 
 	// Apply normal map
@@ -91,13 +72,8 @@ void main(in float4 ClipPos : SV_Position,
 	// Get diffuse contribution factor (as with direct lighting).
 	float3 kd = lerp(float3(1.0) - F, float3(0.0), metalness);
 
-#if USE_SH
 	// Reconstruct irradiance from spherical harmonics
 	float3 irradianceSample = reconstructSH9(mIrradianceSH, N).rgb;
-#else 
-	// Reconstruct irradiance from cubemap
-	float3 irradianceSample = mIrradianceMap.Sample(mIrradianceMap_sampler, N).rgb;
-#endif
 
 	// Irradiance map contains exitant radiance assuming Lambertian BRDF, no need to scale by 1/PI here either.
 	float3 diffuseIBL = kd * albedo * irradianceSample;
@@ -110,6 +86,7 @@ void main(in float4 ClipPos : SV_Position,
 
 	// Total specular IBL contribution.
 	float3 specularIBL = (F0 * specularBRDF.x + specularBRDF.y) * specularIrradiance;
+	
 	float3 ambientLighting = diffuseIBL + specularIBL;
 
 	// Tone mapping

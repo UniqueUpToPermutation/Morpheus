@@ -4,7 +4,7 @@
 #include <Engine/Resources/Shader.hpp>
 #include <Engine/Resources/Texture.hpp>
 #include <Engine/GeometryStructures.hpp>
-#include <Engine/DynamicGlobalsBuffer.hpp>
+#include <Engine/Buffer.hpp>
 #include <Engine/Graphics.hpp>
 
 #include "shaders/BasicStructures.hlsl"

@@ -125,11 +125,13 @@ namespace Morpheus {
 
 			Assimp::Importer importer;
 
-			const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
-				aiProcess_Triangulate | aiProcess_GenSmoothNormals | 
+			unsigned int flags = aiProcess_Triangulate | aiProcess_GenSmoothNormals | 
 				aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
 				aiProcess_GenUVCoords | aiProcess_CalcTangentSpace | 
-				aiProcess_ConvertToLeftHanded | aiProcessPreset_TargetRealtime_Quality,
+				aiProcess_ConvertToLeftHanded | aiProcessPreset_TargetRealtime_Quality;
+
+			const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
+				flags,
 				params.mSource.c_str());
 			
 			if (!pScene) {

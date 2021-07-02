@@ -23,10 +23,10 @@ namespace Morpheus {
 		Handle<Texture> mMetallic;
 		Handle<Texture> mDisplacement;
 
-		DG::float3 mAlbedoFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mRoughnessFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mMetallicFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mDisplacementFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
+		DG::float4 mAlbedoFactor 	= DG::float4(1.0f, 1.0f, 1.0f, 1.0f);
+		float mRoughnessFactor 		= 1.0f;
+		float mMetallicFactor 		= 1.0f;
+		float mDisplacementFactor 	= 1.0f;
 	};
 
 	struct MaterialDescFuture : public IVirtualTaskNodeOut {
@@ -38,10 +38,10 @@ namespace Morpheus {
 		Future<Texture*> mMetallic;
 		Future<Texture*> mDisplacement;
 
-		DG::float3 mAlbedoFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mRoughnessFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mMetallicFactor 		= DG::float3(1.0f, 1.0f, 1.0f);
-		DG::float3 mDisplacementFactor 	= DG::float3(1.0f, 1.0f, 1.0f);
+		DG::float4 mAlbedoFactor 	= DG::float4(1.0f, 1.0f, 1.0f, 1.0f);
+		float mRoughnessFactor 		= 1.0f;
+		float mMetallicFactor 		= 1.0f;
+		float mDisplacementFactor 	= 1.0f;
 
 		MaterialDesc Get() const;
 		bool IsAvailable() const;

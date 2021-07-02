@@ -1,0 +1,52 @@
+#include "BasicStructures.hlsl"
+#include "Math.hlsl"
+#include "Gamma.hlsl"
+#include "ToneMapping.hlsl"
+#include "SphericalHarmonics.hlsl"
+
+cbuffer ViewData {
+    ViewAttribs mViewData;
+}
+
+cbuffer BatchData {
+	MaterialAttribs mMaterial;
+}
+
+Texture2D		mAlbedo;
+SamplerState	mAlbedo_sampler;
+
+Texture2D		mNormalMap;
+SamplerState	mNormalMap_sampler;
+
+// Use spherical harmonics for diffuse IBL
+cbuffer IrradianceSH {
+	float4 mIrradianceSH[9]; 
+};
+
+void main(in float4 ClipPos : SV_Position,
+	in float3 WorldPos 		: WORLD_POS,
+    in float3 NormalIn    	: NORMAL,
+	in float3 Tangent 	 	: TANGENT,
+	in float2 UV	      	: UV0,
+    out float4 OutColor 	: SV_Target)
+{
+	// Sample available textures
+	float3 albedo = mAlbedo.Sample(mAlbedo_sampler, UV).rgb * mMaterial.mAlbedoFactor.rgb;
+	float3 normalPerturb = mNormalMap.Sample(mNormalMap_sampler, UV).rgb;
+
+	// Apply normal map
+	float3 N = normalize(PerturbNormal(NormalIn, Tangent, normalPerturb));
+
+	// Reconstruct irradiance from spherical harmonics
+	float3 irradianceSample = reconstructSH9(mIrradianceSH, N).rgb;
+
+	float3 ambientLighting = albedo * irradianceSample;
+
+	// Tone mapping
+	float3 outputColor = ToneMap(ambientLighting, mViewData.mPostProcessor.mToneMapping);
+		
+	// Gamma correction
+	outputColor = LinearToSRGB(outputColor, mViewData.mPostProcessor.mGamma);
+
+	OutColor = float4(outputColor, 1.0);
+}

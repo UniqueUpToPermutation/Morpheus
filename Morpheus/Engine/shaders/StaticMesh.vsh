@@ -4,9 +4,9 @@
 struct VSInput
 {
     float3 Pos      : ATTRIB0;
-    float3 Normal   : ATTRIB1;
-    float2 UV0      : ATTRIB2;
-	float3 Tangent  : ATTRIB3;
+    float2 UV0      : ATTRIB1;
+	float3 Normal 	: ATTRIB2;
+	float3 Tangent 	: ATTRIB3;
 
 	float4 World0	: ATTRIB4;
 	float4 World1	: ATTRIB5;

@@ -3,7 +3,7 @@
 #include <im3d.h>
 
 #include <Engine/Entity.hpp>
-#include <Engine/DynamicGlobalsBuffer.hpp>
+#include <Engine/Buffer.hpp>
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Graphics.hpp>

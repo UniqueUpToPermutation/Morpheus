@@ -3,7 +3,7 @@
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Systems/System.hpp>
 #include <Engine/Graphics.hpp>
-#include <Engine/DynamicGlobalsBuffer.hpp>
+#include <Engine/Buffer.hpp>
 #include <Engine/Components/Transform.hpp>
 #include <Engine/RendererTransformCache.hpp>
 #include <Engine/LightProbeProcessor.hpp>
@@ -18,11 +18,18 @@ namespace Morpheus {
 
 	class DefaultRenderer : public ISystem, 
 		public IRenderer, public IVertexFormatProvider {
+	public:
+		struct MaterialApplyParams {
+			LightProbe* mGlobalLightProbe;
+		};
+
 	private:
 		struct Material {
 			MaterialDesc mDesc;
 			DG::IPipelineState* mPipeline = nullptr;
 			DG::IShaderResourceBinding* mBinding = nullptr;
+			DG::IShaderResourceVariable* mIrradianceSHVariable = nullptr;
+			DG::IShaderResourceVariable* mEnvMapVariable = nullptr;
 			std::atomic<int> mRefCount = 0;
 
 			inline Material(const MaterialDesc& desc,
@@ -40,6 +47,8 @@ namespace Morpheus {
 				mDesc(std::move(data.mDesc)) {
 				std::swap(data.mPipeline, mPipeline);
 				std::swap(data.mBinding, mBinding);
+				std::swap(data.mIrradianceSHVariable, mIrradianceSHVariable);
+				std::swap(data.mEnvMapVariable, mEnvMapVariable);
 				mRefCount = data.mRefCount.exchange(mRefCount);
 			}
 
@@ -47,11 +56,12 @@ namespace Morpheus {
 				mDesc = std::move(data.mDesc);
 				std::swap(data.mPipeline, mPipeline);
 				std::swap(data.mBinding, mBinding);
+				std::swap(data.mIrradianceSHVariable, mIrradianceSHVariable);
+				std::swap(data.mEnvMapVariable, mEnvMapVariable);
 				mRefCount = data.mRefCount.exchange(mRefCount);
 				return *this;
 			}
 		};
-
 
 		TransformCacheUpdater mUpdater;
 		VertexLayout mStaticMeshLayout = DefaultInstancedStaticMeshLayout();
@@ -73,15 +83,15 @@ namespace Morpheus {
 		std::unique_ptr<ParameterizedTaskGroup<RenderParams>> mRenderGroup;
 
 		struct Resources {
-			DynamicGlobalsBuffer<HLSL::ViewAttribs> mViewData;
+			DynamicGlobalsBuffer<HLSL::ViewAttribs> 	mViewData;
+			DynamicGlobalsBuffer<HLSL::MaterialAttribs> mMaterialData;
 
-			Handle<DG::IShader>		mStaticMeshVS = nullptr;
+			Handle<DG::IShader>						mStaticMeshVS = nullptr;
 
 			struct {
 				Handle<DG::IShader>					mLambertPS = nullptr;
-				Handle<DG::IShader>					mLambertVS = nullptr;
 				Handle<DG::IPipelineState>			mStaticMeshPipeline = nullptr;
-			} mLambert;
+			} mLambertIBL;
 
 			struct {
 				Handle<DG::IShader> 				mCookTorrencePS = nullptr;
@@ -111,6 +121,9 @@ namespace Morpheus {
 
 		bool bIsInitialized = false;
 
+		void OnApplyCookTorrence(Material& mat, const MaterialApplyParams& params);
+		void OnApplyLambert(Material& mat, const MaterialApplyParams& params);
+
 		Material CreateCookTorrenceMaterial(const MaterialDesc& desc);
 		Material CreateLambertMaterial(const MaterialDesc& desc);
 
@@ -124,7 +137,8 @@ namespace Morpheus {
 		ParameterizedTask<RenderParams> DrawStaticMeshes();
 
 	public:
-		void ApplyMaterial(DG::IDeviceContext* context, MaterialId id);
+		void ApplyMaterial(DG::IDeviceContext* context, MaterialId id, 
+			const MaterialApplyParams& params);
 
 		inline auto& Resources() {
 			return mResources;
