@@ -32,6 +32,15 @@ namespace Morpheus {
 			mManagementScheme(ResourceManagement::INTERNAL_UNMANAGED) {
 		}
 
+		inline Texture(DG::IRenderDevice* device, const RawTexture* texture) :
+			mManagementScheme(ResourceManagement::INTERNAL_UNMANAGED) {
+			texture->SpawnOnGPU(device);
+		}
+
+		inline Texture(DG::IRenderDevice* device, const RawTexture& texture) :
+			Texture(device, &texture) {	
+		}
+
 		inline ~Texture() {
 			if (mTexture)
 				mTexture->Release();

@@ -160,6 +160,7 @@ list(APPEND SOURCE
 	src/Resources/RawGeometry.cpp
 	src/Resources/TextureIterator.cpp
 	src/Resources/Resource.cpp
+	src/Resources/EmbeddedGeometry.cpp
 
 	src/Components/Transform.cpp
 

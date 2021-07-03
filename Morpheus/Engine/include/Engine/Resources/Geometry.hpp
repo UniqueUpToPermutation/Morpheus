@@ -45,6 +45,15 @@ namespace Morpheus {
 		inline Geometry() : mVertexBuffer(nullptr), mIndexBuffer(nullptr) {
 		}
 
+		inline Geometry(DG::IRenderDevice* device, const RawGeometry* geometry) :
+			mManagementScheme(ResourceManagement::INTERNAL_UNMANAGED) {
+			geometry->SpawnOnGPU(device, this);
+		}
+
+		inline Geometry(DG::IRenderDevice* device, const RawGeometry& geometry) :
+			Geometry(device, &geometry) {
+		}
+
 		inline Geometry(DG::IBuffer* vertexBuffer, 
 			DG::IBuffer* indexBuffer,
 			uint vertexBufferOffset, 
@@ -113,6 +122,17 @@ namespace Morpheus {
 			DG::IRenderDevice* device, const LoadParams<Geometry>& params);
 
 		typedef LoadParams<Geometry> LoadParameters;
+
+		struct Prefabs {
+			static Handle<Geometry> MaterialBall(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> Box(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> Sphere(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> BlenderMonkey(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> Torus(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> Plane(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> StanfordBunny(DG::IRenderDevice* device, const VertexLayout& layout);
+			static Handle<Geometry> UtahTeapot(DG::IRenderDevice* device, const VertexLayout& layout);
+		};
 
 		friend class RawGeometry;
 	};

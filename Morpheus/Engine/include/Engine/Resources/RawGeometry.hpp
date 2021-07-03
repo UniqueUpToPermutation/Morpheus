@@ -82,13 +82,13 @@ namespace Morpheus {
 
 	class RawGeometry {
 	private:
-		DG::BufferDesc mVertexBufferDesc;
+		std::vector<DG::BufferDesc> mVertexBufferDescs;
 		DG::BufferDesc mIndexBufferDesc;
 
 		DG::DrawAttribs mUnindexedDrawAttribs;
 		DG::DrawIndexedAttribs mIndexedDrawAttribs;
 
-		std::vector<uint8_t> mVertexBufferData;
+		std::vector<std::vector<uint8_t>> mVertexBufferDatas;
 		std::vector<uint8_t> mIndexBufferData;
 
 		VertexLayout mLayout;
@@ -99,6 +99,17 @@ namespace Morpheus {
 		std::atomic<bool> bIsLoaded;
 
 		void LoadAssimp(const aiScene* scene, const VertexLayout& vertexLayout);
+
+		template <typename I3T, typename V3T, typename V2T>
+		void Unpack(const VertexLayout& layout,
+			size_t vertex_count,
+			size_t index_count,
+			const I3T indices[],
+			const V3T positions[],
+			const V2T uvs[],
+			const V3T normals[],
+			const V3T tangents[],
+			const V3T bitangents[]);
 
 	public:
 		inline bool IsLoaded() const {
@@ -112,16 +123,20 @@ namespace Morpheus {
 		void CopyTo(RawGeometry* geometry) const;
 		void CopyFrom(const RawGeometry& geometry);
 
-		inline const std::vector<uint8_t>& GetVertexData() const {
-			return mVertexBufferData;
+		inline int GetChannelCount() const {
+			return mVertexBufferDatas.size();
+		}
+
+		inline const std::vector<uint8_t>& GetVertexData(int channel = 0) const {
+			return mVertexBufferDatas[channel];
 		}
 
 		inline const std::vector<uint8_t>& GetIndexData() const {
 			return mIndexBufferData;
 		}
 
-		inline const DG::BufferDesc& GetVertexDesc() const {
-			return mVertexBufferDesc;
+		inline const DG::BufferDesc& GetVertexDesc(int channel = 0) const {
+			return mVertexBufferDescs[channel];
 		}
 
 		inline const DG::BufferDesc& GetIndexDesc() const {
@@ -159,31 +174,32 @@ namespace Morpheus {
 		RawGeometry& operator=(RawGeometry&& other);
 
 		void Set(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc, 
-			std::vector<uint8_t>&& vertexBufferData,
+			std::vector<DG::BufferDesc>&& vertexBufferDescs, 
+			std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 			const DG::DrawAttribs& unindexedDrawAttribs,
 			const BoundingBox& aabb);
 
 		void Set(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc,
+			std::vector<DG::BufferDesc>&& vertexBufferDescs,
 			const DG::BufferDesc& indexBufferDesc,
-			std::vector<uint8_t>&& vertexBufferData,
+			std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 			std::vector<uint8_t>&& indexBufferData,
 			DG::DrawIndexedAttribs& indexedDrawAttribs,
 			const BoundingBox& aabb);
 
 		inline RawGeometry(const VertexLayout& layout,
-		const DG::BufferDesc& vertexBufferDesc, 
-			std::vector<uint8_t>&& vertexBufferData,
+			std::vector<DG::BufferDesc>&& vertexBufferDescs, 
+			std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 			const DG::DrawAttribs& unindexedDrawAttribs,
 			const BoundingBox& aabb) {
 			Set(layout,
-				vertexBufferDesc, std::move(vertexBufferData), 
+				std::move(vertexBufferDescs), 
+				std::move(vertexBufferDatas), 
 				unindexedDrawAttribs, aabb);
 		}
 
 		inline RawGeometry(const VertexLayout& layout,
-			const DG::BufferDesc& vertexBufferDesc,
+			std::vector<DG::BufferDesc>&& vertexBufferDescs,
 			const DG::BufferDesc& indexBufferDesc,
 			std::vector<uint8_t>&& vertexBufferData,
 			std::vector<uint8_t>&& indexBufferData,
@@ -192,10 +208,10 @@ namespace Morpheus {
 
 		void SpawnOnGPU(DG::IRenderDevice* device, 
 			DG::IBuffer** vertexBufferOut, 
-			DG::IBuffer** indexBufferOut);
+			DG::IBuffer** indexBufferOut) const;
 
 		void SpawnOnGPU(DG::IRenderDevice* device,
-			Geometry* writeTo);
+			Geometry* writeTo) const;
 
 		Task LoadAssimpTask(const LoadParams<Geometry>& params);
 		inline void LoadAssimp(const LoadParams<Geometry>& params) {
@@ -241,5 +257,44 @@ namespace Morpheus {
 		TaskBarrier* GetLoadBarrier() {
 			return &mBarrier;
 		}
+
+		void FromMemory(const VertexLayout& layout,
+			size_t vertex_count,
+			size_t index_count,
+			uint32_t indices[],
+			float positions[],
+			float uvs[],
+			float normals[],
+			float tangents[],
+			float bitangents[]);
+
+		inline void FromMemory(const VertexLayout& layout,
+			size_t vertex_count,
+			float positions[],
+			float uvs[],
+			float normals[],
+			float tangents[],
+			float bitangents[]) {
+			FromMemory(layout, vertex_count, 0, nullptr, 
+				positions, uvs, normals, tangents, bitangents);
+		}
+
+		struct Prefabs {
+			static RawGeometry MaterialBall(const VertexLayout& layout);
+			static RawGeometry Box(const VertexLayout& layout);
+			static RawGeometry Sphere(const VertexLayout& layout);
+			static RawGeometry BlenderMonkey(const VertexLayout& layout);
+			static RawGeometry Torus(const VertexLayout& layout);
+			static RawGeometry Plane(const VertexLayout& layout);
+			static RawGeometry StanfordBunny(const VertexLayout& layout);
+			static RawGeometry UtahTeapot(const VertexLayout& layout);
+		};
 	};
+
+	void ComputeLayoutProperties(
+		size_t vertex_count,
+		const VertexLayout& layout,
+		std::vector<size_t>& offsets,
+		std::vector<size_t>& strides,
+		std::vector<size_t>& channel_sizes);
 }

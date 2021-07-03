@@ -34,6 +34,11 @@ namespace Morpheus {
 		}
 	};
 
+	struct Ray {
+		DG::float3 mStart;
+		DG::float3 mDirection;
+	};
+
 	struct VertexLayout {
 	public:
 		std::vector<DG::LayoutElement> mElements;
@@ -43,10 +48,7 @@ namespace Morpheus {
 		int mNormal 	= -1;
 		int mTangent 	= -1;
 		int mBitangent	= -1;
-
-		// If this is -1, then assume dense packing
-		int mStride 	= -1;
-
+		
 		static VertexLayout PositionUVNormalTangent();
 		static VertexLayout PositionUVNormal();
 		static VertexLayout PositionUVNormalTangentBitangent();

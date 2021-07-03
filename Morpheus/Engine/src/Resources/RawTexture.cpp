@@ -1188,7 +1188,7 @@ namespace Morpheus {
 		LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, this);
 	}
 
-	DG::ITexture* RawTexture::SpawnOnGPU(DG::IRenderDevice* device) {
+	DG::ITexture* RawTexture::SpawnOnGPU(DG::IRenderDevice* device) const {
 		DG::ITexture* texture = nullptr;
 		DG::TextureData data;
 

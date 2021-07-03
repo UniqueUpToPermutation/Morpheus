@@ -219,7 +219,6 @@ namespace Morpheus {
 		VertexLayout layout;
 		layout.mElements = std::move(layoutElements);
 		layout.mPosition = 0;
-		layout.mStride = sizeof(SpriteBatchVSInput);
 		
 		mPipeline = result;
 		mShaders = shaders;

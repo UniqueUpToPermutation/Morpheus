@@ -57,7 +57,7 @@ MAIN() {
 			DG::ITextureView* pRTV = swapChain->GetCurrentBackBufferRTV();
 			DG::ITextureView* pDSV = swapChain->GetDepthBufferDSV();
 
-			float rgba[] = { 0.3f, 0.3f, 0.3f, 1.0f };
+			float rgba[] = { 0.8f, 0.8f, 0.8f, 1.0f };
 			context->SetRenderTargets(1, &pRTV, pDSV,
 				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			context->ClearRenderTarget(pRTV, rgba, 

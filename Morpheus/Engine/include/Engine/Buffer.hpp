@@ -50,36 +50,6 @@ namespace Morpheus {
 		}
 	};
 
-	template <typename T>
-	class PoolBuffer : public PoolBase {
-	private:
-		Handle<DG::IBuffer> mInstanceBuffer;
-	
-	public:
-		PoolBuffer() : PoolBase(0) {
-		}
-
-		PoolBuffer(DG::IRenderDevice* device, uint instanceCount) : PoolBase(instanceCount) {
-			DG::BufferDesc CBDesc;
-			CBDesc.Name           = "Dyanmic Globals Buffer";
-			CBDesc.uiSizeInBytes  = sizeof(T) * instanceCount;
-			CBDesc.Usage          = DG::USAGE_DYNAMIC;
-			CBDesc.BindFlags      = DG::BIND_UNIFORM_BUFFER;
-			CBDesc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
-
-			device->CreateBuffer(CBDesc, nullptr, mInstanceBuffer.Ref());
-		}
-
-		inline void Write(DG::IDeviceContext* context, int id, const T& value) {
-			context->UpdateBuffer(mInstanceBuffer, sizeof(T) * id, sizeof(T), &value, 
-				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		}
-
-		inline int AllocWrite(DG::IDeviceContext* context, const T& value) {
-
-		}
-	};
-
 	struct RendererGlobalData;
 	struct LightProbe;
 }

@@ -31,7 +31,6 @@ namespace Morpheus {
 		layout.mUV = 1;
 		layout.mNormal = 2;
 		layout.mTangent = 3;
-		layout.mStride = stride;
 
 		return layout;
 	}
@@ -686,7 +685,6 @@ namespace Morpheus {
 		// Number of MSAA samples
 		GraphicsPipeline.SmplDesc.Count = (DG::Uint8)GetMSAASamples();
 
-		uint stride = mStaticMeshLayout.mStride;
 		auto& layoutElements = mStaticMeshLayout.mElements;
 
 		GraphicsPipeline.InputLayout.NumElements = layoutElements.size();

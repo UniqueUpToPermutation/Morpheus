@@ -86,6 +86,7 @@
 			"strstream": "cpp",
 			"*.ipp": "cpp",
 			"csetjmp": "cpp"
-		}
+		},
+		"python.pythonPath": "/home/philip/anaconda3/bin/python"
 	}
 }

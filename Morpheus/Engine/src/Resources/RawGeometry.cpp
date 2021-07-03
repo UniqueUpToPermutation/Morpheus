@@ -25,36 +25,36 @@ namespace Morpheus {
 		mIndexedDrawAttribs = geometry.mIndexedDrawAttribs;
 		mLayout = geometry.mLayout;
 		mUnindexedDrawAttribs = geometry.mUnindexedDrawAttribs;
-		mVertexBufferData = geometry.mVertexBufferData;
-		mVertexBufferDesc = geometry.mVertexBufferDesc;
+		mVertexBufferDatas = geometry.mVertexBufferDatas;
+		mVertexBufferDescs = geometry.mVertexBufferDescs;
 	}
 
 	void RawGeometry::Set(const VertexLayout& layout,
-		const DG::BufferDesc& vertexBufferDesc, 
-		std::vector<uint8_t>&& vertexBufferData,
+		std::vector<DG::BufferDesc>&& vertexBufferDescs, 
+		std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 		const DG::DrawAttribs& unindexedDrawAttribs,
 		const BoundingBox& aabb) {
 		
 		mLayout = layout;
-		mVertexBufferDesc = vertexBufferDesc;
-		mVertexBufferData = vertexBufferData;
+		mVertexBufferDescs = std::move(vertexBufferDescs);
+		mVertexBufferDatas = std::move(vertexBufferDatas);
 		mUnindexedDrawAttribs = unindexedDrawAttribs;
 		bHasIndexBuffer = false;
 		mAabb = aabb;
 	}
 
 	void RawGeometry::Set(const VertexLayout& layout,
-		const DG::BufferDesc& vertexBufferDesc,
+		std::vector<DG::BufferDesc>&& vertexBufferDescs,
 		const DG::BufferDesc& indexBufferDesc,
-		std::vector<uint8_t>&& vertexBufferData,
+		std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 		std::vector<uint8_t>&& indexBufferData,
 		DG::DrawIndexedAttribs& indexedDrawAttribs,
 		const BoundingBox& aabb) {
 		
 		mLayout = layout;
-		mVertexBufferDesc = vertexBufferDesc;
+		mVertexBufferDescs = std::move(vertexBufferDescs);
 		mIndexBufferDesc = indexBufferDesc;
-		mVertexBufferData = vertexBufferData;
+		mVertexBufferDatas = std::move(vertexBufferDatas);
 		mIndexBufferData = indexBufferData;
 		mIndexedDrawAttribs = indexedDrawAttribs;
 		mAabb = aabb;
@@ -63,9 +63,9 @@ namespace Morpheus {
 	}
 
 	void RawGeometry::AdoptData(RawGeometry&& other) {
-		mVertexBufferData = std::move(other.mVertexBufferData);
+		mVertexBufferDatas = std::move(other.mVertexBufferDatas);
 		mIndexBufferData = std::move(other.mIndexBufferData);
-		mVertexBufferDesc = other.mVertexBufferDesc;
+		mVertexBufferDescs = std::move(other.mVertexBufferDescs);
 		mIndexBufferDesc = other.mIndexBufferDesc;
 		mAabb = other.mAabb;
 		bHasIndexBuffer = other.bHasIndexBuffer;
@@ -86,12 +86,15 @@ namespace Morpheus {
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device, 
 		DG::IBuffer** vertexBufferOut, 
-		DG::IBuffer** indexBufferOut) {
+		DG::IBuffer** indexBufferOut) const {
+
+		if (mVertexBufferDatas.size() == 0)
+			throw std::runtime_error("Spawning on GPU requires at least one channel!");
 
 		DG::BufferData data;
-		data.pData = &mVertexBufferData[0];
-		data.DataSize = mVertexBufferData.size();
-		device->CreateBuffer(mVertexBufferDesc, &data, vertexBufferOut);
+		data.pData = &mVertexBufferDatas[0][0];
+		data.DataSize = mVertexBufferDatas[0].size();
+		device->CreateBuffer(mVertexBufferDescs[0], &data, vertexBufferOut);
 
 		if (bHasIndexBuffer) {
 			data.pData = &mIndexBufferData[0];
@@ -101,7 +104,7 @@ namespace Morpheus {
 	}
 
 	void RawGeometry::SpawnOnGPU(DG::IRenderDevice* device,
-		Geometry* writeTo) {
+		Geometry* writeTo) const {
 
 		DG::IBuffer* vertexBuffer = nullptr;
 		DG::IBuffer* indexBuffer = nullptr;
@@ -174,37 +177,216 @@ namespace Morpheus {
 		return task;
 	}
 
-	void RawGeometry::LoadAssimp(const aiScene* scene, const VertexLayout& layout) {
-		auto& layoutElements = layout.mElements;
-		std::vector<uint> offsets;
-		offsets.emplace_back(0);
+	void ComputeLayoutProperties(
+		size_t vertex_count,
+		const VertexLayout& layout,
+		std::vector<size_t>& offsets,
+		std::vector<size_t>& strides,
+		std::vector<size_t>& channel_sizes) {
+		offsets.clear();
+		strides.clear();
 
+		size_t nVerts = vertex_count;
+
+		auto& layoutElements = layout.mElements;
+
+		int channelCount = 0;
+		for (auto& layoutItem : layoutElements) {
+			channelCount = std::max<int>(channelCount, layoutItem.BufferSlot + 1);
+		}
+
+		channel_sizes.resize(channelCount);
+		std::vector<size_t> channel_auto_strides(channelCount);
+
+		std::fill(channel_sizes.begin(), channel_sizes.end(), 0u);
+		std::fill(channel_auto_strides.begin(), channel_auto_strides.end(), 0u);
+
+		// Compute offsets
 		for (auto& layoutItem : layoutElements) {
 			uint size = GetSize(layoutItem.ValueType) * layoutItem.NumComponents;
-			if (layoutItem.BufferSlot == 0) 
-				offsets.emplace_back(offsets[offsets.size() - 1] + size);
-			else 
-				offsets.emplace_back(offsets[offsets.size() - 1]);
+
+			if (layoutItem.Frequency == DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX) {
+				uint channel = layoutItem.BufferSlot;
+
+				size_t offset = 0;
+
+				if (layoutItem.RelativeOffset == DG::LAYOUT_ELEMENT_AUTO_OFFSET) {
+					offset = channel_auto_strides[channel];
+				} else {
+					offset = layoutItem.RelativeOffset;
+				}
+
+				offsets.emplace_back(offset);
+				channel_auto_strides[channel] += size;
+			} else {
+				offsets.emplace_back(0);
+			}
 		}
 
-		uint stride = offsets[offsets.size() - 1];
+		// Compute strides
+		for (int i = 0; i < offsets.size(); ++i) {
+			auto& layoutItem = layoutElements[i];
+			size_t offset = offsets[i];
+			uint size = GetSize(layoutItem.ValueType) * layoutItem.NumComponents;
 
-		// Override stride if specified.
-		if (layout.mStride > 0) {
-			stride = layout.mStride;
+			if (layoutItem.Frequency == DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX) {
+				uint channel = layoutItem.BufferSlot;
+
+				size_t stride = 0;
+
+				if (layoutItem.Stride == DG::LAYOUT_ELEMENT_AUTO_STRIDE) {
+					stride = channel_auto_strides[channel];
+				} else {
+					stride = layoutItem.Stride;
+				}
+
+				strides.emplace_back(stride);
+
+				size_t lastIndex = offset + size + (nVerts - 1) * stride;
+
+				channel_sizes[channel] = std::max<size_t>(channel_sizes[channel], lastIndex);
+
+			} else {
+				strides.emplace_back(0);
+			}
 		}
+	}
+
+	template <typename T>
+	struct V3Unpacker;
+
+	template <typename T>
+	struct V2Unpacker;
+
+	template <typename T>
+	struct I3Unpacker;
+
+	template <>
+	struct V3Unpacker<float> {
+		static constexpr size_t Stride = 3;
+
+		inline static void Unpack(float* dest, const float* src) {
+			dest[0] = src[0];
+			dest[1] = src[1];
+			dest[2] = src[2];
+		}
+	};
+
+	template <>
+	struct V3Unpacker<DG::float3> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Unpack(float* dest, const DG::float3* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+			dest[2] = src->z;
+		}
+	};
+
+	template <>
+	struct V2Unpacker<float> {
+		static constexpr size_t Stride = 2;
+
+		inline static void Unpack(float* dest, const float* src) {
+			dest[0] = src[0];
+			dest[1] = src[1];
+		}
+	};
+
+	template <>
+	struct V2Unpacker<DG::float2> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Unpack(float* dest, const DG::float2* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+		}
+	};
+
+	template <>
+	struct V3Unpacker<aiVector3D> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Unpack(float* dest, const aiVector3D* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+			dest[2] = src->z;
+		}
+	};
+
+	template <>
+	struct V2Unpacker<aiVector3D> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Unpack(float* dest, const aiVector3D* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+		}
+	};
+
+	template <>
+	struct I3Unpacker<aiFace> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Unpack(uint32_t* dest, const aiFace* src) {
+			dest[0] = src->mIndices[0];
+			dest[1] = src->mIndices[1];
+			dest[2] = src->mIndices[2];
+		}
+	};
+
+	template <>
+	struct I3Unpacker<uint32_t> {
+		static constexpr size_t Stride = 3;
+
+		inline static void Unpack(uint32_t* dest, const uint32_t* src) {
+			dest[0] = src[0];
+			dest[1] = src[1];
+			dest[2] = src[2];
+		}
+	};
+
+	template <typename I3T, typename V3T, typename V2T>
+	void RawGeometry::Unpack(const VertexLayout& layout,
+		size_t vertex_count,
+		size_t index_count,
+		const I3T indices[],
+		const V3T positions[],
+		const V2T uvs[],
+		const V3T normals[],
+		const V3T tangents[],
+		const V3T bitangents[]) {
+
+		auto& layoutElements = layout.mElements;
+		std::vector<size_t> offsets;
+		std::vector<size_t> strides;
+		std::vector<size_t> channel_sizes;
+		
+		ComputeLayoutProperties(vertex_count, layout, offsets, strides, channel_sizes);
+
+		uint channelCount = channel_sizes.size();
 
 		int positionOffset = -1;
+		int positionChannel = -1;
+		int positionStride = -1;
+
 		int uvOffset = -1;
+		int uvChannel = -1;
+		int uvStride = -1;
+
 		int normalOffset = -1;
+		int normalChannel = -1;
+		int normalStride = -1;
+
 		int tangentOffset = -1;
+		int tangentChannel = -1;
+		int tangentStride = -1;
+
 		int bitangentOffset = -1;
+		int bitangentChannel = -1;
+		int bitangentStride = -1;
 
 		auto verifyAttrib = [](const DG::LayoutElement& element) {
-			if (element.BufferSlot != 0) {
-				throw std::runtime_error("Buffer slot must be 0!");
-			}
-
 			if (element.ValueType != DG::VT_FLOAT32) {
 				throw std::runtime_error("Attribute type must be VT_FLOAT32!");
 			}
@@ -214,42 +396,48 @@ namespace Morpheus {
 			auto& posAttrib = layoutElements[layout.mPosition];
 			verifyAttrib(posAttrib);
 			positionOffset = offsets[layout.mPosition];
+			positionChannel = posAttrib.BufferSlot;
+			positionStride = strides[layout.mPosition];
 		}
 
 		if (layout.mUV >= 0) {
 			auto& uvAttrib = layoutElements[layout.mUV];
 			verifyAttrib(uvAttrib);
 			uvOffset = offsets[layout.mUV];
+			uvChannel = uvAttrib.BufferSlot;
+			uvStride = strides[layout.mUV];
 		}
 
 		if (layout.mNormal >= 0) {
 			auto& normalAttrib = layoutElements[layout.mNormal];
 			verifyAttrib(normalAttrib);
 			normalOffset = offsets[layout.mNormal];
+			normalChannel = normalAttrib.BufferSlot;
+			normalStride = strides[layout.mNormal];
 		}
 
 		if (layout.mTangent >= 0) {
 			auto& tangentAttrib = layoutElements[layout.mTangent];
 			verifyAttrib(tangentAttrib);
 			tangentOffset = offsets[layout.mTangent];
+			tangentChannel = tangentAttrib.BufferSlot;
+			tangentStride = strides[layout.mTangent];
 		}
 
 		if (layout.mBitangent >= 0) {
 			auto& bitangentAttrib = layoutElements[layout.mBitangent];
 			verifyAttrib(bitangentAttrib);
-			bitangentOffset = offsets[layout.mBitangent];	
+			bitangentOffset = offsets[layout.mBitangent];
+			bitangentChannel = bitangentAttrib.BufferSlot;
+			bitangentStride = strides[layout.mBitangent];
 		}
 
-		uint nVerts;
-		uint nIndices;
+		std::vector<std::vector<uint8_t>> vert_buffers(channelCount);
 
-		aiMesh* mesh = scene->mMeshes[0];
+		for (int i = 0; i < channelCount; ++i)
+			vert_buffers[i] = std::vector<uint8_t>(channel_sizes[i]);
 
-		nVerts = mesh->mNumVertices;
-		nIndices = mesh->mNumFaces * 3;
-
-		std::vector<uint8_t> vert_buffer(nVerts * stride);
-		std::vector<uint8_t> indx_buffer_raw(nIndices * sizeof(DG::Uint32));
+		std::vector<uint8_t> indx_buffer_raw(index_count * sizeof(DG::Uint32));
 		DG::Uint32* indx_buffer = (DG::Uint32*)(&indx_buffer_raw[0]);
 
 		BoundingBox aabb;
@@ -262,51 +450,57 @@ namespace Morpheus {
 			-std::numeric_limits<float>::infinity(),
 			-std::numeric_limits<float>::infinity());
 
-		bool bHasUVs = mesh->HasTextureCoords(0);
-		bool bHasNormals = mesh->HasNormals();
-		bool bHasPositions = mesh->HasPositions();
-		bool bHasBitangents = mesh->HasTangentsAndBitangents();
-		bool bHasTangents = mesh->HasTangentsAndBitangents();
+		bool bHasUVs = uvs != nullptr;
+		bool bHasNormals = normals != nullptr;
+		bool bHasPositions = positions != nullptr;
+		bool bHasBitangents = bitangents != nullptr;
+		bool bHasTangents = tangents != nullptr;
 
 		if (positionOffset >= 0) {
+			auto& channel = vert_buffers[positionChannel];
+			auto stride = positionStride;
 			if (bHasPositions) {
-				for (uint32_t i = 0, bufindx = positionOffset; i < nVerts; ++i, bufindx += stride) {
-					float* position_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
+				for (size_t i = 0, bufindx = positionOffset; i < end; 
+					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
 
-					position_ptr[0] = mesh->mVertices[i].x;
-					position_ptr[1] = mesh->mVertices[i].y;
-					position_ptr[2] = mesh->mVertices[i].z;
+					float* position_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
-					aabb.mLower = DG::min(aabb.mLower, DG::float3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z));
-					aabb.mUpper = DG::max(aabb.mUpper, DG::float3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z));
+					V3Unpacker<V3T>::Unpack(position_ptr, &positions[i]);
+
+					aabb.mLower = DG::min(aabb.mLower, DG::float3(position_ptr[0], position_ptr[1], position_ptr[2]));
+					aabb.mUpper = DG::max(aabb.mUpper, DG::float3(position_ptr[0], position_ptr[1], position_ptr[2]));
 				}
 			} else {
 				std::cout << "Warning: Pipeline expects positions, but model has none!" << std::endl;
-				for (uint32_t i = 0, bufindx = positionOffset; i < nVerts; ++i, bufindx += stride) {
-					float* position_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				for (size_t i = 0, bufindx = positionOffset; i < vertex_count; ++i, bufindx += stride) {
+					float* position_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
 					position_ptr[0] = 0.0f;
 					position_ptr[1] = 0.0f;
 					position_ptr[2] = 0.0f;
-
-					aabb.mLower = DG::min(aabb.mLower, DG::float3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z));
-					aabb.mUpper = DG::max(aabb.mUpper, DG::float3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z));
 				}
+
+				aabb.mLower = DG::float3(0.0f, 0.0f, 0.0f);
+				aabb.mUpper = DG::float3(0.0f, 0.0f, 0.0f);
 			}
 		}
 
 		if (uvOffset >= 0) {
+			auto& channel = vert_buffers[uvChannel];
+			auto stride = uvStride;
 			if (bHasUVs) {
-				for (uint32_t i = 0, bufindx = uvOffset; i < nVerts; ++i, bufindx += stride) {
-					float* uv_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				size_t end = vertex_count * V2Unpacker<V3T>::Stride;
+				for (size_t i = 0, bufindx = uvOffset; i < end; 
+					i += V2Unpacker<V2T>::Stride, bufindx += stride) {
+					float* uv_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
-					uv_ptr[0] = mesh->mTextureCoords[0][i].x;
-					uv_ptr[1] = mesh->mTextureCoords[0][i].y;
+					V2Unpacker<V2T>::Unpack(uv_ptr, &uvs[i]);
 				}
 			} else {
 				std::cout << "Warning: Pipeline expects UVs, but model has none!" << std::endl;
-				for (uint32_t i = 0, bufindx = uvOffset; i < nVerts; ++i, bufindx += stride) {
-					float* uv_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				for (size_t i = 0, bufindx = uvOffset; i < vertex_count; ++i, bufindx += stride) {
+					float* uv_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
 					uv_ptr[0] = 0.0f;
 					uv_ptr[1] = 0.0f;
@@ -315,18 +509,20 @@ namespace Morpheus {
 		}
 
 		if (normalOffset >= 0) {
+			auto& channel = vert_buffers[normalChannel];
+			auto stride = normalStride;
 			if (bHasNormals) {
-				for (uint32_t i = 0, bufindx = normalOffset; i < nVerts; ++i, bufindx += stride) {
-					float* normal_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
+				for (size_t i = 0, bufindx = normalOffset; i < end;
+					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
+					float* normal_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
-					normal_ptr[0] = mesh->mNormals[i].x;
-					normal_ptr[1] = mesh->mNormals[i].y;
-					normal_ptr[2] = mesh->mNormals[i].z;
+					V3Unpacker<V3T>::Unpack(normal_ptr, &normals[i]);
 				}
 			} else {
 				std::cout << "Warning: Pipeline expects normals, but model has none!" << std::endl;
-				for (uint32_t i = 0, bufindx = normalOffset; i < nVerts; ++i, bufindx += stride) {
-					float* normal_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				for (size_t i = 0, bufindx = normalOffset; i < vertex_count; ++i, bufindx += stride) {
+					float* normal_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
 					normal_ptr[0] = 0.0f;
 					normal_ptr[1] = 0.0f;
@@ -336,18 +532,21 @@ namespace Morpheus {
 		}
 
 		if (tangentOffset >= 0) {
+			auto& channel = vert_buffers[tangentChannel];
+			auto stride = tangentStride;
 			if (bHasTangents) {
-				for (uint32_t i = 0, bufindx = tangentOffset; i < nVerts; ++i, bufindx += stride) {
-					float* tangent_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
+				for (size_t i = 0, bufindx = tangentOffset; i < end;
+					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
 
-					tangent_ptr[0] = mesh->mTangents[i].x;
-					tangent_ptr[1] = mesh->mTangents[i].y;
-					tangent_ptr[2] = mesh->mTangents[i].z;
+					float* tangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
+
+					V3Unpacker<V3T>::Unpack(tangent_ptr, &tangents[i]);
 				}
 			} else {
 				std::cout << "Warning: Pipeline expects tangents, but model has none!" << std::endl;
-				for (uint32_t i = 0, bufindx = tangentOffset; i < nVerts; ++i, bufindx += stride) {
-					float* tangent_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				for (size_t i = 0, bufindx = tangentOffset; i < vertex_count; ++i, bufindx += stride) {
+					float* tangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
 					tangent_ptr[0] = 0.0f;
 					tangent_ptr[1] = 0.0f;
@@ -357,18 +556,20 @@ namespace Morpheus {
 		}
 
 		if (bitangentOffset >= 0) {
+			auto& channel = vert_buffers[bitangentChannel];
+			auto stride = bitangentStride;
 			if (bHasBitangents) {
-				for (uint32_t i = 0, bufindx = tangentOffset; i < nVerts; ++i, bufindx += stride) {
-					float* bitangent_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
+				for (size_t i = 0, bufindx = tangentOffset; i < end;
+					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
+					float* bitangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
-					bitangent_ptr[0] = mesh->mBitangents[i].x;
-					bitangent_ptr[1] = mesh->mBitangents[i].y;
-					bitangent_ptr[2] = mesh->mBitangents[i].z;
+					V3Unpacker<V3T>::Unpack(bitangent_ptr, &bitangents[i]);
 				}
 			} else {
 				std::cout << "Warning: Pipeline expects bitangents, but model has none!" << std::endl;
-				for (uint32_t i = 0, bufindx = tangentOffset; i < nVerts; ++i, bufindx += stride) {
-					float* bitangent_ptr = reinterpret_cast<float*>(&vert_buffer[bufindx]);
+				for (size_t i = 0, bufindx = tangentOffset; i < vertex_count; ++i, bufindx += stride) {
+					float* bitangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
 
 					bitangent_ptr[0] = 0.0f;
 					bitangent_ptr[1] = 0.0f;
@@ -377,17 +578,23 @@ namespace Morpheus {
 			}
 		}
 
-		for (uint32_t i_face = 0, i = 0; i_face < mesh->mNumFaces; ++i_face) {
-			indx_buffer[i++] = mesh->mFaces[i_face].mIndices[0];
-			indx_buffer[i++] = mesh->mFaces[i_face].mIndices[1];
-			indx_buffer[i++] = mesh->mFaces[i_face].mIndices[2];
+		for (size_t read_idx = 0, write_idx = 0; 
+			write_idx < index_count;
+			read_idx += I3Unpacker<I3T>::Stride,
+			write_idx += 3) {
+
+			I3Unpacker<I3T>::Unpack(&indx_buffer[write_idx], &indices[read_idx]);
 		}
 
-		// Upload everything to the GPU
-		DG::BufferDesc vertexBufferDesc;
-		vertexBufferDesc.Usage         = DG::USAGE_IMMUTABLE;
-		vertexBufferDesc.BindFlags     = DG::BIND_VERTEX_BUFFER;
-		vertexBufferDesc.uiSizeInBytes = vert_buffer.size();
+		std::vector<DG::BufferDesc> bufferDescs;
+
+		for (int i = 0; i < channelCount; ++i) {
+			DG::BufferDesc vertexBufferDesc;
+			vertexBufferDesc.Usage         = DG::USAGE_IMMUTABLE;
+			vertexBufferDesc.BindFlags     = DG::BIND_VERTEX_BUFFER;
+			vertexBufferDesc.uiSizeInBytes = vert_buffers[i].size();
+			bufferDescs.emplace_back(vertexBufferDesc);
+		}
 
 		DG::BufferDesc indexBufferDesc;
 		indexBufferDesc.Usage 			= DG::USAGE_IMMUTABLE;
@@ -399,13 +606,58 @@ namespace Morpheus {
 		indexedAttribs.NumIndices 	= indx_buffer_raw.size() / sizeof(DG::Uint32);
 		
 		// Write to output raw geometry
-		Set(layout, vertexBufferDesc, 
+		Set(layout, 
+			std::move(bufferDescs), 
 			indexBufferDesc, 
-			std::move(vert_buffer), 
+			std::move(vert_buffers), 
 			std::move(indx_buffer_raw),
 			indexedAttribs, aabb);
 
 		SetLoaded(true);
+	}
+
+	void RawGeometry::FromMemory(const VertexLayout& layout,
+		size_t vertex_count,
+		size_t index_count,
+		uint32_t indices[],
+		float positions[],
+		float uvs[],
+		float normals[],
+		float tangents[],
+		float bitangents[]) {
+
+		Unpack<uint32_t, float, float>(layout,
+			vertex_count, index_count,
+			indices,
+			positions,
+			uvs,
+			normals,
+			tangents,
+			bitangents);
+	}
+
+	void RawGeometry::LoadAssimp(const aiScene* scene, const VertexLayout& layout) {
+
+		uint nVerts;
+		uint nIndices;
+
+		if (!scene->HasMeshes()) {
+			throw std::runtime_error("Assimp scene has no meshes!");
+		}
+
+		aiMesh* mesh = scene->mMeshes[0];
+
+		nVerts = mesh->mNumVertices;
+		nIndices = mesh->mNumFaces * 3;
+
+		Unpack<aiFace, aiVector3D, aiVector3D>(layout,
+			nVerts, nIndices,
+			mesh->mFaces,
+			mesh->mVertices,
+			mesh->mTextureCoords[0],
+			mesh->mNormals,
+			mesh->mTangents,
+			mesh->mBitangents);
 	}
 
 	Task RawGeometry::LoadTask(const LoadParams<Geometry>& params) {
@@ -441,7 +693,8 @@ namespace Morpheus {
 	}
 
 	void RawGeometry::Clear() {
-		mVertexBufferData.clear();
+		mVertexBufferDescs.clear();
+		mVertexBufferDatas.clear();
 		mIndexBufferData.clear();
 	}
 }

@@ -21,8 +21,7 @@ namespace Morpheus {
 			e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN);
 
 			if (e.mTask->BeginSubTask()) {
-				Geometry* geo = new Geometry();
-				data.mRaw.SpawnOnGPU(device, geo);
+				Geometry* geo = new Geometry(device, data.mRaw);
 				promise.Set(geo, e.mQueue);
 				e.mTask->EndSubTask();
 
@@ -39,6 +38,47 @@ namespace Morpheus {
 		resourceTask.mFuture = std::move(future);
 
 		return resourceTask;
+	}
+
+	Handle<Geometry> Geometry::Prefabs::MaterialBall(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::MaterialBall(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::Box(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::Box(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::Sphere(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::Sphere(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::BlenderMonkey(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::BlenderMonkey(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::Torus(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::Torus(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::Plane(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::Plane(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::StanfordBunny(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::StanfordBunny(layout)));
+		return handle;
+	}
+	Handle<Geometry> Geometry::Prefabs::UtahTeapot(DG::IRenderDevice* device, const VertexLayout& layout) {
+		Handle<Geometry> handle;
+		handle.Adopt(new Geometry(device, RawGeometry::Prefabs::UtahTeapot(layout)));
+		return handle;
 	}
 
 	void Geometry::Set(DG::IBuffer* vertexBuffer, 

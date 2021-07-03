@@ -140,3 +140,7 @@ endif()
 if (TARGET Morpheus-Engine)
 	add_subdirectory(HelloWorld)
 endif()
+
+if (TARGET Morpheus-Engine)
+	add_subdirectory(EmbeddedGeoTest)
+endif()

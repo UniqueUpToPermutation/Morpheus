@@ -119,7 +119,6 @@ namespace Morpheus {
 		archive(layout.mBitangent);
 		archive(layout.mNormal);
 		archive(layout.mPosition);
-		archive(layout.mStride);
 		archive(layout.mTangent);
 		archive(layout.mUV);
 	}

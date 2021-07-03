@@ -248,7 +248,7 @@ namespace Morpheus {
 
 		RawTexture(const RawTexture& other) = delete;
 
-		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device);
+		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device) const;
 
 		friend class RawSampler;
 		friend class TextureIterator;
