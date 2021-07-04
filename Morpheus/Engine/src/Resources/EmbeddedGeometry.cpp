@@ -24,12 +24,12 @@ namespace sphere {
 	#include <embed/spheremesh.hpp>
 }
 
-namespace teapot {
-	#include <embed/teapotmesh.hpp>
-}
-
 namespace torus {
 	#include <embed/torusmesh.hpp>
+}
+
+namespace teapot {
+	#include <embed/teapotmesh.hpp>
 }
 
 namespace Morpheus {
@@ -143,6 +143,6 @@ namespace Morpheus {
 			teapot::mNormals,
 			teapot::mTangents,
 			teapot::mBitangents);
-			return geo;
+		return geo;
 	}
 }

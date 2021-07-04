@@ -1,8 +1,0 @@
-{
-	"Prototype" : "StaticMeshPBRMaterial",
-
-	"Albedo" 	: "cerberus_A.png",
-	"Roughness"	: "cerberus_R.png",
-	"Metallic"	: "cerberus_M.png",
-	"Normal"	: "cerberus_N.png"
-}

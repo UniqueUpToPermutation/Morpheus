@@ -61,19 +61,13 @@ MAIN() {
 		gunGeoParams.mType = GeometryType::STATIC_MESH;
 		auto gunGeoFuture = systems.Load<Geometry>(gunGeoParams, &threadPool);
 
-		LoadParams<Geometry> ballGeoParams;
-		ballGeoParams.mSource = "matBall.obj";
-		ballGeoParams.mType = GeometryType::STATIC_MESH;
-		auto ballGeoFuture = systems.Load<Geometry>(ballGeoParams, &threadPool);
-
 		TaskBarrier barrier;
 		barrier.mIn.Lock()
 			.Connect(gunMaterialFuture.Out())
 			.Connect(skyboxHdri.Out())
 			.Connect(hdriConvShaders.Out())
 			.Connect(lightProbeShaders.Out())
-			.Connect(gunGeoFuture.Out())
-			.Connect(ballGeoFuture.Out());
+			.Connect(gunGeoFuture.Out());
 		
 		BasicLoadingScreen(platform, graphics, imguiSystem->GetImGui(), &barrier, &threadPool);
 
@@ -86,7 +80,6 @@ MAIN() {
 
 		skyboxTexture.Adopt(new Texture(skyboxPtr));
 		gunGeometry.Adopt(gunGeoFuture.Get());
-		materialBallGeometry.Adopt(ballGeoFuture.Get());
 
 		LightProbeProcessor processor(graphics.Device(), 
 			lightProbeShaders.Get(), lightProbeConfig);
@@ -95,6 +88,9 @@ MAIN() {
 
 		gunMaterialDesc = gunMaterialFuture.Get();
 	}
+
+	materialBallGeometry = Geometry::Prefabs::MaterialBall(
+		graphics.Device(), renderer->GetStaticMeshLayout());
 
 	Material gunMaterial = renderer->CreateMaterial(gunMaterialDesc);
 
@@ -163,6 +159,7 @@ MAIN() {
 
 	frame = Frame();
 	gunMaterial = Material();
+	materialBallGeometry.Release();
 	
 	systems.Shutdown();
 	graphics.Shutdown();

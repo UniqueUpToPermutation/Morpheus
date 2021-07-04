@@ -1,7 +1,0 @@
-{
-	"Prototype" : "StaticMeshPBRMaterial",
-	"Albedo" : "Color.png",
-	"Roughness" : "Roughness.png",
-	"Normal" : "Normal.png",
-	"Metallic" : "BLACK_TEXTURE"
-}
