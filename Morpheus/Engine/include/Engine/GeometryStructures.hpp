@@ -53,4 +53,25 @@ namespace Morpheus {
 		static VertexLayout PositionUVNormal();
 		static VertexLayout PositionUVNormalTangentBitangent();
 	};
+
+	enum class GeometryType {
+		STATIC_MESH,
+		UNSPECIFIED
+	};
+
+	class IVertexFormatProvider {
+	public:
+		virtual const VertexLayout& GetStaticMeshLayout() const = 0;
+
+		inline const VertexLayout& GetLayout(GeometryType type) const {
+			switch (type) {
+				case GeometryType::STATIC_MESH:
+					return GetStaticMeshLayout();
+					break;
+				default:
+					return GetStaticMeshLayout();
+					break;
+			}
+		}
+	};
 }

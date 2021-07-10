@@ -8,7 +8,7 @@
 #include <Engine/RendererTransformCache.hpp>
 #include <Engine/LightProbeProcessor.hpp>
 #include <Engine/Resources/EmbeddedFileLoader.hpp>
-#include <Engine/Systems/Renderer.hpp>
+#include <Engine/Renderer.hpp>
 #include <Engine/Resources/Geometry.hpp>
 
 #include <shaders/BasicStructures.hlsl>

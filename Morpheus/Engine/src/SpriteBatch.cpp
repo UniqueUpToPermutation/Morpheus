@@ -1,5 +1,5 @@
 #include <Engine/SpriteBatch.hpp>
-#include <Engine/Systems/Renderer.hpp>
+#include <Engine/Renderer.hpp>
 #include <Engine/GeometryStructures.hpp>
 #include <Engine/Resources/Shader.hpp>
 
@@ -222,6 +222,9 @@ namespace Morpheus {
 		
 		mPipeline = result;
 		mShaders = shaders;
+
+		result->GetStaticVariableByName(DG::SHADER_TYPE_VERTEX, "Globals")
+			->Set(globals->GetCameraBuffer());
 
 		result->Release();
 	}

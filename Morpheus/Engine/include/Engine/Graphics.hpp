@@ -8,7 +8,34 @@
 
 namespace DG = Diligent;
 
+
+namespace Morpheus::Raytrace {
+	class IRaytraceDevice;
+}
+
 namespace Morpheus {
+
+	struct GraphicsDevice {
+		Raytrace::IRaytraceDevice* mRtDevice = nullptr;
+		DG::IRenderDevice* mGpuDevice = nullptr;
+
+		inline GraphicsDevice(Raytrace::IRaytraceDevice* rt) :
+			mRtDevice(rt) {
+		}
+
+		inline GraphicsDevice(DG::IRenderDevice* gpu) :
+			mGpuDevice(gpu) {
+		}
+
+		inline operator Raytrace::IRaytraceDevice*() {
+			return mRtDevice;
+		}
+
+		inline operator DG::IRenderDevice*() {
+			return mGpuDevice;
+		}
+	};
+
 	class IRenderer;
 
 	struct GraphicsParams {

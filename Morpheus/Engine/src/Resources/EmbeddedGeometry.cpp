@@ -34,9 +34,8 @@ namespace teapot {
 
 namespace Morpheus {
 
-	RawGeometry RawGeometry::Prefabs::MaterialBall(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::MaterialBall(const VertexLayout& layout) {
+		return Geometry(layout, 
 			matball::mVertexCount,
 			matball::mIndexCount,
 			matball::mIndices,
@@ -45,12 +44,10 @@ namespace Morpheus {
 			matball::mNormals,
 			matball::mTangents,
 			matball::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::Box(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::Box(const VertexLayout& layout) {
+		return Geometry(layout, 
 			box::mVertexCount,
 			box::mIndexCount,
 			box::mIndices,
@@ -59,12 +56,10 @@ namespace Morpheus {
 			box::mNormals,
 			box::mTangents,
 			box::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::Sphere(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::Sphere(const VertexLayout& layout) {
+		return Geometry(layout, 
 			sphere::mVertexCount,
 			sphere::mIndexCount,
 			sphere::mIndices,
@@ -73,12 +68,10 @@ namespace Morpheus {
 			sphere::mNormals,
 			sphere::mTangents,
 			sphere::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::BlenderMonkey(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::BlenderMonkey(const VertexLayout& layout) {
+		return Geometry(layout, 
 			monkey::mVertexCount,
 			monkey::mIndexCount,
 			monkey::mIndices,
@@ -87,12 +80,10 @@ namespace Morpheus {
 			monkey::mNormals,
 			monkey::mTangents,
 			monkey::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::Torus(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::Torus(const VertexLayout& layout) {
+		return Geometry (layout, 
 			torus::mVertexCount,
 			torus::mIndexCount,
 			torus::mIndices,
@@ -101,12 +92,10 @@ namespace Morpheus {
 			torus::mNormals,
 			torus::mTangents,
 			torus::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::Plane(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::Plane(const VertexLayout& layout) {
+		return Geometry(layout, 
 			plane::mVertexCount,
 			plane::mIndexCount,
 			plane::mIndices,
@@ -115,12 +104,10 @@ namespace Morpheus {
 			plane::mNormals,
 			plane::mTangents,
 			plane::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::StanfordBunny(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::StanfordBunny(const VertexLayout& layout) {
+		return Geometry(layout, 
 			bunny::mVertexCount,
 			bunny::mIndexCount,
 			bunny::mIndices,
@@ -129,12 +116,10 @@ namespace Morpheus {
 			bunny::mNormals,
 			bunny::mTangents,
 			bunny::mBitangents);
-		return geo;
 	}
 
-	RawGeometry RawGeometry::Prefabs::UtahTeapot(const VertexLayout& layout) {
-		RawGeometry geo;
-		geo.FromMemory(layout, 
+	Geometry Geometry::Prefabs::UtahTeapot(const VertexLayout& layout) {
+		return Geometry(layout, 
 			teapot::mVertexCount,
 			teapot::mIndexCount,
 			teapot::mIndices,
@@ -143,6 +128,5 @@ namespace Morpheus {
 			teapot::mNormals,
 			teapot::mTangents,
 			teapot::mBitangents);
-		return geo;
 	}
 }

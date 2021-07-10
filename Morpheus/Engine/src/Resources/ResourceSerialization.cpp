@@ -1,7 +1,7 @@
 #include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/RawTexture.hpp>
-#include <Engine/Resources/RawGeometry.hpp>
 #include <Engine/Resources/ResourceData.hpp>
+#include <Engine/Renderer.hpp>
 
 #include <cereal/types/vector.hpp>
 
@@ -311,81 +311,5 @@ namespace Morpheus {
 		auto valueType = GetComponentType(texture->GetDesc().Format);
 
 		SaveBinaryData(ar, valueType, &texture->GetData());
-	}
-
-	void Load(cereal::PortableBinaryInputArchive& ar, RawGeometry* geometry) {
-		uint version;
-		bool bHasIndexBuffer;
-		BoundingBox aabb;
-		DG::BufferDesc vertexDesc;
-		DG::BufferDesc indexDesc;
-		DG::DrawAttribs drawAttribs;
-		DG::DrawIndexedAttribs indexedDrawAttribs;
-		VertexLayout layout;
-		std::vector<uint8_t> vertexData;
-		std::vector<uint8_t> indexData;
-
-		ar(version);
-		ar(bHasIndexBuffer);
-		ar(aabb);
-		ar(vertexDesc);
-		ar(indexDesc);
-		ar(drawAttribs);
-		ar(indexedDrawAttribs);
-		ar(layout);
-
-		DG::VALUE_TYPE vertexType = DG::VT_NUM_TYPES;
-		DG::VALUE_TYPE indexType = indexedDrawAttribs.IndexType;
-
- 		for (const auto& element : layout.mElements) {
-			if (element.Frequency == DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX) {
-				if (vertexType == DG::VT_NUM_TYPES) {
-					vertexType = element.ValueType;
-				} else {
-					if (vertexType != element.ValueType) {
-						throw std::runtime_error("To save to archive, all per vertex element must have the same type");
-					}
-				}
-			}
-		}
-
-		LoadBinaryData(ar, vertexType, &vertexData);
-
-		if (bHasIndexBuffer)
-			LoadBinaryData(ar, indexType, &indexData);
-	}
-
-	void Save(cereal::PortableBinaryOutputArchive& ar, const RawGeometry* geometry) {
-
-		uint version = GEOMETRY_ARCHIVE_VERSION;
-		ar(version);
-		ar(geometry->HasIndexBuffer());
-		ar(geometry->GetBoundingBox());
-		ar(geometry->GetVertexDesc());
-		ar(geometry->GetIndexDesc());
-		ar(geometry->GetDrawAttribs());
-		ar(geometry->GetIndexedDrawAttribs());
-		ar(geometry->GetLayout());
-
-		DG::VALUE_TYPE vertexType = DG::VT_NUM_TYPES;
-		DG::VALUE_TYPE indexType = geometry->GetIndexedDrawAttribs().IndexType;
-
-		const auto& layout = geometry->GetLayout();
- 		for (const auto& element : layout.mElements) {
-			if (element.Frequency == DG::INPUT_ELEMENT_FREQUENCY_PER_VERTEX) {
-				if (vertexType == DG::VT_NUM_TYPES) {
-					vertexType = element.ValueType;
-				} else {
-					if (vertexType != element.ValueType) {
-						throw std::runtime_error("To save to archive, all per vertex element must have the same type");
-					}
-				}
-			}
-		}
-
-		SaveBinaryData(ar, vertexType, &geometry->GetVertexData());
-
-		if (geometry->HasIndexBuffer())
-			SaveBinaryData(ar, indexType, &geometry->GetIndexData());
 	}
 }

@@ -18,7 +18,6 @@ namespace Morpheus {
 	class Texture : public IResource {
 	private:
 		DG::ITexture* mTexture = nullptr;
-		ResourceManagement mManagementScheme;
 
 		ResourceCache<Texture, 
 			LoadParams<Texture>, 
@@ -28,13 +27,12 @@ namespace Morpheus {
 		inline Texture() {
 		}
 
-		inline Texture(DG::ITexture* texture) : mTexture(texture), 
-			mManagementScheme(ResourceManagement::INTERNAL_UNMANAGED) {
+		inline Texture(DG::ITexture* texture) : mTexture(texture) {
 		}
 
-		inline Texture(DG::IRenderDevice* device, const RawTexture* texture) :
-			mManagementScheme(ResourceManagement::INTERNAL_UNMANAGED) {
-			texture->SpawnOnGPU(device);
+		inline Texture(DG::IRenderDevice* device, const RawTexture* texture) {
+			mFlags |= RESOURCE_RASTERIZER_ASPECT;
+			mTexture = texture->SpawnOnGPU(device);
 		}
 
 		inline Texture(DG::IRenderDevice* device, const RawTexture& texture) :
@@ -44,19 +42,6 @@ namespace Morpheus {
 		inline ~Texture() {
 			if (mTexture)
 				mTexture->Release();
-		}
-
-		inline void SetManagementScheme(ResourceManagement manag) { 
-			mManagementScheme = manag;
-		}
-
-		inline ResourceManagement GetManagementScheme() const {
-			return mManagementScheme;
-		}
-
-		inline bool IsManaged() const {
-			return mManagementScheme == ResourceManagement::FROM_DISK_MANAGED ||
-				mManagementScheme == ResourceManagement::INTERNAL_MANAGED;
 		}
 
 		inline DG::ITexture* Get() {

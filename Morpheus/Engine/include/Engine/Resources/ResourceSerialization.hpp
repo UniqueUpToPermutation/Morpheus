@@ -35,7 +35,4 @@ namespace Morpheus {
 
 	void Load(cereal::PortableBinaryInputArchive& ar, RawTexture* texture);
 	void Save(cereal::PortableBinaryOutputArchive& ar, const RawTexture* texture);
-
-	void Load(cereal::PortableBinaryInputArchive& ar, RawGeometry* geometry);
-	void Save(cereal::PortableBinaryOutputArchive& ar, const RawGeometry* geometry);
 }

@@ -103,44 +103,11 @@ endif()
 
 if(TARGET Morpheus-Engine)
 	add_subdirectory(PBR)
-endif()
-
-if(TARGET Morpheus-Engine)
-	add_subdirectory(Physics)
-endif()
-
-if(TARGET Morpheus-Engine)
 	add_subdirectory(AsyncTest)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(SpriteBatchTest)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(Im3dTest)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(Im3dGizmo)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(RawTextureTest)
-endif()
-
-if (TARGET Morpheus-Engine)
-	add_subdirectory(Renderer2DTest)
-endif()
-
-if (TARGET Morpheus-Engine)
-	add_subdirectory(Editor2DTest)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(HelloWorld)
-endif()
-
-if (TARGET Morpheus-Engine)
 	add_subdirectory(EmbeddedGeoTest)
 endif()

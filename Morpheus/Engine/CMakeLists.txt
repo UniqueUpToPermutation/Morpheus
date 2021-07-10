@@ -138,6 +138,7 @@ list(APPEND SOURCE
 	src/Loading.cpp
 	src/GeometryStructures.cpp
 	src/Im3d.cpp
+	src/Renderer.cpp
 
 	src/Systems/GeometryCache.cpp
 	src/Systems/TextureCache.cpp
@@ -145,7 +146,6 @@ list(APPEND SOURCE
 	src/Systems/EmptyRenderer.cpp
 	src/Systems/System.cpp
 	src/Systems/ImGuiSystem.cpp
-	src/Systems/Renderer.cpp
 	src/Systems/SimpleFPSCameraSystem.cpp
 
 	src/Resources/Shader.cpp
@@ -157,7 +157,6 @@ list(APPEND SOURCE
 	src/Resources/ResourceSerialization.cpp
 	src/Resources/RawTexture.cpp
 	src/Resources/RawSampler.cpp
-	src/Resources/RawGeometry.cpp
 	src/Resources/TextureIterator.cpp
 	src/Resources/Resource.cpp
 	src/Resources/EmbeddedGeometry.cpp
@@ -181,7 +180,7 @@ list(APPEND INCLUDE
 	include/Engine/SpriteBatch.hpp
 	include/Engine/Loading.hpp
 	include/Engine/Im3d.hpp
-
+	include/Engine/Renderer.hpp
 	include/Engine/Graphics.hpp
 	include/Engine/Frame.hpp
 	include/Engine/RendererTransformCache.hpp
@@ -190,7 +189,6 @@ list(APPEND INCLUDE
 	include/Engine/Systems/TextureCache.hpp
 	include/Engine/Systems/EmptyRenderer.hpp
 	include/Engine/Systems/DefaultRenderer.hpp
-	include/Engine/Systems/Renderer.hpp
 	include/Engine/Systems/System.hpp
 	include/Engine/Systems/ImGuiSystem.hpp
 	include/Engine/Systems/SimpleFPSCameraSystem.hpp
@@ -208,7 +206,6 @@ list(APPEND INCLUDE
 	include/Engine/Resources/ResourceSerialization.hpp
 	include/Engine/Resources/RawTexture.hpp
 	include/Engine/Resources/RawSampler.hpp
-	include/Engine/Resources/RawGeometry.hpp
 	include/Engine/Resources/TextureIterator.hpp
 )
 

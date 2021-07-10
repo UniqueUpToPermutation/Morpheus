@@ -2,8 +2,7 @@
 
 #include <Engine/Graphics.hpp>
 #include <Engine/Systems/System.hpp>
-#include <Engine/Systems/Renderer.hpp>
-#include <Engine/Resources/RawGeometry.hpp>
+#include <Engine/Renderer.hpp>
 
 namespace Morpheus {
 	class EmptyRenderer : public ISystem, 

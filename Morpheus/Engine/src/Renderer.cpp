@@ -1,5 +1,5 @@
 #include <Engine/Resources/Texture.hpp>
-#include <Engine/Systems/Renderer.hpp>
+#include <Engine/Renderer.hpp>
 
 namespace Morpheus {
 	MaterialDesc MaterialDescFuture::Get() const {

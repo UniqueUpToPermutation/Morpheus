@@ -12,13 +12,16 @@ namespace Morpheus {
 	struct MaterialDesc;
 	class Material;
 
-	enum class ResourceManagement {
-		FROM_DISK_MANAGED,
-		FROM_DISK_UNMANAGED,
-		INTERNAL_MANAGED,
-		INTERNAL_UNMANAGED
+	typedef uint32_t ResourceFlags;
+
+	enum ResourceFlag : ResourceFlags {
+		RESOURCE_LOADED_FROM_DISK = 1u << 0,
+		RESOURCE_MANAGED = 1u << 1,
+		RESOURCE_RASTERIZER_ASPECT = 1u << 2,
+		RESOURCE_RAW_ASPECT = 1u << 3,
+		RESOURCE_RAYTRACER_ASPECT = 1u << 4
 	};
-	
+
 	template <typename T>
 	struct LoadParams {
 	};
@@ -29,7 +32,22 @@ namespace Morpheus {
 	private:
 		std::atomic<uint> mRefCount;
 
+	protected:
+		ResourceFlags mFlags = 0u;
+
 	public:
+		inline ResourceFlags GetFlags() const {
+			return mFlags;
+		}
+
+		inline bool IsManaged() const {
+			return mFlags & RESOURCE_MANAGED;
+		}
+
+		inline bool IsFromDisk() const {
+			return mFlags & RESOURCE_LOADED_FROM_DISK;
+		}
+
 		inline IResource() {
 			mRefCount = 1;
 		}
@@ -61,6 +79,9 @@ namespace Morpheus {
 		T* mResource;
 
 	public:
+		inline Handle(T&& resource) : mResource(new T(std::move(resource))) {
+		}
+
 		inline Handle() : mResource(nullptr) {
 		}
 
