@@ -1054,6 +1054,9 @@ namespace Morpheus {
 		MemoryInputStream stream(rawArchive, length);
 		cereal::PortableBinaryInputArchive ar(stream);
 		Morpheus::Load(ar, this);
+
+		mFlags |= RESOURCE_CPU_RESIDENT;
+		mFlags |= RESOURCE_RAW_ASPECT;
 	}
 
 	void Texture::ReadPng(const LoadParams<Texture>& params,
@@ -1356,6 +1359,31 @@ namespace Morpheus {
 
 	Texture::Texture(Texture&& other) {
 		AdoptData(std::move(other));
+	}
+
+	Texture& Texture::operator=(Texture&& other) {
+		AdoptData(std::move(other));
+		return *this;
+	}
+
+	void Texture::ToRaw(Texture* out) const {
+		if (IsRaw()) {
+			CopyTo(out);
+		} else {
+			throw std::runtime_error("Not implemented!");
+		}
+	}
+
+	void Texture::ToRaw(Texture* out,
+		DG::IRenderDevice* device, 
+		DG::IDeviceContext* context) const {
+		if (IsRaw()) {
+			CopyTo(out);
+		} else if (IsRasterResource()) {
+			out->RetrieveRawData(GetRasterTexture(), device, context);
+		} else {
+			throw std::runtime_error("Not implemented!");
+		}
 	}
 
 	void Texture::Clear() {

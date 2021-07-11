@@ -242,6 +242,9 @@ namespace Morpheus {
 		Texture(Texture&& other);
 		Texture(const Texture& other) = delete;
 
+		Texture& operator=(Texture&& other);
+		Texture& operator=(const Texture& other) = delete;
+
 		inline Texture(GraphicsDevice device, const Texture* texture) {
 			CreateDeviceAspect(device, texture);
 		}
@@ -254,6 +257,21 @@ namespace Morpheus {
 			Texture tex;
 			To(device, &tex);
 			return tex;
+		}
+
+		void ToRaw(Texture* out) const;
+		void ToRaw(Texture* out, DG::IRenderDevice* device, DG::IDeviceContext* context) const;
+		
+		inline Texture ToRaw() const {
+			Texture texture;
+			ToRaw(&texture);
+			return texture;
+		}
+
+		inline Texture ToRaw(DG::IRenderDevice* device, DG::IDeviceContext* context) const {
+			Texture texture;
+			ToRaw(&texture, device, context);
+			return texture;
 		}
 
 		void CopyTo(Texture* texture) const;
@@ -294,7 +312,7 @@ namespace Morpheus {
 			return mRawAspect.mData;
 		}
 
-		inline DG::ITexture* GetRasterTexture() {
+		inline DG::ITexture* GetRasterTexture() const {
 			return mRasterAspect.mTexture;
 		}
 
@@ -350,6 +368,10 @@ namespace Morpheus {
 		int GetComponentCount() const;
 		bool GetIsSRGB() const;
 		size_t GetPixelByteSize() const;
+
+		inline operator bool() const {
+			return mFlags != 0u;
+		}
 
 		typedef LoadParams<Texture> LoadParameters;
 

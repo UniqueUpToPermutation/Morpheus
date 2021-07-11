@@ -389,6 +389,10 @@ namespace Morpheus {
 			return mShared.mBoundingBox;
 		}
 
+		inline operator bool() const {
+			return mFlags != 0u;
+		}
+
 		typedef LoadParams<Geometry> LoadParameters;
 
 		struct Prefabs {

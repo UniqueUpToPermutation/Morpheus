@@ -11,6 +11,8 @@ using namespace Morpheus;
 int main() {
 	Texture texture("brick_albedo.png");
 
+	assert(texture.IsRaw() && texture.IsCpu());
+
 	{
 		Texture textureCopy;
 		textureCopy.CopyFrom(texture);
@@ -18,6 +20,8 @@ int main() {
 	}
 
 	Texture textureFromArchive("brick.tark");
+
+	assert(textureFromArchive.IsRaw() && textureFromArchive.IsCpu());
 	
 	// Invert the brick texture
 	{
@@ -89,14 +93,23 @@ int main() {
 		SpriteBatch spriteBatch(graphics, sbPipeline);
 
 		// Spawn textures on GPU
-		auto gpuTexture1 = texture.SpawnOnGPU(graphics.Device());
-		auto gpuTexture2 = fromDesc.SpawnOnGPU(graphics.Device());
+		auto gpuTexture1 = texture.To(graphics.Device());
 
-		DG::ITexture* gpuTexture3 = nullptr;
+		assert(gpuTexture1.IsGpu() && gpuTexture1.IsRasterResource());
+
+		auto gpuTexture2 = fromDesc.To(graphics.Device());
+
+		assert(gpuTexture2.IsGpu() && gpuTexture2.IsRasterResource());
+
+		Texture gpuTexture3;
 		if (bArchiveTextureExists) 
-			gpuTexture3 = fromArchive.SpawnOnGPU(graphics.Device());
+			gpuTexture3 = std::move(fromArchive.To(graphics.Device()));
 
-		auto gpuTexture4 = textureFromArchive.SpawnOnGPU(graphics.Device());
+		assert(gpuTexture3.IsGpu() && gpuTexture3.IsRasterResource());
+
+		auto gpuTexture4 = textureFromArchive.To(graphics.Device());
+
+		assert(gpuTexture4.IsGpu() && gpuTexture4.IsRasterResource());
 
 		texture.Clear();
 		fromDesc.Clear();
@@ -132,31 +145,34 @@ int main() {
 
 			// Draw textures
 			spriteBatch.Begin(graphics.ImmediateContext());
-			spriteBatch.Draw(gpuTexture4, DG::float2(-400.0, -400.0));
-			spriteBatch.Draw(gpuTexture1, DG::float2(-300.0, -300.0));
-			spriteBatch.Draw(gpuTexture2, DG::float2(0.0, 0.0));
+			spriteBatch.Draw(&gpuTexture4, DG::float2(-400.0, -400.0));
+			spriteBatch.Draw(&gpuTexture1, DG::float2(-300.0, -300.0));
+			spriteBatch.Draw(&gpuTexture2, DG::float2(0.0, 0.0));
 			if (gpuTexture3)
-				spriteBatch.Draw(gpuTexture3, DG::float2(300.0, 300.0));
+				spriteBatch.Draw(&gpuTexture3, DG::float2(300.0, 300.0));
 			spriteBatch.End();
 
 			graphics.Present(1);
 		}
 
 		// Retreive textures from GPU and write to disk
-		Texture fromGpu1;
-		fromGpu1.RetrieveRawData(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
+		Texture fromGpu1 = gpuTexture1.ToRaw(graphics.Device(), graphics.ImmediateContext());
+		
+		assert(fromGpu1.IsRaw() && fromGpu1.IsCpu());
+		
 		fromGpu1.SavePng("FromGpu1.png", false);
 		fromGpu1.Save("FromGpu.tark");
 
-		Texture fromGpu2;
-		fromGpu2.RetrieveRawData(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
+		Texture fromGpu2 = gpuTexture2.ToRaw(graphics.Device(), graphics.ImmediateContext());
+		
+		assert(fromGpu2.IsRaw() && fromGpu2.IsCpu());
+		
 		fromGpu2.SavePng("FromGpu2.png", true);
 
-		gpuTexture1->Release();
-		gpuTexture2->Release();
-		if (gpuTexture3)
-			gpuTexture3->Release();
-		gpuTexture4->Release();
+		gpuTexture1 = Texture();
+		gpuTexture2 = Texture();
+		gpuTexture3 = Texture();
+		gpuTexture4 = Texture();
 	}
 
 	graphics.Shutdown();
