@@ -16,7 +16,7 @@ namespace Morpheus {
 				modifiedParams.mVertexLayout = formatProvider->GetLayout(modifiedParams.mType);
 			}
 
-			return Geometry::Load(device, modifiedParams);
+			return Geometry::LoadPointer(device, modifiedParams);
 		};
 	}
 	

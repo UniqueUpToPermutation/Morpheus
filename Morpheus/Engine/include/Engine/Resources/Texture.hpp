@@ -55,12 +55,18 @@ namespace Morpheus {
 		};
 	};
 
-	inline uint MipCount(const uint width, const uint height) {
+	inline uint MipCount(
+		const uint width, 
+		const uint height) {
 		return (uint)(1 + std::floor(std::log2(std::max(width, height))));
 	}
 
-	inline uint MipCount(const uint width, const uint height, const uint depth) {
-		return (uint)(1 + std::floor(std::log2(std::max(width, std::max(height, depth)))));
+	inline uint MipCount(
+		const uint width, 
+		const uint height, 
+		const uint depth) {
+		return (uint)(1 + std::floor(
+			std::log2(std::max(width, std::max(height, depth)))));
 	}
 
 	struct TextureSubResDataDesc {
@@ -87,15 +93,13 @@ namespace Morpheus {
 		// The intensity of the texture
 		float mIntensity = 1.0f;
 
-		TaskBarrier mBarrier;
+		Task ReadAsyncDeferred(const LoadParams<Texture>& params);
+		Task ReadPngAsyncDeferred(const LoadParams<Texture>& params);
+		Task ReadGliAsyncDeferred(const LoadParams<Texture>& params);
+		Task ReadStbAsyncDeferred(const LoadParams<Texture>& params);
+		Task ReadArchiveAsyncDeferred(const std::string& source);
 
-		Task LoadAsyncDeferred(const LoadParams<Texture>& params);
-		Task LoadPngAsyncDeferred(const LoadParams<Texture>& params);
-		Task LoadGliAsyncDeferred(const LoadParams<Texture>& params);
-		Task LoadStbAsyncDeferred(const LoadParams<Texture>& params);
-		Task LoadArchiveAsyncDeferred(const std::string& source);
-
-		void RetrieveData(DG::ITexture* texture, 
+		void RetrieveRawData(DG::ITexture* texture, 
 			DG::IRenderDevice* device, 
 			DG::IDeviceContext* context, 
 			const DG::TextureDesc& desc);
@@ -105,8 +109,13 @@ namespace Morpheus {
 			LoadParams<Texture>::Hasher>::iterator_t mCacheIterator;
 
 	public:
+		// -------------------------------------------------------------
+		// Texture Aspects
+		// -------------------------------------------------------------
+
 		void CreateRasterAspect(DG::IRenderDevice* device, 
 			const Texture* source);
+		void CreateRasterAspect(DG::ITexture* texture);
 		void CreateDeviceAspect(GraphicsDevice device, 
 			const Texture* source);
 
@@ -116,6 +125,127 @@ namespace Morpheus {
 		inline void CreateDeviceAspect(GraphicsDevice device) {
 			CreateDeviceAspect(device);
 		}
+
+		// -------------------------------------------------------------
+		// Texture IO
+		// -------------------------------------------------------------
+
+		Task ReadTask(const LoadParams<Texture>& params);
+		Task ReadPngTask(const LoadParams<Texture>& params);
+		Task ReadGliTask(const LoadParams<Texture>& params);
+		Task ReadStbTask(const LoadParams<Texture>& params);
+		Task ReadArchiveTask(const std::string& path);
+
+		inline void Read(const LoadParams<Texture>& params) {
+			ReadTask(params)();
+		}
+
+		void ReadPng(const LoadParams<Texture>& params, 
+			const uint8_t* rawData, 
+			const size_t length);
+
+		inline void ReadPng(const LoadParams<Texture>& params) {
+			ReadPngTask(params)();
+		}
+
+		void ReadGli(const LoadParams<Texture>& params, 
+			const uint8_t* rawData, 
+			const size_t length);
+
+		inline void ReadGli(const LoadParams<Texture>& params) {
+			ReadGliTask(params)();
+		}
+
+		void ReadArchive(const uint8_t* rawArchive, 
+			const size_t length);
+
+		void ReadArchive(const std::string& source) {
+			ReadArchiveTask(source)();
+		}
+
+		void ReadStb(const LoadParams<Texture>& params, 
+			const uint8_t* rawData, 
+			const size_t length);
+
+		void ReadStb(const LoadParams<Texture>& params) {
+			ReadStbTask(params)();
+		}
+
+		Task SaveTask(const std::string& path);
+
+		inline void Save(const std::string& path) {
+			SaveTask(path)();
+		}
+
+		Task SaveGliTask(const std::string& path);
+
+		inline void SaveGli(const std::string& path) {
+			SaveGliTask(path)();
+		}
+
+		Task SavePngTask(const std::string& path, 
+			bool bSaveMips = false);
+
+		inline void SavePng(const std::string& path, 
+			bool bSaveMips = false) {
+			SavePngTask(path, bSaveMips)();
+		}
+
+		void RetrieveRawData(DG::ITexture* texture, 
+			DG::IRenderDevice* device, 
+			DG::IDeviceContext* context);
+
+		static ResourceTask<Texture*> LoadPointer(
+			GraphicsDevice device, 
+			const LoadParams<Texture>& params);
+		static ResourceTask<Handle<Texture>> Load(
+			GraphicsDevice device, 
+			const LoadParams<Texture>& params);
+		static ResourceTask<Texture*> LoadPointer(
+			const LoadParams<Texture>& params);
+		static ResourceTask<Handle<Texture>> Load(
+			const LoadParams<Texture>& params);
+		
+
+		// -------------------------------------------------------------
+		// Texture Constructors / Creation
+		// -------------------------------------------------------------
+
+		inline Texture() {
+		}
+
+		inline Texture(DG::ITexture* texture) {
+			CreateRasterAspect(texture);
+		}
+
+		// Automatically instances texture and allocates data and raw subresources
+		Texture(const DG::TextureDesc& desc);
+
+		inline void Set(const DG::TextureDesc& desc, std::vector<uint8_t>&& data,
+			const std::vector<TextureSubResDataDesc>& subDescs) {
+			mFlags |= RESOURCE_RAW_ASPECT;
+			mRawAspect.mDesc = desc;
+			mRawAspect.mData = std::move(data);
+			mRawAspect.mSubDescs = subDescs;
+		}
+
+		inline Texture(const DG::TextureDesc& desc, 
+			std::vector<uint8_t>&& data, 
+			const std::vector<TextureSubResDataDesc>& subDescs) {
+			Set(desc, std::move(data), subDescs);
+		}
+
+		inline Texture(const LoadParams<Texture>& params) {
+			Read(params);
+		}
+
+		Texture(Texture&& other);
+		Texture(const Texture& other) = delete;
+
+		inline Texture(GraphicsDevice device, const Texture* texture) {
+			CreateDeviceAspect(device, texture);
+		}
+
 		inline void To(GraphicsDevice device, Texture* out) {
 			out->CreateDeviceAspect(device, this);
 		}
@@ -126,27 +256,23 @@ namespace Morpheus {
 			return tex;
 		}
 
-		inline Texture() {
-		}
-
-		inline Texture(DG::ITexture* texture) {
-			mRasterAspect.mTexture = texture;
-			mFlags |= RESOURCE_RASTERIZER_ASPECT;
-		}
-
-		inline Texture(GraphicsDevice device, const Texture* texture) {
-			CreateDeviceAspect(device, texture);
-		}
-
 		void CopyTo(Texture* texture) const;
 		void CopyFrom(const Texture& texture);
 
 		size_t GetMipCount() const;
 		void GenerateMips();
 
-		inline TaskBarrier* GetLoadBarrier() {
-			return &mBarrier;
-		}
+		// Automatically instances texture and allocates data and raw subresources
+		void AllocRaw(const DG::TextureDesc& desc);
+		void Clear();
+
+		void AdoptData(Texture&& other);
+
+		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device) const;
+
+		// -------------------------------------------------------------
+		// Texture Properties
+		// -------------------------------------------------------------
 
 		inline const std::vector<TextureSubResDataDesc>& GetSubDataDescs() const {
 			assert(mFlags & RESOURCE_RAW_ASPECT);
@@ -186,7 +312,9 @@ namespace Morpheus {
 
 		inline DG::float3 GetDimensions3D() const {
 			auto& desc = GetDesc();
-			return DG::float3((float)desc.Width, (float)desc.Height, (float)desc.Depth);
+			return DG::float3((float)desc.Width, 
+				(float)desc.Height, 
+				(float)desc.Depth);
 		}
 
 		inline uint GetWidth() const {
@@ -210,13 +338,10 @@ namespace Morpheus {
 		}
 
 		inline DG::ITextureView* GetShaderView() {
-			assert(mFlags | RESOURCE_RASTERIZER_ASPECT);
-
-			return mRasterAspect.mTexture->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+			assert(IsRasterResource());
+			return mRasterAspect.mTexture->GetDefaultView(
+				DG::TEXTURE_VIEW_SHADER_RESOURCE);
 		}
-
-		// Automatically instances texture and allocates data and raw subresources
-		void Alloc(const DG::TextureDesc& desc);
 
 		void* GetSubresourcePtr(uint mip = 0, uint arrayIndex = 0);
 		size_t GetSubresourceSize(uint mip = 0, uint arrayIndex = 0);
@@ -225,116 +350,7 @@ namespace Morpheus {
 		int GetComponentCount() const;
 		bool GetIsSRGB() const;
 		size_t GetPixelByteSize() const;
-		
-		// Automatically instances texture and allocates data and raw subresources
-		Texture(const DG::TextureDesc& desc);
 
-		void Set(const DG::TextureDesc& desc, std::vector<uint8_t>&& data,
-			const std::vector<TextureSubResDataDesc>& subDescs) {
-			mFlags |= RESOURCE_RAW_ASPECT;
-			mRawAspect.mDesc = desc;
-			mRawAspect.mData = std::move(data);
-			mRawAspect.mSubDescs = subDescs;
-		}
-
-		inline Texture(const DG::TextureDesc& desc, 
-			std::vector<uint8_t>&& data, 
-			const std::vector<TextureSubResDataDesc>& subDescs) {
-			Set(desc, std::move(data), subDescs);
-		}
-
-		Task LoadRawTask(const LoadParams<Texture>& params);
-		Task LoadPngRawTask(const LoadParams<Texture>& params);
-		Task LoadGliRawTask(const LoadParams<Texture>& params);
-		Task LoadStbRawTask(const LoadParams<Texture>& params);
-		Task LoadArchiveRawTask(const std::string& path);
-
-		inline void LoadRaw(const LoadParams<Texture>& params) {
-			LoadRawTask(params)();
-		}
-
-		void LoadPngRaw(const LoadParams<Texture>& params, 
-			const uint8_t* rawData, 
-			const size_t length);
-
-		inline void LoadPngRaw(const LoadParams<Texture>& params) {
-			LoadPngRawTask(params)();
-		}
-
-		void LoadGliRaw(const LoadParams<Texture>& params, 
-			const uint8_t* rawData, 
-			const size_t length);
-
-		inline void LoadGliRaw(const LoadParams<Texture>& params) {
-			LoadGliRawTask(params)();
-		}
-
-		void LoadArchiveRaw(const uint8_t* rawArchive, 
-			const size_t length);
-
-		void LoadArchiveRaw(const std::string& source) {
-			LoadArchiveRawTask(source)();
-		}
-
-		void LoadStbRaw(const LoadParams<Texture>& params, 
-			const uint8_t* rawData, 
-			const size_t length);
-
-		void LoadStbRaw(const LoadParams<Texture>& params) {
-			LoadStbRawTask(params)();
-		}
-
-		Task SaveTask(const std::string& path);
-
-		inline void Save(const std::string& path) {
-			SaveTask(path)();
-		}
-
-		Task SaveGliTask(const std::string& path);
-
-		inline void SaveGli(const std::string& path) {
-			SaveGliTask(path)();
-		}
-
-		Task SavePngTask(const std::string& path, 
-			bool bSaveMips = false);
-
-		inline void SavePng(const std::string& path, 
-			bool bSaveMips = false) {
-			SavePngTask(path, bSaveMips)();
-		}
-
-		void RetrieveData(DG::ITexture* texture, 
-			DG::IRenderDevice* device, 
-			DG::IDeviceContext* context);
-
-		inline Texture(const LoadParams<Texture>& params) {
-			LoadRaw(params);
-		}
-
-		inline void Clear() {
-			mRawAspect.mData.clear();
-			mRawAspect.mSubDescs.clear();
-		}
-
-		void AdoptData(Texture&& other);
-
-		Texture(Texture&& other);
-		Texture(const Texture& other) = delete;
-
-		DG::ITexture* SpawnOnGPU(DG::IRenderDevice* device) const;
-
-		static ResourceTask<Texture*> Load(
-			GraphicsDevice device, 
-			const LoadParams<Texture>& params);
-		static ResourceTask<Handle<Texture>> LoadHandle(
-			GraphicsDevice device, 
-			const LoadParams<Texture>& params);
-		static ResourceTask<Texture*> Load(
-			const LoadParams<Texture>& params);
-		static ResourceTask<Handle<Texture>> LoadHandle(
-			const LoadParams<Texture>& params);
-		
 		typedef LoadParams<Texture> LoadParameters;
 
 		friend class TextureIterator;

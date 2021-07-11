@@ -328,7 +328,7 @@ namespace Morpheus {
 		DG::Uint32 CoarseMipHeight);
 
 	void Texture::GenerateMips() {
-		if (!(mFlags & RESOURCE_RAW_ASPECT))
+		if (!IsRaw())
 			throw std::runtime_error("Texture must have raw aspect!");
 
 		auto& desc = GetDesc();
@@ -388,8 +388,9 @@ namespace Morpheus {
 		}
 	}
 
-	void Texture::Alloc(const DG::TextureDesc& desc) {
+	void Texture::AllocRaw(const DG::TextureDesc& desc) {
 		mFlags |= RESOURCE_RAW_ASPECT;
+		mFlags |= RESOURCE_CPU_RESIDENT;
 
 		mRawAspect.mDesc = desc;
 		auto pixelSize = GetPixelByteSize();
@@ -427,7 +428,7 @@ namespace Morpheus {
 	}
 
 	void* Texture::GetSubresourcePtr(uint mip, uint arrayIndex) {
-		assert(mFlags & RESOURCE_RAW_ASPECT);
+		assert(IsRaw());
 
 		size_t subresourceIndex = arrayIndex * mRawAspect.mDesc.MipLevels + mip;
 		return &mRawAspect.mData[mRawAspect.mSubDescs[subresourceIndex].mSrcOffset];
@@ -458,7 +459,7 @@ namespace Morpheus {
 	}
 
 	Texture::Texture(const DG::TextureDesc& desc) {
-		Alloc(desc);		
+		AllocRaw(desc);		
 	}
 
 	Task Texture::SaveTask(const std::string& path) {
@@ -576,7 +577,7 @@ namespace Morpheus {
 	}
 
 	Task Texture::SavePngTask(const std::string& path, bool bSaveMips) {
-		if (!(mFlags & RESOURCE_RAW_ASPECT))
+		if (!IsRaw())
 			throw std::runtime_error("Texture must have raw aspect to save!");
 
 		return Task([this, path, bSaveMips](const TaskParams& e) {
@@ -654,9 +655,9 @@ namespace Morpheus {
 		TaskType::FILE_IO);
 	}
 
-	void Texture::RetrieveData(DG::ITexture* texture, 
+	void Texture::RetrieveRawData(DG::ITexture* texture, 
 		DG::IRenderDevice* device, DG::IDeviceContext* context) {
-		RetrieveData(texture, device, context, texture->GetDesc());
+		RetrieveRawData(texture, device, context, texture->GetDesc());
 	}
 
 	void Texture::CopyTo(Texture* texture) const {
@@ -672,12 +673,13 @@ namespace Morpheus {
 		texture.CopyTo(this);
 	}
 
-	void Texture::RetrieveData(DG::ITexture* texture, 
+	void Texture::RetrieveRawData(DG::ITexture* texture, 
 		DG::IRenderDevice* device, 
 		DG::IDeviceContext* context, 
 		const DG::TextureDesc& texDesc) {
 
 		mFlags |= RESOURCE_RAW_ASPECT;
+		mFlags |= RESOURCE_CPU_RESIDENT;
 
 		auto& desc = texture->GetDesc();
 
@@ -783,7 +785,7 @@ namespace Morpheus {
 			}
 
 			// Retrieve data from staging texture
-			RetrieveData(stage_tex, device, context, desc);
+			RetrieveRawData(stage_tex, device, context, desc);
 
 			stage_tex->Release();
 		}
@@ -1041,20 +1043,20 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.ArraySize = 1;
 
-		into->Alloc(desc);
+		into->AllocRaw(desc);
 		std::memcpy(into->GetSubresourcePtr(), &image[0], into->GetSubresourceSize());
 
 		if (params.bGenerateMips)
 			into->GenerateMips();
 	}
 
-	void Texture::LoadArchiveRaw(const uint8_t* rawArchive, const size_t length) {
+	void Texture::ReadArchive(const uint8_t* rawArchive, const size_t length) {
 		MemoryInputStream stream(rawArchive, length);
 		cereal::PortableBinaryInputArchive ar(stream);
 		Morpheus::Load(ar, this);
 	}
 
-	void Texture::LoadPngRaw(const LoadParams<Texture>& params,
+	void Texture::ReadPng(const LoadParams<Texture>& params,
 		const uint8_t* rawData, const size_t length) {
 		std::vector<uint8_t> image;
 		uint32_t width, height;
@@ -1070,17 +1072,16 @@ namespace Morpheus {
 			LoadPngDataRaw(params, image, width, height, this);
 	}
 
-	Task Texture::LoadPngRawTask(const LoadParams<Texture>& params) {
+	Task Texture::ReadPngTask(const LoadParams<Texture>& params) {
 
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
-			LoadPngRaw(params, &data[0], data.size());
+			ReadPng(params, &data[0], data.size());
 		}, 
 		std::string("Load Texture ") + params.mSource + " (PNG)", 
 		TaskType::FILE_IO);
 
-		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
@@ -1100,52 +1101,48 @@ namespace Morpheus {
 
 			switch (type) {
 				case LoadType::PNG:
-					texture->LoadPngRaw(params, &data[0], data.size());
+					texture->ReadPng(params, &data[0], data.size());
 					break;
 				case LoadType::STB:
-					texture->LoadStbRaw(params, &data[0], data.size());
+					texture->ReadStb(params, &data[0], data.size());
 					break;
 				case LoadType::GLI:
-					texture->LoadGliRaw(params, &data[0], data.size());
+					texture->ReadGli(params, &data[0], data.size());
 					break;
 				case LoadType::ARCHIVE:
-					texture->LoadArchiveRaw(&data[0], data.size());
+					texture->ReadArchive(&data[0], data.size());
 					break;
 			}
 		}, std::string("Load Texture ") + params.mSource, TaskType::FILE_IO);
 
-		texture->GetLoadBarrier()->mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
-	Task Texture::LoadArchiveRawTask(const std::string& path) {
+	Task Texture::ReadArchiveTask(const std::string& path) {
 		Task task([this, path](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(path, data);
-			LoadArchiveRaw(&data[0], data.size());
+			ReadArchive(&data[0], data.size());
 		},
 		std::string("Load Texture ") + path + " (Archive)",
 		TaskType::FILE_IO);
 	
-		mBarrier.mIn.Lock().Connect(&task->Out());
-
 		return task;
 	}
 
-	Task Texture::LoadStbRawTask(const LoadParams<Texture>& params) {
+	Task Texture::ReadStbTask(const LoadParams<Texture>& params) {
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
-			LoadStbRaw(params, &data[0], data.size());
+			ReadStb(params, &data[0], data.size());
 		}, 
 		std::string("Load Texture ") + params.mSource + " (STB)",
 		TaskType::FILE_IO);
 
-		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
-	Task Texture::LoadRawTask(const LoadParams<Texture>& params) {
+	Task Texture::ReadTask(const LoadParams<Texture>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -1153,19 +1150,19 @@ namespace Morpheus {
 		auto ext = params.mSource.substr(pos);
 
 		if (ext == ".ktx" || ext == ".dds") {
-			return LoadGliRawTask(params);
+			return ReadGliTask(params);
 		} else if (ext == ".hdr") {
-			return LoadStbRawTask(params);
+			return ReadStbTask(params);
 		} else if (ext == ".png") {
-			return LoadPngRawTask(params);
+			return ReadPngTask(params);
 		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
-			return LoadArchiveRawTask(params.mSource);
+			return ReadArchiveTask(params.mSource);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");
 		}
 	}
 
-	void Texture::LoadGliRaw(const LoadParams<Texture>& params, 
+	void Texture::ReadGli(const LoadParams<Texture>& params, 
 		const uint8_t* rawData, const size_t length) {
 		gli::texture tex = gli::load((const char*)rawData, length);
 
@@ -1177,20 +1174,19 @@ namespace Morpheus {
 		LoadGliDataRaw(params, &tex, this);
 	}
 
-	Task Texture::LoadGliRawTask(const LoadParams<Texture>& params) {
+	Task Texture::ReadGliTask(const LoadParams<Texture>& params) {
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
-			LoadGliRaw(params, &data[0], data.size());
+			ReadGli(params, &data[0], data.size());
 		}, 
 		std::string("Load Texture ") + params.mSource + " (GLI)",
 		TaskType::FILE_IO);
 
-		mBarrier.mIn.Lock().Connect(&task->Out());
 		return task;
 	}
 
-	void Texture::LoadStbRaw(const LoadParams<Texture>& params,
+	void Texture::ReadStb(const LoadParams<Texture>& params,
 		const uint8_t* data, size_t length) {
 		unsigned char* pixel_data = nullptr;
 		std::unique_ptr<unsigned char[]> pixels_uc = nullptr;
@@ -1256,7 +1252,7 @@ namespace Morpheus {
 
 		Task task([params, device, promise = std::move(promise), data = Data()](const TaskParams& e) mutable {
 			if (e.mTask->BeginSubTask()) {
-				data.mRaw.LoadRaw(params);
+				data.mRaw.Read(params);
 				e.mTask->EndSubTask();
 			}
 
@@ -1296,7 +1292,7 @@ namespace Morpheus {
 
 		Task task([params, promise = std::move(promise)](const TaskParams& e) mutable {
 			Texture* texture = new Texture();
-			texture->LoadRaw(params);
+			texture->Read(params);
 			promise.Set(texture, e.mQueue);
 		}, 
 		std::string("Load ") + params.mSource, 
@@ -1309,22 +1305,22 @@ namespace Morpheus {
 		return resourceTask;
 	}
 
-	ResourceTask<Handle<Texture>> Texture::LoadHandle(GraphicsDevice device, 
+	ResourceTask<Handle<Texture>> Texture::Load(GraphicsDevice device, 
 		const LoadParams<Texture>& params) {
 		return LoadTemplated<Handle<Texture>>(device, params);
 	}
 
-	ResourceTask<Texture*> Texture::Load(GraphicsDevice device, 
+	ResourceTask<Texture*> Texture::LoadPointer(GraphicsDevice device, 
 		const LoadParams<Texture>& params) {
 		return LoadTemplated<Texture*>(device, params);
 	}
 
-	ResourceTask<Texture*> Texture::Load(
+	ResourceTask<Texture*> Texture::LoadPointer(
 		const LoadParams<Texture>& params) {
 		return LoadTemplated<Texture*>(params);
 	}
 
-	ResourceTask<Handle<Texture>> Texture::LoadHandle(
+	ResourceTask<Handle<Texture>> Texture::Load(
 		const LoadParams<Texture>& params) {
 		return LoadTemplated<Handle<Texture>>(params);
 	}
@@ -1332,7 +1328,14 @@ namespace Morpheus {
 	void Texture::CreateRasterAspect(DG::IRenderDevice* device, 
 		const Texture* source) {
 		mFlags |= RESOURCE_RASTERIZER_ASPECT;
+		mFlags |= RESOURCE_GPU_RESIDENT;
 		mRasterAspect.mTexture = source->SpawnOnGPU(device);
+	}
+
+	void Texture::CreateRasterAspect(DG::ITexture* texture) {
+		mFlags |= RESOURCE_RASTERIZER_ASPECT;
+		mFlags |= RESOURCE_GPU_RESIDENT;
+		mRasterAspect.mTexture = texture;
 	}
 
 	void Texture::CreateDeviceAspect(GraphicsDevice device, 
@@ -1353,5 +1356,12 @@ namespace Morpheus {
 
 	Texture::Texture(Texture&& other) {
 		AdoptData(std::move(other));
+	}
+
+	void Texture::Clear() {
+		mRawAspect = RawAspect();
+		mRasterAspect = RasterizerAspect();
+
+		mFlags = 0u;
 	}
 }

@@ -5,7 +5,7 @@ namespace Morpheus {
 	TextureCacheSystem::loader_t::cache_load_t 
 		TextureCacheSystem::GetLoaderFunction() {
 		return [device = mDevice](const LoadParams<Texture>& params) {
-			return Texture::Load(device, params);
+			return Texture::LoadPointer(device, params);
 		};
 	}
 

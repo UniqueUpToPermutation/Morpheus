@@ -33,7 +33,7 @@ MAIN() {
 
 	// Compute Skybox Stuff
 	{
-		auto skyboxHdriTask = Texture::LoadHandle(graphics.Device(), "environment.hdr");
+		auto skyboxHdriTask = Texture::Load(graphics.Device(), "environment.hdr");
 		auto skyboxHdri = threadPool.AdoptAndTrigger(std::move(skyboxHdriTask));
 
 		auto hdriConvShadersTask = HDRIToCubemapShaders::Load(

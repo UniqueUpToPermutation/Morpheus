@@ -33,12 +33,12 @@ MAIN() {
 		// Using Texture::Load or Geometry::Load means the resulting object will not be
 		// managed by the texture and geometry caches.
 		ResourceTask<Handle<Texture>> unmanagedTextureTask = 
-			Texture::LoadHandle(graphics.Device(), "brick_albedo.png");
+			Texture::Load(graphics.Device(), "brick_albedo.png");
 		LoadParams<Geometry> geoLoad("matBall.obj", geometryLayout);
 		ResourceTask<Handle<Geometry>> unmanagedGeoTask = 
-			Geometry::LoadHandle(graphics.Device(), geoLoad);
+			Geometry::Load(graphics.Device(), geoLoad);
 		ResourceTask<Handle<Texture>> unmanagedHdrTask = 
-			Texture::LoadHandle(graphics.Device(), "environment.hdr");
+			Texture::Load(graphics.Device(), "environment.hdr");
 
 		// You can submit a load task to the task queue by using AdoptAndTrigger,
 		// this converts a resource task into a resource future

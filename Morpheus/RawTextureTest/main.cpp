@@ -64,7 +64,7 @@ int main() {
 	Texture fromArchive;
 	bool bArchiveTextureExists = false;
 	if (std::filesystem::exists("FromGpu.tark")) {
-		fromArchive.LoadRaw("FromGpu.tark");
+		fromArchive.Read("FromGpu.tark");
 		bArchiveTextureExists = true;
 	}
 
@@ -144,12 +144,12 @@ int main() {
 
 		// Retreive textures from GPU and write to disk
 		Texture fromGpu1;
-		fromGpu1.RetrieveData(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
+		fromGpu1.RetrieveRawData(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
 		fromGpu1.SavePng("FromGpu1.png", false);
 		fromGpu1.Save("FromGpu.tark");
 
 		Texture fromGpu2;
-		fromGpu2.RetrieveData(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
+		fromGpu2.RetrieveRawData(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
 		fromGpu2.SavePng("FromGpu2.png", true);
 
 		gpuTexture1->Release();

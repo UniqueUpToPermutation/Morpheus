@@ -22,7 +22,7 @@ namespace Morpheus {
 
 		Task task([params, device, promise = std::move(promise), data = Data()](const TaskParams& e) mutable {
 			if (e.mTask->BeginSubTask()) {
-				data.mRaw.LoadRaw(params);
+				data.mRaw.Read(params);
 				e.mTask->EndSubTask();
 			}
 
@@ -43,6 +43,30 @@ namespace Morpheus {
 			}
 
 			return TaskResult::FINISHED;
+		}, 
+		std::string("Load ") + params.mSource, 
+		TaskType::FILE_IO);
+
+		ResourceTask<T> resourceTask;
+		resourceTask.mTask = std::move(task);
+		resourceTask.mFuture = std::move(future);
+
+		return resourceTask;
+	}
+
+	template <typename T>
+	ResourceTask<T> LoadRawTemplated(const LoadParams<Geometry>& params) {
+		Promise<T> promise;
+		Future<T> future(promise);
+
+		Task task([params, promise = std::move(promise)](const TaskParams& e) mutable {
+			Geometry* geo = new Geometry();
+			geo->LoadRaw(params);
+			promise.Set(geo, e.mQueue);
+
+			if constexpr (std::is_same_v<T, Handle<Geometry>>) {
+				geo->Release();
+			}
 		}, 
 		std::string("Load ") + params.mSource, 
 		TaskType::FILE_IO);
@@ -120,6 +144,7 @@ namespace Morpheus {
 	void Geometry::CreateRasterAspect(DG::IRenderDevice* device, const Geometry* geometry) {
 		
 		mFlags |= RESOURCE_RASTERIZER_ASPECT;
+		mFlags |= RESOURCE_GPU_RESIDENT;
 
 		DG::IBuffer* vertexBuffer = nullptr;
 		DG::IBuffer* indexBuffer = nullptr;
@@ -149,14 +174,24 @@ namespace Morpheus {
 			throw std::runtime_error("Device cannot be null!");
 	}
 
-	ResourceTask<Handle<Geometry>> Geometry::LoadHandle(
+	ResourceTask<Handle<Geometry>> Geometry::Load(
 		GraphicsDevice device, const LoadParams<Geometry>& params) {
 		return LoadTemplated<Handle<Geometry>>(device, params);
 	}
 
-	ResourceTask<Geometry*> Geometry::Load(GraphicsDevice device, 
+	ResourceTask<Geometry*> Geometry::LoadPointer(GraphicsDevice device, 
 		const LoadParams<Geometry>& params) {
 		return LoadTemplated<Geometry*>(device, params);
+	}
+
+	ResourceTask<Geometry*> Geometry::LoadRawPointer(
+		const LoadParams<Geometry>& params) {
+		return LoadRawTemplated<Geometry*>(params);
+	}
+
+	ResourceTask<Handle<Geometry>> Geometry::LoadRaw(
+		const LoadParams<Geometry>& params) {
+		return LoadRawTemplated<Handle<Geometry>>(params);
 	}
 
 	void Geometry::CopyTo(Geometry* geometry) const {
@@ -217,7 +252,6 @@ namespace Morpheus {
 		mRtAspect = std::move(other.mRtAspect);
 		
 		mFlags = other.mFlags;
-		mBarrier.mOut.SetFinishedUnsafe(other.mBarrier.mOut.Lock().IsFinished());
 	}
 
 	void Geometry::SpawnOnGPU(DG::IRenderDevice* device, 
@@ -242,7 +276,7 @@ namespace Morpheus {
 		}
 	}
 
-	Task Geometry::LoadAssimpRawTask(const LoadParams<Geometry>& params) {
+	Task Geometry::ReadAssimpRawTask(const LoadParams<Geometry>& params) {
 
 		Task task([this, params](const TaskParams& e) {
 			std::vector<uint8_t> data;
@@ -270,12 +304,10 @@ namespace Morpheus {
 
 			const VertexLayout* layout = &params.mVertexLayout;
 	
-			LoadAssimpRaw(pScene, *layout);
+			ReadAssimpRaw(pScene, *layout);
 		},
 		std::string("Load Raw Geometry ") + params.mSource + " (Assimp)",
 		TaskType::FILE_IO);
-
-		mBarrier.mIn.Lock().Connect(&task->Out());
 
 		return task;
 	}
@@ -722,12 +754,12 @@ namespace Morpheus {
 	void Geometry::FromMemory(const VertexLayout& layout,
 		size_t vertex_count,
 		size_t index_count,
-		uint32_t indices[],
-		float positions[],
-		float uvs[],
-		float normals[],
-		float tangents[],
-		float bitangents[]) {
+		const uint32_t indices[],
+		const float positions[],
+		const float uvs[],
+		const float normals[],
+		const float tangents[],
+		const float bitangents[]) {
 
 		Unpack<uint32_t, float, float>(layout,
 			vertex_count, index_count,
@@ -739,7 +771,7 @@ namespace Morpheus {
 			bitangents);
 	}
 
-	void Geometry::LoadAssimpRaw(const aiScene* scene, const VertexLayout& layout) {
+	void Geometry::ReadAssimpRaw(const aiScene* scene, const VertexLayout& layout) {
 
 		uint nVerts;
 		uint nIndices;
@@ -763,14 +795,14 @@ namespace Morpheus {
 			mesh->mBitangents);
 	}
 
-	Task Geometry::LoadRawTask(const LoadParams<Geometry>& params) {
+	Task Geometry::ReadTask(const LoadParams<Geometry>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
 		}
 		auto ext = params.mSource.substr(pos);
 
-		return LoadAssimpRawTask(params);
+		return ReadAssimpRawTask(params);
 	}
 
 	void Geometry::Clear() {
@@ -778,6 +810,7 @@ namespace Morpheus {
 		mRawAspect = RawAspect();
 		mRtAspect = RaytracerAspect();
 		mShared = SharedAspect();
-		mBarrier.Reset();
+
+		mFlags = 0u;
 	}
 }

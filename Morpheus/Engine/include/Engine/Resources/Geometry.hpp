@@ -24,19 +24,27 @@ namespace Morpheus {
 		inline LoadParams() {
 		}
 
-		inline LoadParams(const std::string& source, const VertexLayout& layout) : 
+		inline LoadParams(
+			const std::string& source, 
+			const VertexLayout& layout) : 
 			mSource(source), mVertexLayout(layout) {
 		}
 
-		inline LoadParams(const char* source, const VertexLayout& layout) : 
+		inline LoadParams(
+			const char* source, 
+			const VertexLayout& layout) : 
 			mSource(source), mVertexLayout(layout) {
 		}
 
-		inline LoadParams(const std::string& source, GeometryType type) :
+		inline LoadParams(
+			const std::string& source, 
+			GeometryType type) :
 			mSource(source), mType(type) {
 		}
 
-		inline LoadParams(const char* source, GeometryType type) :
+		inline LoadParams(
+			const char* source, 
+			GeometryType type) :
 			mSource(source), mType(type) {
 		}
 
@@ -85,7 +93,6 @@ namespace Morpheus {
 			BoundingBox mBoundingBox;
 		} mShared;
 
-		TaskBarrier mBarrier;
 		ResourceCache<Geometry, 
 				LoadParams<Geometry>, 
 				LoadParams<Geometry>::Hasher>::iterator_t mCacheIterator;
@@ -103,7 +110,7 @@ namespace Morpheus {
 			const VertexLayout& layout,
 			const BoundingBox& aabb);
 
-		void LoadAssimpRaw(const aiScene* scene,
+		void ReadAssimpRaw(const aiScene* scene,
 			const VertexLayout& vertexLayout);
 
 		template <typename I3T, typename V3T, typename V2T>
@@ -118,9 +125,19 @@ namespace Morpheus {
 			const V3T bitangents[]);
 
 	public:
-		void CreateRasterAspect(DG::IRenderDevice* device, const Geometry* source);
-		void CreateRaytraceAspect(Raytrace::IRaytraceDevice* device, const Geometry* source);
-		void CreateDeviceAspect(GraphicsDevice device, const Geometry* source);
+		// -------------------------------------------------------------
+		// Geometry Aspects
+		// -------------------------------------------------------------
+
+		void CreateRasterAspect(
+			DG::IRenderDevice* device, 
+			const Geometry* source);
+		void CreateRaytraceAspect(
+			Raytrace::IRaytraceDevice* device, 
+			const Geometry* source);
+		void CreateDeviceAspect(
+			GraphicsDevice device, 
+			const Geometry* source);
 
 		inline void CreateRasterAspect(DG::IRenderDevice* device) {
 			CreateRasterAspect(device, this);
@@ -143,49 +160,55 @@ namespace Morpheus {
 		// -------------------------------------------------------------
 		// Geometry IO
 		// -------------------------------------------------------------
-		Task LoadAssimpRawTask(const LoadParams<Geometry>& params);
-		inline void LoadAssimpRaw(const LoadParams<Geometry>& params) {
-			LoadAssimpRawTask(params)();
+
+		Task ReadAssimpRawTask(const LoadParams<Geometry>& params);
+		inline void ReadAssimpRaw(const LoadParams<Geometry>& params) {
+			ReadAssimpRawTask(params)();
 		}
 
-		Task LoadRawTask(const LoadParams<Geometry>& params);
-		inline void LoadRaw(const LoadParams<Geometry>& params) {
-			LoadRawTask(params)();
+		Task ReadTask(const LoadParams<Geometry>& params);
+		inline void Read(const LoadParams<Geometry>& params) {
+			ReadTask(params)();
 		}
 
-		inline void LoadRaw(const std::string& source) {
-			LoadRaw(source);
+		inline void Read(const std::string& source) {
+			LoadParams<Geometry> params;
+			params.mSource = source;
+			params.mVertexLayout = VertexLayout::PositionUVNormalTangentBitangent();
+			Read(params);
 		}
 		
 		void SpawnOnGPU(DG::IRenderDevice* device, 
 			DG::IBuffer** vertexBufferOut, 
 			DG::IBuffer** indexBufferOut) const;
 
-		static ResourceTask<Geometry*> Load(
+		static ResourceTask<Geometry*> LoadPointer(
 			GraphicsDevice device, const LoadParams<Geometry>& params);
-		static ResourceTask<Handle<Geometry>> LoadHandle(
+		static ResourceTask<Handle<Geometry>> Load(
 			GraphicsDevice device, const LoadParams<Geometry>& params);
 
-		static ResourceTask<Geometry*> Load(const LoadParams<Geometry>& params);
-		static ResourceTask<Handle<Geometry>> LoadHandle(const LoadParams<Geometry>& params);
+		static ResourceTask<Geometry*> LoadRawPointer(
+			const LoadParams<Geometry>& params);
+		static ResourceTask<Handle<Geometry>> LoadRaw(
+			const LoadParams<Geometry>& params);
 
 		void FromMemory(const VertexLayout& layout,
 			size_t vertex_count,
 			size_t index_count,
-			uint32_t indices[],
-			float positions[],
-			float uvs[],
-			float normals[],
-			float tangents[],
-			float bitangents[]);
+			const uint32_t indices[],
+			const float positions[],
+			const float uvs[],
+			const float normals[],
+			const float tangents[],
+			const float bitangents[]);
 
 		inline void FromMemory(const VertexLayout& layout,
 			size_t vertex_count,
-			float positions[],
-			float uvs[],
-			float normals[],
-			float tangents[],
-			float bitangents[]) {
+			const float positions[],
+			const float uvs[],
+			const float normals[],
+			const float tangents[],
+			const float bitangents[]) {
 			FromMemory(layout, vertex_count, 0, nullptr, 
 				positions, uvs, normals, tangents, bitangents);
 		}
@@ -193,14 +216,19 @@ namespace Morpheus {
 		// -------------------------------------------------------------
 		// Geometry Constructors and Destructors
 		// -------------------------------------------------------------
+
 		inline Geometry() {
 		}
 
-		Geometry(GraphicsDevice device, const Geometry* geometry) {
+		Geometry(
+			GraphicsDevice device, 
+			const Geometry* geometry) {
 			CreateDeviceAspect(device, geometry);
 		}
 
-		inline Geometry(GraphicsDevice device, const Geometry& geometry) :
+		inline Geometry(
+			GraphicsDevice device, 
+			const Geometry& geometry) :
 			Geometry(device, &geometry) {
 		}
 
@@ -298,21 +326,22 @@ namespace Morpheus {
 		}
 
 		inline Geometry(const std::string& source) {
-			LoadRaw(source);
+			Read(source);
 		}
 
 		inline Geometry(const std::string& source, const VertexLayout& layout) {
 			LoadParams<Geometry> params(source, layout);
-			LoadRaw(params);
+			Read(params);
 		}
 
 		inline Geometry(const LoadParams<Geometry>& params) {
-			LoadRaw(params);
+			Read(params);
 		}
 
 		// -------------------------------------------------------------
 		// Geometry Properties
 		// -------------------------------------------------------------
+
 		inline int GetChannelCount() const {
 			return mRawAspect.mVertexBufferDatas.size();
 		}
@@ -358,10 +387,6 @@ namespace Morpheus {
 
 		inline const BoundingBox& GetBoundingBox() const {
 			return mShared.mBoundingBox;
-		}
-
-		inline TaskBarrier* GetLoadBarrier() {
-			return &mBarrier;
 		}
 
 		typedef LoadParams<Geometry> LoadParameters;

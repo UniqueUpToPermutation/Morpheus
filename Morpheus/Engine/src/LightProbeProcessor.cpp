@@ -170,7 +170,7 @@ namespace Morpheus {
 		DG::IRenderDevice* device) {
 
 		Texture texture;
-		texture.RetrieveData(mLut.Ptr(), device, context);
+		texture.RetrieveRawData(mLut.Ptr(), device, context);
 		texture.SavePng(path);
 	}
 

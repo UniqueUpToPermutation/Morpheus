@@ -43,7 +43,7 @@ MAIN() {
 		gunMaterialFuture.mMetallic 	= systems.Load<Texture>("cerberus_M.png", &threadPool);
 		gunMaterialFuture.mRoughness 	= systems.Load<Texture>("cerberus_R.png", &threadPool);
 
-		auto skyboxHdriTask = Texture::LoadHandle(graphics.Device(), "environment.hdr");
+		auto skyboxHdriTask = Texture::Load(graphics.Device(), "environment.hdr");
 		auto skyboxHdri = threadPool.AdoptAndTrigger(std::move(skyboxHdriTask));
 
 		auto hdriConvShadersTask = HDRIToCubemapShaders::Load(

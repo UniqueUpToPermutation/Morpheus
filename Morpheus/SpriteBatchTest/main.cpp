@@ -26,7 +26,7 @@ MAIN() {
 		// Actually load everything
 		auto sbPipelineLoadTask = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
 			DG::FILTER_TYPE_LINEAR, &embeddedFileLoader);
-		auto textureLoadTask = Texture::LoadHandle(graphics.Device(), "sprite.png");
+		auto textureLoadTask = Texture::Load(graphics.Device(), "sprite.png");
 
 		ImmediateTaskQueue queue;
 		auto sbPipelineFuture = queue.AdoptAndTrigger(std::move(sbPipelineLoadTask));

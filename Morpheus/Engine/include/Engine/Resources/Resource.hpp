@@ -17,7 +17,9 @@ namespace Morpheus {
 		RESOURCE_MANAGED = 1u << 1,
 		RESOURCE_RASTERIZER_ASPECT = 1u << 2,
 		RESOURCE_RAW_ASPECT = 1u << 3,
-		RESOURCE_RAYTRACER_ASPECT = 1u << 4
+		RESOURCE_RAYTRACER_ASPECT = 1u << 4,
+		RESOURCE_GPU_RESIDENT = 1u << 5,
+		RESOURCE_CPU_RESIDENT = 1u << 6
 	};
 
 	template <typename T>
@@ -44,6 +46,26 @@ namespace Morpheus {
 
 		inline bool IsFromDisk() const {
 			return mFlags & RESOURCE_LOADED_FROM_DISK;
+		}
+
+		inline bool IsRaw() const {
+			return mFlags & RESOURCE_RAW_ASPECT;
+		}
+
+		inline bool IsRasterResource() const {
+			return mFlags & RESOURCE_RASTERIZER_ASPECT;
+		}
+
+		inline bool IsRaytraceResource() const {
+			return mFlags & RESOURCE_RAYTRACER_ASPECT;
+		}
+
+		inline bool IsGpu() const {
+			return mFlags & RESOURCE_GPU_RESIDENT;
+		}
+
+		inline bool IsCpu() const {
+			return mFlags & RESOURCE_CPU_RESIDENT;
 		}
 
 		inline IResource() {
