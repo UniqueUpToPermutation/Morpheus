@@ -11,7 +11,7 @@ MAIN() {
 	platform.Startup();
 
 	// Create graphics device and swap chain
-	Graphics graphics(platform);
+	RealtimeGraphics graphics(platform);
 	graphics.Startup();
 
 	// For embedded shaders and stuff

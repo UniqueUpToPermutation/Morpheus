@@ -149,6 +149,8 @@ namespace Morpheus {
 		void UpdateGridValue(const DG::uint4& coords);
 
 	public:
+		TextureIterator();
+
 		TextureIterator(Texture* texture, 
 			const DG::uint3& subBegin, const DG::uint3& subEnd, 
 			uint sliceBegin, uint sliceEnd, uint mip = 0);

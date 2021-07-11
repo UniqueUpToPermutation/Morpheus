@@ -9,10 +9,10 @@ namespace Morpheus {
 	class TaskBarrier;
 	class ITaskQueue;
 	class SystemCollection;
-	class Graphics;
+	class RealtimeGraphics;
 	class Platform;
 
 	// Presents a loading screen until all resources are loaded
-	void BasicLoadingScreen(Platform& platform, Graphics& graphics,
+	void BasicLoadingScreen(Platform& platform, RealtimeGraphics& graphics,
 		DG::ImGuiImplDiligent* imgui, TaskBarrier* barrier, ITaskQueue* queue);
 }

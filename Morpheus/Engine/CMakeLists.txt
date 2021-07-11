@@ -162,6 +162,8 @@ list(APPEND SOURCE
 
 	src/Components/Transform.cpp
 
+	src/Raytrace/DefaultRaytracer.cpp
+
 	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
 	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp
 	shader_rc.cpp
@@ -205,6 +207,9 @@ list(APPEND INCLUDE
 	include/Engine/Resources/ResourceSerialization.hpp
 	include/Engine/Resources/RawSampler.hpp
 	include/Engine/Resources/TextureIterator.hpp
+
+	include/Engine/Raytrace/DefaultRaytracer.hpp
+	include/Engine/Raytrace/Raytracer.hpp
 )
 
 add_library(Morpheus-Engine STATIC ${SOURCE} ${INCLUDE})

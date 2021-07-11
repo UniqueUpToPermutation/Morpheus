@@ -3,6 +3,8 @@
 #include <Engine/GeometryStructures.hpp>
 #include <Engine/Renderer.hpp>
 #include <Engine/Resources/Geometry.hpp>
+#include <Engine/Systems/System.hpp>
+#include <Engine/Frame.hpp>
 
 namespace Morpheus::Raytrace {
 
@@ -48,8 +50,9 @@ namespace Morpheus::Raytrace {
 		mutable Float mDUDX = 0, mDVDX = 0, mDUDY = 0, mDVDY = 0;
 	};
 
-	class IRaytraceDevice {
+	class IRaytraceDevice : public ISystem {
 	public:
 		virtual IShape* CreateStaticMeshShape(const Geometry* rawGeo) = 0;
+		virtual void SetOutput(Texture* output) = 0;
 	};
 }

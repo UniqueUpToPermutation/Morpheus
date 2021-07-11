@@ -9,14 +9,14 @@ namespace Morpheus {
 		public IRenderer, 
 		public IVertexFormatProvider {
 	private:
-		Graphics* mGraphics;
+		RealtimeGraphics* mGraphics;
 		VertexLayout mDefaultLayout = VertexLayout::PositionUVNormalTangent();
 	
 	public:
-		inline EmptyRenderer(Graphics& graphics) : mGraphics(&graphics) {
+		inline EmptyRenderer(RealtimeGraphics& graphics) : mGraphics(&graphics) {
 		}
 
-		inline Graphics* GetGraphics() {
+		inline RealtimeGraphics* GetGraphics() {
 			return mGraphics;
 		}
 

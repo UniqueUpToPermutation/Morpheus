@@ -19,7 +19,7 @@ namespace Morpheus {
 		return ImVec2(p.x, p.y);
 	}
 
-	void BasicLoadingScreen(Platform& platform, Graphics& graphics,
+	void BasicLoadingScreen(Platform& platform, RealtimeGraphics& graphics,
 		DG::ImGuiImplDiligent* imgui, TaskBarrier* barrier, ITaskQueue* queue) {
 		
 		float radius = 64.0f;

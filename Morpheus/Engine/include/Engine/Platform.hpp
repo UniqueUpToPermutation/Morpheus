@@ -24,7 +24,7 @@ namespace Morpheus {
 
 	class PlatformLinux;
 	class PlatformWin32;
-
+	
 	typedef std::function<void(double, double)> update_callback_t;
 
 	struct EngineParams;

@@ -11,7 +11,7 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 
-	class Graphics;
+	class RealtimeGraphics;
 
 	HLSL::CameraAttribs CreateCameraAttribs(const DG::float2& viewportSize,
 		const DG::float4x4& view, const DG::float4x4& projection,
@@ -51,7 +51,7 @@ namespace Morpheus {
 		DG::float4x4 GetView() const;
 		// Does not take into account the transform of this node
 		DG::float4x4 GetProjection(DG::ISwapChain* swapChain, bool bIsGL) const;
-		DG::float4x4 GetProjection(Graphics& graphics) const;
+		DG::float4x4 GetProjection(RealtimeGraphics& graphics) const;
 		
 		DG::float3 GetEye() const;
 
@@ -143,7 +143,7 @@ namespace Morpheus {
 		void ComputeTransformations(
 			entt::entity entity,
 			entt::registry* registry,
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			DG::float3* eye,
 			DG::float3* lookAt,
 			DG::float4x4* view,
@@ -153,7 +153,7 @@ namespace Morpheus {
 		HLSL::CameraAttribs GetLocalAttribs(DG::ISwapChain* swapChain, bool bIsGL);
 		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, DG::ISwapChain* swapChain, bool bIsGL);
 	
-		HLSL::CameraAttribs GetLocalAttribs(Graphics& graphics);
-		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, Graphics& graphics);
+		HLSL::CameraAttribs GetLocalAttribs(RealtimeGraphics& graphics);
+		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, RealtimeGraphics& graphics);
 	};
 }

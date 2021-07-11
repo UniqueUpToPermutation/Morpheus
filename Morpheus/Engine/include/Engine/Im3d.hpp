@@ -34,7 +34,7 @@ namespace Morpheus {
 			DynamicGlobalsBuffer<Im3dGlobals>(device) {
 		}
 
-		inline Im3dGlobalsBuffer(Graphics& graphics) :
+		inline Im3dGlobalsBuffer(RealtimeGraphics& graphics) :
 			DynamicGlobalsBuffer<Im3dGlobals>(graphics.Device()) {
 		}
 
@@ -42,10 +42,10 @@ namespace Morpheus {
 			const DG::float4x4& viewProjection,
 			const DG::float2& screenSize);
 		void WriteWithoutTransformCache(DG::IDeviceContext* context,
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			const Camera& camera);
 		void Write(DG::IDeviceContext* context,
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			entt::entity camera,
 			entt::registry* registry);
 	};
@@ -62,7 +62,7 @@ namespace Morpheus {
 		static ResourceTask<Im3dShaders> LoadDefault(DG::IRenderDevice* device, 
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 
-		static inline ResourceTask<Im3dShaders> LoadDefault(Graphics& graphics,
+		static inline ResourceTask<Im3dShaders> LoadDefault(RealtimeGraphics& graphics,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
 			return LoadDefault(graphics.Device(), system);
 		}
@@ -86,7 +86,7 @@ namespace Morpheus {
 			uint samples,
 			const Im3dShaders& shaders);
 
-		inline Im3dPipeline(Graphics& graphics,
+		inline Im3dPipeline(RealtimeGraphics& graphics,
 			Im3dGlobalsBuffer* globals,
 			DG::TEXTURE_FORMAT backbufferColorFormat,
 			DG::TEXTURE_FORMAT backbufferDepthFormat,
@@ -96,7 +96,7 @@ namespace Morpheus {
 				backbufferDepthFormat, samples, shaders) {
 		}
 
-		inline Im3dPipeline(Graphics& graphics,
+		inline Im3dPipeline(RealtimeGraphics& graphics,
 			Im3dGlobalsBuffer* globals,
 			uint samples,
 			const Im3dShaders& shaders) :
@@ -107,7 +107,7 @@ namespace Morpheus {
 				shaders) {
 		}
 
-		inline Im3dPipeline(Graphics& graphics,
+		inline Im3dPipeline(RealtimeGraphics& graphics,
 			Im3dGlobalsBuffer* globals,
 			const Im3dShaders& shaders) : Im3dPipeline(graphics.Device(), globals, 
 				graphics.SwapChain()->GetDesc().ColorBufferFormat,
@@ -134,7 +134,7 @@ namespace Morpheus {
 		Im3dRenderer(DG::IRenderDevice* device,
 			uint bufferSize = DEFAULT_IM3D_BUFFER_SIZE);
 
-		inline Im3dRenderer(Graphics& graphics,
+		inline Im3dRenderer(RealtimeGraphics& graphics,
 			uint bufferSize = DEFAULT_IM3D_BUFFER_SIZE) : 
 			Im3dRenderer(graphics.Device(), bufferSize) {
 		}

@@ -620,7 +620,7 @@ namespace Morpheus {
 				size_t Slice = subResource / mip_count;
 
 				size_t subresource_width = std::max(1u, desc.Width >> Level);
-				size_t subresource_height = std::max(1u, desc.Width >> Level);
+				size_t subresource_height = std::max(1u, desc.Height >> Level);
 				size_t subresource_depth = std::max(1u, desc.Depth >> Level);
 				size_t buf_size = subresource_width * subresource_height * 
 					subresource_depth * 4;

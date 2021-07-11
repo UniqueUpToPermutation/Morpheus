@@ -31,7 +31,7 @@
 using namespace DG;
 
 namespace Morpheus {
-	void Graphics::Startup(const GraphicsParams& parameters, const GraphicsCapabilityConfig& capabilities) {
+	void RealtimeGraphics::Startup(const GraphicsParams& parameters, const GraphicsCapabilityConfig& capabilities) {
 
 		mParams = parameters;
 		auto platformParams = mPlatform->GetParameters();
@@ -367,11 +367,11 @@ namespace Morpheus {
 		mPlatform->AddUserResizeHandler(&mUserResizeDelegate);
 	}
 
-	void Graphics::OnUserResize(uint width, uint height) {
+	void RealtimeGraphics::OnUserResize(uint width, uint height) {
 		mSwapChain->Resize(width, height);
 	}
 
-	void Graphics::GetEngineInitializationAttribs(DG::RENDER_DEVICE_TYPE DeviceType, 
+	void RealtimeGraphics::GetEngineInitializationAttribs(DG::RENDER_DEVICE_TYPE DeviceType, 
 		DG::EngineCreateInfo& EngineCI, DG::SwapChainDesc& SCDesc) {
 		
 		if (!mParams.bUseSRGBSwapChain) {
@@ -443,7 +443,7 @@ namespace Morpheus {
 		}
 	}
 
-	void Graphics::Shutdown() {
+	void RealtimeGraphics::Shutdown() {
 
 		mPlatform->RemoveUserResizeHandler(&mUserResizeDelegate);
 

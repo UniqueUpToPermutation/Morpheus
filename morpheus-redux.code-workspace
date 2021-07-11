@@ -85,7 +85,9 @@
 			"complex": "cpp",
 			"strstream": "cpp",
 			"*.ipp": "cpp",
-			"csetjmp": "cpp"
+			"csetjmp": "cpp",
+			"queue": "cpp",
+			"stack": "cpp"
 		},
 		"python.pythonPath": "/home/philip/anaconda3/bin/python"
 	}

@@ -57,7 +57,7 @@ namespace Morpheus {
 
 		queue->Trigger(&mInject);
 		
-		if (bRender && !bFirstFrame) {
+		if (bRender) {
 			queue->Trigger(&mRenderSwitch);
 		} else {
 			mRender.Out().SetFinishedUnsafe(true);
@@ -68,8 +68,6 @@ namespace Morpheus {
 		} else {
 			mUpdate.Out().SetFinishedUnsafe(true);
 		}
-
-		bFirstFrame = false;
 	}
 
 	void FrameProcessor::Initialize(SystemCollection* systems, Frame* frame) {
@@ -100,7 +98,6 @@ namespace Morpheus {
 
 	void FrameProcessor::SetFrame(Frame* frame) {
 		mFrame = frame;
-		bFirstFrame = true;
 	}
 
 	void FrameProcessor::Reset() {

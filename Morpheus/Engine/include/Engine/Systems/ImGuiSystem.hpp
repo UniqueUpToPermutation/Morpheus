@@ -30,7 +30,7 @@ namespace Morpheus {
 #endif
 #endif
 
-		Graphics* mGraphics;
+		RealtimeGraphics* mGraphics;
 		IPlatform* mPlatform;
 		bool bShow = true;
 
@@ -39,7 +39,7 @@ namespace Morpheus {
 			return mImGui.get();
 		}
 
-		inline ImGuiSystem(Graphics& graphics) :
+		inline ImGuiSystem(RealtimeGraphics& graphics) :
 			mPlatform(graphics.GetPlatform()), mGraphics(&graphics) {
 		}
 

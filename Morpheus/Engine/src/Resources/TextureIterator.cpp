@@ -45,6 +45,9 @@ namespace Morpheus {
 		}
 	}
 
+	TextureIterator::TextureIterator() : mUnderlying(nullptr), bFinished(true) {
+	}
+
 	TextureIterator::TextureIterator(Texture* texture, 
 		const DG::uint3& subBegin, const DG::uint3& subEnd, 
 		uint sliceBegin, uint sliceEnd, uint mip) :

@@ -23,7 +23,7 @@ namespace Morpheus {
 		inline SpriteBatchGlobals(DG::IRenderDevice* device) : mCamera(device) {
 		}
 
-		inline SpriteBatchGlobals(Graphics& graphics) : SpriteBatchGlobals(graphics.Device()) {
+		inline SpriteBatchGlobals(RealtimeGraphics& graphics) : SpriteBatchGlobals(graphics.Device()) {
 		}
 
 		inline DG::IBuffer* GetCameraBuffer() {
@@ -55,7 +55,7 @@ namespace Morpheus {
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 	
 		static inline ResourceTask<SpriteShaders> LoadDefaults(
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
 			return LoadDefaults(graphics.Device(), system);
 		}
@@ -99,7 +99,7 @@ namespace Morpheus {
 			DG::FILTER_TYPE filterType,
 			const SpriteShaders& shaders);
 
-		inline SpriteBatchPipeline(Graphics& graphics,
+		inline SpriteBatchPipeline(RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::TEXTURE_FORMAT backbufferFormat,
 			DG::TEXTURE_FORMAT depthbufferFormat,
@@ -109,7 +109,7 @@ namespace Morpheus {
 				globals, backbufferFormat, depthbufferFormat, samples, filterType, shaders) {
 		}
 
-		inline SpriteBatchPipeline(Graphics& graphics,
+		inline SpriteBatchPipeline(RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::FILTER_TYPE filterType,
 			const SpriteShaders& shaders) : SpriteBatchPipeline(graphics.Device(),
@@ -141,7 +141,7 @@ namespace Morpheus {
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 
 		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::TEXTURE_FORMAT backbufferFormat,
 			DG::TEXTURE_FORMAT depthbufferFormat,
@@ -153,7 +153,7 @@ namespace Morpheus {
 		}
 
 		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::FILTER_TYPE filterType = DG::FILTER_TYPE_LINEAR,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
@@ -207,13 +207,13 @@ namespace Morpheus {
 			SpriteBatchState&& defaultState, 
 			uint batchSize = DEFAULT_SPRITE_BATCH_SIZE);
 
-		inline SpriteBatch(Graphics& graphics,	
+		inline SpriteBatch(RealtimeGraphics& graphics,	
 			SpriteBatchState&& defaultState,
 			uint batchSize = DEFAULT_SPRITE_BATCH_SIZE) : 
 			SpriteBatch(graphics.Device(), std::move(defaultState), batchSize) {
 		}
 
-		inline SpriteBatch(Graphics& graphics,	
+		inline SpriteBatch(RealtimeGraphics& graphics,	
 			SpriteBatchPipeline& defaultPipeline,
 			uint batchSize = DEFAULT_SPRITE_BATCH_SIZE) : 
 			SpriteBatch(graphics.Device(), defaultPipeline.CreateState(), batchSize) {

@@ -71,7 +71,7 @@ namespace Morpheus {
 			&DefaultCapabilityRequest<DG::EngineMtlCreateInfo>;
 	};
 
-	class Graphics {
+	class RealtimeGraphics {
 	private:
 		IPlatform*			mPlatform = nullptr;
 		IRenderer*			mRenderer = nullptr;
@@ -98,10 +98,10 @@ namespace Morpheus {
 		DG::EngineCreateInfo& EngineCI, DG::SwapChainDesc& SCDesc);
 
 	public:
-		inline Graphics(IPlatform* platform) : mPlatform(platform) {
+		inline RealtimeGraphics(IPlatform* platform) : mPlatform(platform) {
 		}
 
-		inline ~Graphics() {
+		inline ~RealtimeGraphics() {
 			if (bInitialized) {
 				Shutdown();
 			}

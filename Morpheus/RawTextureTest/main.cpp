@@ -76,7 +76,7 @@ int main() {
 	Platform platform;
 	platform.Startup();
 
-	Graphics graphics(platform);
+	RealtimeGraphics graphics(platform);
 	graphics.Startup();
 
 	Camera camera;

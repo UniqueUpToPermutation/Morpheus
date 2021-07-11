@@ -103,7 +103,6 @@ namespace Morpheus {
 			TypeInjector, TypeInfoHasher> mInjectByType;
 
 		Frame* mFrame = nullptr;
-		bool bFirstFrame = true;
 		RenderParams mSavedRenderParams;
 
 		void Initialize(SystemCollection* systems, Frame* frame);
@@ -122,9 +121,7 @@ namespace Morpheus {
 			bool bRender = true);
 
 		void SetFrame(Frame* frame);
-		inline bool IsFirstFrame() const {
-			return bFirstFrame;
-		}
+
 		inline Frame* GetFrame() const {
 			return mFrame;
 		}
@@ -182,6 +179,14 @@ namespace Morpheus {
 
 		inline void RegisterBarrier(const entt::hashed_string& str, TaskBarrier* barrier) {
 			mBarriersByName[str] = barrier;
+		}
+
+		inline void AddRenderTask(ParameterizedTask<RenderParams>&& task) {
+			mFrameProcessor.AddRenderTask(std::move(task));
+		}
+
+		inline void AddUpdateTask(ParameterizedTask<UpdateParams>&& task) {
+			mFrameProcessor.AddUpdateTask(std::move(task));
 		}
 
 		inline ParameterizedTaskGroup<UpdateParams>* GetUpdateGroup(const entt::hashed_string& str) const {
@@ -264,11 +269,28 @@ namespace Morpheus {
 		void SetFrame(Frame* frame);
 		void Shutdown();
 
+		/* Renders and then updates the frame.
+		Note that this function is asynchronous, you will need to 
+		call WaitOnRender and WaitOnUpdate to wait on its completion. */
 		inline void RunFrame(const FrameTime& time, 
-			ITaskQueue* queue,
-			bool bUpdate = true, 
-			bool bRender = true) {
-			mFrameProcessor.Apply(time, queue, bUpdate, bRender);
+			ITaskQueue* queue) {
+			mFrameProcessor.Apply(time, queue, true, true);
+		}
+
+		/* Only updates the frame, does not render.
+		Note that this function is asynchronous, you will need to 
+		call WaitOnUpdate to wait on its completion. */
+		inline void UpdateFrame(const FrameTime& time, 
+			ITaskQueue* queue) {
+			mFrameProcessor.Apply(time, queue, true, false);
+		}
+
+		/* Only renders the frame, does not update.
+		Note that this function is asynchronous, you will need to 
+		call WaitOnRender to wait on its completion. */
+		inline void RenderFrame(const FrameTime& time, 
+			ITaskQueue* queue) {
+			mFrameProcessor.Apply(time, queue, false, true);
 		}
 
 		inline void WaitOnRender(ITaskQueue* queue) {

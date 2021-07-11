@@ -22,7 +22,7 @@ namespace Morpheus {
 		loader_t::cache_load_t GetLoaderFunction();
 		loader_t::load_callback_t GetLoadCallback();
 
-		DG::IRenderDevice* mDevice;
+		GraphicsDevice mDevice;
 
 		cache_t mCache;
 		loader_t mLoader;
@@ -33,12 +33,12 @@ namespace Morpheus {
 		inline loader_t& Loader() { return mLoader; }
 		inline gc_t& GarbageCollector() { return mGarbageCollector; }
 
-		inline TextureCacheSystem(DG::IRenderDevice* device) : 
+		inline TextureCacheSystem(GraphicsDevice device) : 
 			mDevice(device), mLoader(GetLoaderFunction(), 
 				GetLoadCallback()), mGarbageCollector(mCache) {	
 		}
 
-		inline TextureCacheSystem(Graphics& graphics) : 
+		inline TextureCacheSystem(RealtimeGraphics& graphics) : 
 			TextureCacheSystem(graphics.Device()) {	
 		}
 

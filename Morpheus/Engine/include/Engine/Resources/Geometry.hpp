@@ -4,12 +4,17 @@
 #include <Engine/Resources/ResourceCache.hpp>
 #include <Engine/Raytrace/Raytracer.hpp>
 #include <Engine/Graphics.hpp>
+#include <Engine/GeometryStructures.hpp>
 
 namespace Assimp {
 	class Importer;
 }
 
 struct aiScene;
+
+namespace Morpheus::Raytrace {
+	class IShape;
+}
 
 namespace Morpheus {
 	template <>

@@ -24,7 +24,7 @@ MAIN() {
 	Platform platform;
 	platform.Startup();
 
-	Graphics graphics(platform);
+	RealtimeGraphics graphics(platform);
 	graphics.Startup();
 
 	EmbeddedFileLoader fileSystem;

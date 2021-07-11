@@ -77,7 +77,7 @@ namespace Morpheus {
 		MaterialId CreateNewMaterialId();
 
 		EmbeddedFileLoader mLoader;
-		Graphics* mGraphics;
+		RealtimeGraphics* mGraphics;
 		uint mInstanceBatchSize = 512;
 
 		std::unique_ptr<ParameterizedTaskGroup<RenderParams>> mRenderGroup;
@@ -150,7 +150,7 @@ namespace Morpheus {
 
 		ParameterizedTaskGroup<RenderParams>* CreateRenderGroup();
 
-		inline Graphics* GetGraphics() {
+		inline RealtimeGraphics* GetGraphics() {
 			return mGraphics;
 		}
 
@@ -160,7 +160,7 @@ namespace Morpheus {
 		void NewFrame(Frame* frame) override;
 		void OnAddedTo(SystemCollection& collection) override;
 		
-		inline DefaultRenderer(Graphics& graphics) : mGraphics(&graphics) {
+		inline DefaultRenderer(RealtimeGraphics& graphics) : mGraphics(&graphics) {
 		}
 
 		inline ~DefaultRenderer() {

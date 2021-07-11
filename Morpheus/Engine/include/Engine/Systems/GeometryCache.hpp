@@ -22,7 +22,7 @@ namespace Morpheus {
 		loader_t::cache_load_t GetLoaderFunction();
 		loader_t::load_callback_t GetLoadCallback();
 
-		DG::IRenderDevice* mDevice;
+		GraphicsDevice mDevice;
 		IVertexFormatProvider* mFormatProvider;
 
 		cache_t mCache;
@@ -34,7 +34,7 @@ namespace Morpheus {
 			return mFormatProvider;
 		}
 
-		inline DG::IRenderDevice* GetDevice() const {
+		inline GraphicsDevice GetDevice() const {
 			return mDevice;
 		}
 
@@ -42,12 +42,12 @@ namespace Morpheus {
 		inline loader_t& Loader() { return mLoader; }
 		inline gc_t& GarbageCollector() { return mGarbageCollector; } 
 
-		inline GeometryCacheSystem(DG::IRenderDevice* device) : 
+		inline GeometryCacheSystem(GraphicsDevice device) : 
 			mDevice(device), mLoader(GetLoaderFunction(), 
 				GetLoadCallback()), mGarbageCollector(mCache) {	
 		}
 
-		inline GeometryCacheSystem(Graphics& graphics) :
+		inline GeometryCacheSystem(RealtimeGraphics& graphics) :
 			GeometryCacheSystem(graphics.Device()) {
 		}
 

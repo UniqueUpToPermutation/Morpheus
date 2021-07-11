@@ -8,7 +8,7 @@
 namespace Morpheus {
 
 	void Im3dGlobalsBuffer::Write(DG::IDeviceContext* context,
-			Graphics& graphics,
+			RealtimeGraphics& graphics,
 			entt::entity camera,
 			entt::registry* registry) {
 
@@ -36,7 +36,7 @@ namespace Morpheus {
 	}
 
 	void Im3dGlobalsBuffer::WriteWithoutTransformCache(DG::IDeviceContext* context,
-		Graphics& graphics,
+		RealtimeGraphics& graphics,
 		const Camera& camera) {
 		auto& scDesc = graphics.SwapChain()->GetDesc();
 

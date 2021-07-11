@@ -161,7 +161,7 @@ namespace Morpheus {
 	void Camera::ComputeTransformations(
 		entt::entity entity,
 		entt::registry* registry,
-		Graphics& graphics,
+		RealtimeGraphics& graphics,
 		DG::float3* eye,
 		DG::float3* lookAt,
 		DG::float4x4* view,
@@ -211,10 +211,10 @@ namespace Morpheus {
 		return CreateCameraAttribs(viewportSize, view, proj, eye, mNearPlane, mFarPlane);
 	}
 
-	HLSL::CameraAttribs Camera::GetLocalAttribs(Graphics& graphics) {
+	HLSL::CameraAttribs Camera::GetLocalAttribs(RealtimeGraphics& graphics) {
 		return GetLocalAttribs(graphics.SwapChain(), graphics.IsGL());
 	}
-	HLSL::CameraAttribs Camera::GetTransformedAttribs(entt::entity entity, entt::registry* registry, Graphics& graphics) {
+	HLSL::CameraAttribs Camera::GetTransformedAttribs(entt::entity entity, entt::registry* registry, RealtimeGraphics& graphics) {
 		return GetTransformedAttribs(entity, registry, graphics.SwapChain(), graphics.IsGL());
 	}
 
@@ -264,7 +264,7 @@ namespace Morpheus {
 		}
 	}
 
-	DG::float4x4 Camera::GetProjection(Graphics& graphics) const {
+	DG::float4x4 Camera::GetProjection(RealtimeGraphics& graphics) const {
 		return GetProjection(graphics.SwapChain(), graphics.IsGL());
 	}
 
