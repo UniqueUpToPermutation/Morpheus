@@ -4,9 +4,7 @@
 #include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
-	class RawTexture;
 	class Texture;
-	class RawGeometry;
 	class Geometry;
 
 	struct MaterialDesc;

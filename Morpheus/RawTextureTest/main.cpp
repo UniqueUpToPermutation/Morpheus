@@ -1,5 +1,5 @@
 #include <Engine/Core.hpp>
-#include <Engine/Resources/RawTexture.hpp>
+#include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/RawSampler.hpp>
 #include <Engine/Resources/TextureIterator.hpp>
 #include <Engine/SpriteBatch.hpp>
@@ -9,15 +9,15 @@
 using namespace Morpheus;
 
 int main() {
-	RawTexture texture("brick_albedo.png");
+	Texture texture("brick_albedo.png");
 
 	{
-		RawTexture textureCopy;
+		Texture textureCopy;
 		textureCopy.CopyFrom(texture);
 		textureCopy.Save("brick.tark");
 	}
 
-	RawTexture textureFromArchive("brick.tark");
+	Texture textureFromArchive("brick.tark");
 	
 	// Invert the brick texture
 	{
@@ -42,7 +42,7 @@ int main() {
 	texTest.Usage = DG::USAGE_IMMUTABLE;
 	texTest.BindFlags = DG::BIND_SHADER_RESOURCE;
 
-	RawTexture fromDesc(texTest);
+	Texture fromDesc(texTest);
 
 	for (int i = 0; i < texTest.MipLevels; ++i)
 	{
@@ -61,10 +61,10 @@ int main() {
 	}
 
 	// Load from an archive created from a texture from the GPU
-	RawTexture fromArchive;
+	Texture fromArchive;
 	bool bArchiveTextureExists = false;
 	if (std::filesystem::exists("FromGpu.tark")) {
-		fromArchive.Load("FromGpu.tark");
+		fromArchive.LoadRaw("FromGpu.tark");
 		bArchiveTextureExists = true;
 	}
 
@@ -143,11 +143,13 @@ int main() {
 		}
 
 		// Retreive textures from GPU and write to disk
-		RawTexture fromGpu1(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
+		Texture fromGpu1;
+		fromGpu1.RetrieveData(gpuTexture1, graphics.Device(), graphics.ImmediateContext());
 		fromGpu1.SavePng("FromGpu1.png", false);
 		fromGpu1.Save("FromGpu.tark");
 
-		RawTexture fromGpu2(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
+		Texture fromGpu2;
+		fromGpu2.RetrieveData(gpuTexture2, graphics.Device(), graphics.ImmediateContext());
 		fromGpu2.SavePng("FromGpu2.png", true);
 
 		gpuTexture1->Release();

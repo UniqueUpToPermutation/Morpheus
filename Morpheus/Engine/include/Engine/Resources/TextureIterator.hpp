@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Resources/RawTexture.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 #include "BasicMath.hpp"
 
@@ -149,44 +149,45 @@ namespace Morpheus {
 		void UpdateGridValue(const DG::uint4& coords);
 
 	public:
-		TextureIterator(RawTexture* texture, 
+		TextureIterator(Texture* texture, 
 			const DG::uint3& subBegin, const DG::uint3& subEnd, 
 			uint sliceBegin, uint sliceEnd, uint mip = 0);
 
-		TextureIterator(RawTexture* texture, 
+		TextureIterator(Texture* texture, 
 			const DG::uint3& subBegin, const DG::uint3& subEnd, 
 			uint mip = 0) : 
 				TextureIterator(texture, subBegin, subEnd, 
-					0, texture->mDesc.ArraySize, mip) {
+					0, texture->mRawAspect.mDesc.ArraySize, mip) {
 		}
 
-		TextureIterator(RawTexture* texture, 
+		TextureIterator(Texture* texture, 
 			const DG::uint2& subBegin, const DG::uint2& subEnd, 
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(subBegin.x, subBegin.y, 0), 
-				DG::uint3(subEnd.x, subEnd.y, std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
-				0, texture->mDesc.ArraySize, mip) {
+				DG::uint3(subEnd.x, subEnd.y, 
+					std::max<uint>(texture->mRawAspect.mDesc.Depth >> mip, 1u)), 
+				0, texture->mRawAspect.mDesc.ArraySize, mip) {
 		}
 
-		TextureIterator(RawTexture* texture, 
+		TextureIterator(Texture* texture, 
 			uint subBegin, uint subEnd, 
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(subBegin, 0, 0), 
-				DG::uint3(subEnd, std::max<uint>(texture->mDesc.Height >> mip, 1u), 
-					std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
-				0, texture->mDesc.ArraySize, mip) {
+				DG::uint3(subEnd, std::max<uint>(texture->mRawAspect.mDesc.Height >> mip, 1u), 
+					std::max<uint>(texture->mRawAspect.mDesc.Depth >> mip, 1u)), 
+				0, texture->mRawAspect.mDesc.ArraySize, mip) {
 		}
 
-		TextureIterator(RawTexture* texture, 
+		TextureIterator(Texture* texture, 
 			uint mip = 0) :
 			TextureIterator(texture, 
 				DG::uint3(0, 0, 0), 
-				DG::uint3(std::max<uint>(texture->mDesc.Width >> mip, 1u), 
-					std::max<uint>(texture->mDesc.Height >> mip, 1u), 
-					std::max<uint>(texture->mDesc.Depth >> mip, 1u)), 
-				0, texture->mDesc.ArraySize, mip) {
+				DG::uint3(std::max<uint>(texture->mRawAspect.mDesc.Width >> mip, 1u), 
+					std::max<uint>(texture->mRawAspect.mDesc.Height >> mip, 1u), 
+					std::max<uint>(texture->mRawAspect.mDesc.Depth >> mip, 1u)), 
+				0, texture->mRawAspect.mDesc.ArraySize, mip) {
 		}
 
 		inline GridValue& Value() {

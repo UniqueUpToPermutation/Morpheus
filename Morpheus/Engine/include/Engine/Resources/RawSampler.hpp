@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Engine/Resources/RawTexture.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 #include <vector>
 #include <cmath>
@@ -8,8 +8,6 @@
 namespace DG = Diligent;
 
 namespace Morpheus {
-	class RawTexture;
-
 	template <typename ReturnType, typename IndexType>
 	class ISurfaceAdaptor {
 	public:
@@ -176,7 +174,7 @@ namespace Morpheus {
 		std::unique_ptr<ISurfaceAdaptor<double, double>> mAdapterD;
 
 	public:
-		RawSampler(RawTexture* texture, 
+		RawSampler(Texture* texture, 
 			const WrapParameters& wrapping = WrapParameters::Default());
 
 		template <typename T>

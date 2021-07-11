@@ -1,5 +1,5 @@
 #include <Engine/Resources/ResourceSerialization.hpp>
-#include <Engine/Resources/RawTexture.hpp>
+#include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 #include <Engine/Renderer.hpp>
 
@@ -279,7 +279,7 @@ namespace Morpheus {
 		}
 	}
 
-	void Load(cereal::PortableBinaryInputArchive& ar, RawTexture* texture) {
+	void Load(cereal::PortableBinaryInputArchive& ar, Texture* texture) {
 		DG::TextureDesc desc;
 		std::vector<TextureSubResDataDesc> subs;
 		float intensity;
@@ -300,7 +300,7 @@ namespace Morpheus {
 		texture->SetIntensity(intensity);
 	}
 
-	void Save(cereal::PortableBinaryOutputArchive& ar, const RawTexture* texture) {
+	void Save(cereal::PortableBinaryOutputArchive& ar, const Texture* texture) {
 		uint version = TEXTURE_ARCHIVE_VERSION;
 
 		ar(version);

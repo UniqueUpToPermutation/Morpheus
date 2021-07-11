@@ -194,7 +194,6 @@ namespace Morpheus {
 		// Geometry Constructors and Destructors
 		// -------------------------------------------------------------
 		inline Geometry() {
-			mFlags |= RESOURCE_RAW_ASPECT;
 		}
 
 		Geometry(GraphicsDevice device, const Geometry* geometry) {

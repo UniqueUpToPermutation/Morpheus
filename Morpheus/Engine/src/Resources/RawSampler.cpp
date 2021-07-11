@@ -798,29 +798,35 @@ namespace Morpheus {
 		}
 	}
 
-	RawSampler::RawSampler(RawTexture* texture, 
-		const WrapParameters& wrapping) :
-		mAdapterF(SpawnAdaptor<float, float>(texture->mDesc.Format,
-			&texture->mData[0],
-			texture->mDesc.Width,
-			texture->mDesc.Height,
-			texture->mDesc.Depth,
-			texture->mDesc.ArraySize,
-			texture->mDesc.MipLevels,
+	RawSampler::RawSampler(Texture* texture, 
+		const WrapParameters& wrapping) {
+		if (!(texture->mFlags & RESOURCE_RAW_ASPECT))
+			throw std::runtime_error("Texture must have raw aspect!");
+
+		mAdapterF.reset(SpawnAdaptor<float, float>(
+			texture->mRawAspect.mDesc.Format,
+			&texture->mRawAspect.mData[0],
+			texture->mRawAspect.mDesc.Width,
+			texture->mRawAspect.mDesc.Height,
+			texture->mRawAspect.mDesc.Depth,
+			texture->mRawAspect.mDesc.ArraySize,
+			texture->mRawAspect.mDesc.MipLevels,
 			wrapping.mWrapTypeX,
 			wrapping.mWrapTypeY,
 			wrapping.mWrapTypeZ,
-			texture->mDesc.Type)),
-		mAdapterD(SpawnAdaptor<double, double>(texture->mDesc.Format,
-			&texture->mData[0],
-			texture->mDesc.Width,
-			texture->mDesc.Height,
-			texture->mDesc.Depth,
-			texture->mDesc.ArraySize,
-			texture->mDesc.MipLevels,
+			texture->mRawAspect.mDesc.Type));
+
+		mAdapterD.reset(SpawnAdaptor<double, double>(
+			texture->mRawAspect.mDesc.Format,
+			&texture->mRawAspect.mData[0],
+			texture->mRawAspect.mDesc.Width,
+			texture->mRawAspect.mDesc.Height,
+			texture->mRawAspect.mDesc.Depth,
+			texture->mRawAspect.mDesc.ArraySize,
+			texture->mRawAspect.mDesc.MipLevels,
 			wrapping.mWrapTypeX,
 			wrapping.mWrapTypeY,
 			wrapping.mWrapTypeZ,
-			texture->mDesc.Type)) {
+			texture->mRawAspect.mDesc.Type));
 	}
 }

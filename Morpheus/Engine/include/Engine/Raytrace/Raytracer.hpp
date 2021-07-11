@@ -50,6 +50,6 @@ namespace Morpheus::Raytrace {
 
 	class IRaytraceDevice {
 	public:
-		virtual IShape* CreateStaticMeshShape(const RawGeometry* geometry) = 0;
+		virtual IShape* CreateStaticMeshShape(const Geometry* rawGeo) = 0;
 	};
 }

@@ -380,14 +380,16 @@ namespace Morpheus {
 			const DG::float2& size, const SpriteRect& rect, 
 			const DG::float2& origin, const float rotation, 
 			const DG::float4& color) {
-			Draw(texture->Get(), pos, size, rect, origin, rotation, color);
+			Draw(texture->GetRasterTexture(), 
+				pos, size, rect, origin, rotation, color);
 		}
 
 		inline void Draw(Texture* texture, const DG::float2& pos, 
 			const DG::float2& size, const SpriteRect& rect, 
 			const DG::float2& origin, const float rotation, 
 			const DG::float4& color) {
-			Draw(texture->Get(), pos, size, rect, origin, rotation, color);
+			Draw(texture->GetRasterTexture(), 
+				pos, size, rect, origin, rotation, color);
 		}
 
 		inline void Draw(Texture* texture, const DG::float3& pos,

@@ -33,6 +33,6 @@ namespace Morpheus {
     	MemoryBuffer m_buffer;
     };
 
-	void Load(cereal::PortableBinaryInputArchive& ar, RawTexture* texture);
-	void Save(cereal::PortableBinaryOutputArchive& ar, const RawTexture* texture);
+	void Load(cereal::PortableBinaryInputArchive& ar, Texture* texture);
+	void Save(cereal::PortableBinaryOutputArchive& ar, const Texture* texture);
 }

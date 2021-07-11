@@ -28,7 +28,8 @@ namespace Morpheus {
 
 			if (device.mGpuDevice) {
 				// GPU devices can only create objects on the main thread!
-				e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN);
+				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
+					return TaskResult::REQUEST_THREAD_SWITCH;
 			}
 
 			if (e.mTask->BeginSubTask()) {
@@ -40,6 +41,8 @@ namespace Morpheus {
 					geo->Release();
 				}
 			}
+
+			return TaskResult::FINISHED;
 		}, 
 		std::string("Load ") + params.mSource, 
 		TaskType::FILE_IO);

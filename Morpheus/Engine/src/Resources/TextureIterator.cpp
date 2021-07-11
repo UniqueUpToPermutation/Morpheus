@@ -45,19 +45,23 @@ namespace Morpheus {
 		}
 	}
 
-	TextureIterator::TextureIterator(RawTexture* texture, 
+	TextureIterator::TextureIterator(Texture* texture, 
 		const DG::uint3& subBegin, const DG::uint3& subEnd, 
 		uint sliceBegin, uint sliceEnd, uint mip) :
-		mUnderlying(&texture->mData[0]),
 		mMip(mip),
 		mIterationBegin(subBegin.x, subBegin.y, subBegin.z, sliceBegin),
 		mIterationEnd(subEnd.x, subEnd.y, subEnd.z, sliceEnd) {
+
+		if (!(texture->mFlags & RESOURCE_RAW_ASPECT))
+			throw std::runtime_error("Texture must have raw aspect!");
+
+		mUnderlying = &texture->mRawAspect.mData[0];
 
 		mIndexCoords = mIterationBegin;
 
 		auto mip_levels = texture->GetMipCount();
 
-		mPixelSize = GetPixelByteSize(texture->mDesc.Format);
+		mPixelSize = GetPixelByteSize(texture->mRawAspect.mDesc.Format);
 
 		size_t currentOffset = 0;
 		for (uint imip = 0; imip < mip_levels; ++imip) {
@@ -65,18 +69,18 @@ namespace Morpheus {
 				mMipOffset = currentOffset;
 			}
 		
-			size_t mip_width = std::max(texture->mDesc.Width >> imip, 1u);
-			size_t mip_height = std::max(texture->mDesc.Height >> imip, 1u);
-			size_t mip_depth = std::max(texture->mDesc.Depth >> imip, 1u);
+			size_t mip_width = std::max(texture->mRawAspect.mDesc.Width >> imip, 1u);
+			size_t mip_height = std::max(texture->mRawAspect.mDesc.Height >> imip, 1u);
+			size_t mip_depth = std::max(texture->mRawAspect.mDesc.Depth >> imip, 1u);
 
 			currentOffset += mip_width * mip_height * mip_depth * mPixelSize;
 		}
 
 		mSliceStride = currentOffset;
 
-		size_t mip_width = std::max(texture->mDesc.Width >> mip, 1u);
-		size_t mip_height = std::max(texture->mDesc.Height >> mip, 1u);
-		size_t mip_depth = std::max(texture->mDesc.Depth >> mip, 1u);
+		size_t mip_width = std::max(texture->mRawAspect.mDesc.Width >> mip, 1u);
+		size_t mip_height = std::max(texture->mRawAspect.mDesc.Height >> mip, 1u);
+		size_t mip_depth = std::max(texture->mRawAspect.mDesc.Depth >> mip, 1u);
 
 		mYStride = mip_width * mPixelSize;
 		mZStride = mip_height * mip_width * mPixelSize;
@@ -87,16 +91,16 @@ namespace Morpheus {
 
 		UpdateGridValue(mIndexCoords);
 
-		if (texture->mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || 
-			texture->mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
+		if (texture->mRawAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || 
+			texture->mRawAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
 			mIndexToPosition = &GetPositionCube;
 		} else {
 			mIndexToPosition = &GetPosition;
 		}
 
-		DG::VALUE_TYPE val = GetComponentType(texture->mDesc.Format);
-		bool bNormed = GetIsNormalized(texture->mDesc.Format);
-		mValue.mChannelCount = GetComponentCount(texture->mDesc.Format);
+		DG::VALUE_TYPE val = GetComponentType(texture->mRawAspect.mDesc.Format);
+		bool bNormed = GetIsNormalized(texture->mRawAspect.mDesc.Format);
+		mValue.mChannelCount = GetComponentCount(texture->mRawAspect.mDesc.Format);
 
 		switch (val) {
 			case DG::VT_FLOAT32:
