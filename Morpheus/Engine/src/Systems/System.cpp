@@ -48,6 +48,12 @@ namespace Morpheus {
 
 		Reset();
 
+		if (bFirstFrame) {
+			mSavedRenderParams.mTime = time;
+			mSavedRenderParams.mFrame = mFrame;
+			bFirstFrame = false;
+		}
+
 		mInject.SetParameters(mFrame);
 		mRender.SetParameters(mSavedRenderParams);
 		mUpdate.SetParameters(updateParams);
@@ -98,6 +104,7 @@ namespace Morpheus {
 
 	void FrameProcessor::SetFrame(Frame* frame) {
 		mFrame = frame;
+		bFirstFrame = true;
 	}
 
 	void FrameProcessor::Reset() {

@@ -94,21 +94,15 @@ int main() {
 
 		// Spawn textures on GPU
 		auto gpuTexture1 = texture.To(graphics.Device());
-
-		assert(gpuTexture1.IsGpu() && gpuTexture1.IsRasterResource());
-
 		auto gpuTexture2 = fromDesc.To(graphics.Device());
-
-		assert(gpuTexture2.IsGpu() && gpuTexture2.IsRasterResource());
-
 		Texture gpuTexture3;
 		if (bArchiveTextureExists) 
 			gpuTexture3 = std::move(fromArchive.To(graphics.Device()));
-
-		assert(gpuTexture3.IsGpu() && gpuTexture3.IsRasterResource());
-
 		auto gpuTexture4 = textureFromArchive.To(graphics.Device());
 
+		assert(gpuTexture1.IsGpu() && gpuTexture1.IsRasterResource());
+		assert(gpuTexture2.IsGpu() && gpuTexture2.IsRasterResource());
+		assert(gpuTexture3.IsGpu() && gpuTexture3.IsRasterResource());
 		assert(gpuTexture4.IsGpu() && gpuTexture4.IsRasterResource());
 
 		texture.Clear();
@@ -158,16 +152,15 @@ int main() {
 		// Retreive textures from GPU and write to disk
 		Texture fromGpu1 = gpuTexture1.ToRaw(graphics.Device(), graphics.ImmediateContext());
 		
-		assert(fromGpu1.IsRaw() && fromGpu1.IsCpu());
-		
 		fromGpu1.SavePng("FromGpu1.png", false);
 		fromGpu1.Save("FromGpu.tark");
 
 		Texture fromGpu2 = gpuTexture2.ToRaw(graphics.Device(), graphics.ImmediateContext());
 		
-		assert(fromGpu2.IsRaw() && fromGpu2.IsCpu());
-		
 		fromGpu2.SavePng("FromGpu2.png", true);
+
+		assert(fromGpu1.IsRaw() && fromGpu1.IsCpu());
+		assert(fromGpu2.IsRaw() && fromGpu2.IsCpu());
 
 		gpuTexture1 = Texture();
 		gpuTexture2 = Texture();

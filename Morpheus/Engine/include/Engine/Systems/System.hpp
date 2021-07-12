@@ -104,6 +104,7 @@ namespace Morpheus {
 
 		Frame* mFrame = nullptr;
 		RenderParams mSavedRenderParams;
+		bool bFirstFrame = true;
 
 		void Initialize(SystemCollection* systems, Frame* frame);
 
