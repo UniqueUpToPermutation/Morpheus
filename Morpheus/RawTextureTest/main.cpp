@@ -102,7 +102,6 @@ int main() {
 
 		assert(gpuTexture1.IsGpu() && gpuTexture1.IsRasterResource());
 		assert(gpuTexture2.IsGpu() && gpuTexture2.IsRasterResource());
-		assert(gpuTexture3.IsGpu() && gpuTexture3.IsRasterResource());
 		assert(gpuTexture4.IsGpu() && gpuTexture4.IsRasterResource());
 
 		texture.Clear();

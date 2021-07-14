@@ -13,3 +13,5 @@ set(ASSETS
 )
 
 add_engine_app("SpriteBatchTest" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME SpriteBatchTest COMMAND SpriteBatchTest)
+add_dependencies(MorpheusTests SpriteBatchTest)

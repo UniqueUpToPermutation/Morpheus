@@ -3,22 +3,26 @@ cmake_minimum_required (VERSION 3.6)
 project(Morpheus-Engine)
 
 # Include the bullet physics engine
-INCLUDE_DIRECTORIES(
-${BULLET_PHYSICS_SOURCE_DIR}/src
-)
+if (USE_BULLET)
+	INCLUDE_DIRECTORIES(
+	${BULLET_PHYSICS_SOURCE_DIR}/src
+	)
 
-LINK_LIBRARIES(
-	BulletDynamics BulletCollision LinearMath
-)
+	LINK_LIBRARIES(
+		BulletDynamics BulletCollision LinearMath
+	)
+endif()
 
-# Include the Box2D physics engine
-LINK_LIBRARIES(
-	box2d
-)
+if (USE_BOX2D) 
+	# Include the Box2D physics engine
+	LINK_LIBRARIES(
+		box2d
+	)
 
-INCLUDE_DIRECTORIES(
-	${CMAKE_SOURCE_DIR}/box2d/include/
-)
+	INCLUDE_DIRECTORIES(
+		${CMAKE_SOURCE_DIR}/box2d/include/
+	)
+endif()
 
 # Include package for embedding shaders in source code
 add_subdirectory(shaders/cpp)

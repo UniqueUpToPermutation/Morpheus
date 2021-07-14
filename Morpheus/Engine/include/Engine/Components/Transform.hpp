@@ -6,7 +6,9 @@
 
 namespace DG = Diligent;
 
+#ifdef USE_BULLET
 struct btTransform;
+#endif
 
 namespace Morpheus {
 	class Transform {
@@ -92,6 +94,8 @@ namespace Morpheus {
 
 		DG::float4x4 ToMatrix() const;
 
+#ifdef USE_BULLET
 		void ToBullet(btTransform& output) const;
+#endif
 	};
 }

@@ -13,3 +13,5 @@ set(ASSETS
 )
 
 add_engine_app("Im3dTest" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME Im3dTest COMMAND Im3dTest)
+add_dependencies(MorpheusTests Im3dTest)

@@ -13,3 +13,5 @@ set(ASSETS
 )
 
 add_engine_app("Embedded-Geo-Test" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME Embedded-Geo-Test COMMAND Embedded-Geo-Test)
+add_dependencies(MorpheusTests Embedded-Geo-Test)

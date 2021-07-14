@@ -1,8 +1,32 @@
 cmake_minimum_required(VERSION 3.6)
 project(Morpheus-Redux VERSION 0.1.0)
 
-add_subdirectory(box2d)
-add_subdirectory(bullet3)
+option(USE_PBRT "Compile and integrate the PBRT Backend" OFF)
+option(USE_BOX2D "Compile and integrate Box2D" OFF)
+option(USE_BULLET "Compile and integrate Bullet" OFF)
+option(COMPILE_MESH2CPP "Should CMAKE compile the mesh2cpp utility?" ON)
+
+include(CTest)
+
+if(USE_BOX2D)
+	add_definitions(-DUSE_BOX2D)
+	add_subdirectory(box2d)
+endif()
+
+if(USE_BULLET)
+	add_definitions(-DUSE_BULLET)
+	add_subdirectory(bullet3)
+endif()
+
+if(USE_PBRT)
+	set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/morpheus-pbrt/cmake)
+	add_definitions(-DUSE_PBRT)
+	add_subdirectory(morpheus-pbrt)
+endif()
+
 add_subdirectory(DiligentEngine)
 add_subdirectory(Morpheus)
-add_subdirectory(mesh2cpp)
+
+if(COMPILE_MESH2CPP)
+	add_subdirectory(mesh2cpp)
+endif()

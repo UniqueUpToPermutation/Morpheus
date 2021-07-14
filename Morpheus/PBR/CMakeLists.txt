@@ -16,3 +16,5 @@ include_directories(Engine-PBR PRIVATE
 	${CMAKE_SOURCE_DIR}/ImGuizmo/)
 
 add_engine_app("Engine-PBR" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME PBR-TEST COMMAND Engine-PBR)
+add_dependencies(MorpheusTests Engine-PBR)

@@ -13,3 +13,5 @@ set(ASSETS
 )
 
 add_engine_app("EngineHelloWorld" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME HelloWorldTest COMMAND EngineHelloWorld)
+add_dependencies(MorpheusTests EngineHelloWorld)

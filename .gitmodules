@@ -28,3 +28,6 @@
 [submodule "box2d"]
 	path = box2d
 	url = https://github.com/erincatto/box2d.git
+[submodule "morpheus-pbrt"]
+	path = morpheus-pbrt
+	url = https://github.com/UniqueUpToPermutation/morpheus-pbrt.git

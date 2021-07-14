@@ -23,13 +23,15 @@ endfunction()
 
 function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 
-	INCLUDE_DIRECTORIES(
-		${BULLET_PHYSICS_SOURCE_DIR}/src
-	)
-	
-	LINK_LIBRARIES(
-	 	BulletDynamics BulletCollision LinearMath
-	)
+	if(USE_BULLET)
+		INCLUDE_DIRECTORIES(
+			${BULLET_PHYSICS_SOURCE_DIR}/src
+		)
+		
+		LINK_LIBRARIES(
+			BulletDynamics BulletCollision LinearMath
+		)
+	endif()
 
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
     set(ALL_ASSETS ${ASSETS} ${SHADERS})
@@ -102,6 +104,8 @@ if(TARGET Diligent-NativeAppBase AND TARGET Diligent-TextureLoader AND TARGET Di
 endif()
 
 if(TARGET Morpheus-Engine)
+	add_custom_target(MorpheusTests)
+
 	add_subdirectory(PBR)
 	add_subdirectory(AsyncTest)
 	add_subdirectory(SpriteBatchTest)

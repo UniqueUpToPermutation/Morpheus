@@ -1,6 +1,8 @@
 #include <Engine/Components/Transform.hpp>
 
+#ifdef USE_BULLET
 #include "btBulletDynamicsCommon.h"
+#endif
 namespace Morpheus {
 	DG::float4x4 Transform::ToMatrix() const {
 		DG::float4x4 result = mRotation.ToMatrix();
@@ -24,7 +26,9 @@ namespace Morpheus {
 		return result;
 	}
 
+#ifdef USE_BULLET
 	void Transform::ToBullet(btTransform& output) const {
 		output.setFromOpenGLMatrix(ToMatrix().Data());
 	}
+#endif
 }

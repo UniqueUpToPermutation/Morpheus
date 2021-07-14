@@ -13,3 +13,5 @@ set(ASSETS
 )
 
 add_engine_app("AsyncTest" "${SOURCE}" "${INCLUDE}" "${SHADERS}" "${ASSETS}")
+add_test(NAME AsyncTest COMMAND AsyncTest)
+add_dependencies(MorpheusTests AsyncTest)
