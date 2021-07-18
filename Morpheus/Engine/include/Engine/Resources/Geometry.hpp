@@ -2,19 +2,8 @@
 
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/ResourceCache.hpp>
-#include <Engine/Raytrace/Raytracer.hpp>
 #include <Engine/Graphics.hpp>
 #include <Engine/GeometryStructures.hpp>
-
-namespace Assimp {
-	class Importer;
-}
-
-struct aiScene;
-
-namespace Morpheus::Raytrace {
-	class IShape;
-}
 
 namespace Morpheus {
 	template <>
@@ -86,10 +75,8 @@ namespace Morpheus {
 			bool bHasIndexBuffer;
 		} mRawAspect;
 
-		// Stuff resident on raytracing device
-		struct RaytracerAspect {
-			std::unique_ptr<Raytrace::IShape> mShape;
-		} mRtAspect;
+		// Stuff resident on an external device
+		ExternalAspect<ExtObjectType::GEOMETRY> mExtAspect;
 
 		struct SharedAspect {
 			DG::DrawIndexedAttribs mIndexedAttribs;
@@ -134,12 +121,18 @@ namespace Morpheus {
 		// Geometry Aspects
 		// -------------------------------------------------------------
 
+		void CreateExternalAspect(
+			IExternalGraphicsDevice* device, 
+			const Geometry* source);
+
+		inline void CreateExternalAspect(IExternalGraphicsDevice* device) {
+			CreateExternalAspect(device, this);
+		}
+
 		void CreateRasterAspect(
 			DG::IRenderDevice* device, 
 			const Geometry* source);
-		void CreateRaytraceAspect(
-			Raytrace::IRaytraceDevice* device, 
-			const Geometry* source);
+		
 		void CreateDeviceAspect(
 			GraphicsDevice device, 
 			const Geometry* source);
@@ -147,9 +140,7 @@ namespace Morpheus {
 		inline void CreateRasterAspect(DG::IRenderDevice* device) {
 			CreateRasterAspect(device, this);
 		}
-		inline void CreateRaytraceAspect(Raytrace::IRaytraceDevice* device) {
-			CreateRaytraceAspect(device, this);
-		}
+
 		inline void CreateDeviceAspect(GraphicsDevice device) {
 			CreateDeviceAspect(device);
 		}

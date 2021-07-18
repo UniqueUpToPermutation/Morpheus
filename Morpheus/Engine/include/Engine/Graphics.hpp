@@ -6,29 +6,33 @@
 
 #include <Engine/Platform.hpp>
 
-namespace DG = Diligent;
-
-
-namespace Morpheus::Raytrace {
-	class IRaytraceDevice;
-}
 
 namespace Morpheus {
+	
+	class IExternalGraphicsDevice {
+	public:
+		virtual ExtObjectId CreateTexture(const Texture& raw) = 0;
+		virtual ExtObjectId CreateGeometry(const Geometry& raw) = 0;
+
+		virtual void DestroyTexture(ExtObjectId id) = 0;
+		virtual void DestroyGeometry(ExtObjectId id) = 0;
+	};
 
 	struct GraphicsDevice {
-		Raytrace::IRaytraceDevice* mRtDevice = nullptr;
-		DG::IRenderDevice* mGpuDevice = nullptr;
-
-		inline GraphicsDevice(Raytrace::IRaytraceDevice* rt) :
-			mRtDevice(rt) {
+		IExternalGraphicsDevice* mExternal = nullptr;
+		
+		inline GraphicsDevice(IExternalGraphicsDevice* rt) :
+			mExternal(rt) {
 		}
+
+		inline operator IExternalGraphicsDevice*() {
+			return mExternal;
+		}
+
+		DG::IRenderDevice* mGpuDevice = nullptr;
 
 		inline GraphicsDevice(DG::IRenderDevice* gpu) :
 			mGpuDevice(gpu) {
-		}
-
-		inline operator Raytrace::IRaytraceDevice*() {
-			return mRtDevice;
 		}
 
 		inline operator DG::IRenderDevice*() {
@@ -36,7 +40,40 @@ namespace Morpheus {
 		}
 	};
 
-	class IRenderer;
+	template <ExtObjectType T>
+	struct ExternalAspect {
+		IExternalGraphicsDevice* mDevice = nullptr;
+		ExtObjectId mId = NullExtObjectId;
+
+		inline ExternalAspect() {
+		}
+		inline ExternalAspect(IExternalGraphicsDevice* device, ExtObjectId id) :
+			mDevice(device),
+			mId(id) {	
+		}
+		inline ~ExternalAspect() {
+			if (mId != NullExtObjectId) {
+				if constexpr (T == ExtObjectType::GEOMETRY) {
+					mDevice->DestroyGeometry(mId);
+				} else if constexpr (T == ExtObjectType::TEXTURE) {
+					mDevice->DestroyTexture(mId);
+				}
+			}
+		}
+
+		ExternalAspect(const ExternalAspect&) = delete;
+		ExternalAspect& operator=(const ExternalAspect&) = delete;
+
+		inline ExternalAspect(ExternalAspect&& other) {
+			std::swap(mDevice, other.mDevice);
+			std::swap(mId, other.mId);
+		}
+		ExternalAspect& operator=(ExternalAspect&& other) {
+			std::swap(mDevice, other.mDevice);
+			std::swap(mId, other.mId);
+			return *this;
+		}
+	};
 
 	struct GraphicsParams {
 		DG::Uint32      	mAdapterId   			= 0;

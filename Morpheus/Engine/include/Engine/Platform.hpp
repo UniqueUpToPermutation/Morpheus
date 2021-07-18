@@ -2,6 +2,7 @@
 
 #include "GraphicsTypes.h"
 
+#include <Engine/Defines.hpp>
 #include <Engine/InputController.hpp>
 
 #include <functional>
@@ -19,11 +20,7 @@ namespace DG = Diligent;
 #endif
 
 namespace Morpheus {
-	class Engine;
-	class EngineApp;
 
-	class PlatformLinux;
-	class PlatformWin32;
 	
 	typedef std::function<void(double, double)> update_callback_t;
 

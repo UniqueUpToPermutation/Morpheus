@@ -33,6 +33,21 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 		)
 	endif()
 
+	INCLUDE_DIRECTORIES(
+		${CMAKE_SOURCE_DIR}
+	)
+
+	if(USE_PBRT)
+		IF ( HAVE_CONSTEXPR )
+			ADD_DEFINITIONS ( -D PBRT_HAVE_CONSTEXPR )
+			ADD_DEFINITIONS ( -D PBRT_CONSTEXPR=constexpr )
+		ELSE ()
+			ADD_DEFINITIONS ( -D PBRT_CONSTEXPR=const )
+		ENDIF ()
+
+		LINK_LIBRARIES(pbrt)
+	endif()
+
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
     set(ALL_ASSETS ${ASSETS} ${SHADERS})
     add_target_platform_app(${APP_NAME} "${SOURCE}" "${INCLUDE}" "${ALL_ASSETS}")
@@ -101,18 +116,4 @@ endfunction()
 
 if(TARGET Diligent-NativeAppBase AND TARGET Diligent-TextureLoader AND TARGET Diligent-Imgui)
 	add_subdirectory(Engine)
-endif()
-
-if(TARGET Morpheus-Engine)
-	add_custom_target(MorpheusTests)
-
-	add_subdirectory(PBR)
-	add_subdirectory(AsyncTest)
-	add_subdirectory(SpriteBatchTest)
-	add_subdirectory(Im3dTest)
-	add_subdirectory(Im3dGizmo)
-	add_subdirectory(RawTextureTest)
-	add_subdirectory(HelloWorld)
-	add_subdirectory(EmbeddedGeoTest)
-	add_subdirectory(RaytraceTest)
 endif()

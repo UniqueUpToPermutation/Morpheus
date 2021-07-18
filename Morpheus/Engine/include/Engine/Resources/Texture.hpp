@@ -90,6 +90,8 @@ namespace Morpheus {
 			std::vector<TextureSubResDataDesc> mSubDescs;
 		} mRawAspect;
 
+		ExternalAspect<ExtObjectType::TEXTURE> mExtAspect;
+
 		// The intensity of the texture
 		float mIntensity = 1.0f;
 
@@ -112,6 +114,13 @@ namespace Morpheus {
 		// -------------------------------------------------------------
 		// Texture Aspects
 		// -------------------------------------------------------------
+
+		void CreateExternalAspect(IExternalGraphicsDevice* device,
+			const Texture* source);
+			
+		inline void CreateExternalAspect(IExternalGraphicsDevice* device) {
+			CreateExternalAspect(device, this);
+		}
 
 		void CreateRasterAspect(DG::IRenderDevice* device, 
 			const Texture* source);

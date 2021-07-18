@@ -87,7 +87,8 @@
 			"*.ipp": "cpp",
 			"csetjmp": "cpp",
 			"queue": "cpp",
-			"stack": "cpp"
+			"stack": "cpp",
+			"slist": "cpp"
 		},
 		"python.pythonPath": "/home/philip/anaconda3/bin/python"
 	}

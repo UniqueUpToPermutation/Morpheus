@@ -11,6 +11,8 @@
 #include <memory>
 #include <unordered_map>
 
+#include <Engine/Defines.hpp>
+
 #define ASSIGN_THREAD_ANY -1
 #define ASSIGN_THREAD_MAIN 0
 
@@ -21,10 +23,6 @@
 typedef uint TaskId;
 
 namespace Morpheus {
-	class ThreadPool;
-	class TaskSyncPoint;
-	struct TaskParams;
-
 	enum class TaskType {
 		UNSPECIFIED,
 		RENDER,
@@ -44,14 +42,6 @@ namespace Morpheus {
 				return 0;
 		}
 	}
-
-	class ITaskQueue;
-	class TaskNodeOut;
-	class TaskNodeIn;
-	class ITask;
-	class TaskGroup;
-	struct TaskBarrier;
-	struct Task;
 
 	struct TaskParams {
 		ITask* mTask;

@@ -91,8 +91,6 @@ struct entt::poly_storage_traits<Entity> {
 };
 
 namespace Morpheus {
-	class Scene;
-
 	struct HierarchyData {
 		entt::entity mParent;
 		entt::entity mPrevious;

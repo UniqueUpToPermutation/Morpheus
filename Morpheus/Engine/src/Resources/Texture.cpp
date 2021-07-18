@@ -1345,13 +1345,22 @@ namespace Morpheus {
 		const Texture* source) {
 		if (device.mGpuDevice)
 			CreateRasterAspect(device.mGpuDevice, source);
-		else
-			throw std::runtime_error("Not implemented!");
+		else if (device.mExternal)
+			CreateExternalAspect(device.mExternal, source);
+		else 
+			throw std::runtime_error("Device was null!");
+	}
+
+	void Texture::CreateExternalAspect(IExternalGraphicsDevice* device,
+		const Texture* source) {
+		mExtAspect = ExternalAspect<ExtObjectType::TEXTURE>(device,
+			device->CreateTexture(*source));
 	}
 
 	void Texture::AdoptData(Texture&& other) {
 		mRasterAspect = std::move(other.mRasterAspect);
 		mRawAspect = std::move(other.mRawAspect);
+		mExtAspect = std::move(other.mExtAspect);
 
 		mIntensity = other.mIntensity;
 		mFlags = other.mFlags;
@@ -1389,6 +1398,7 @@ namespace Morpheus {
 	void Texture::Clear() {
 		mRawAspect = RawAspect();
 		mRasterAspect = RasterizerAspect();
+		mExtAspect = ExternalAspect<ExtObjectType::TEXTURE>();
 
 		mFlags = 0u;
 	}

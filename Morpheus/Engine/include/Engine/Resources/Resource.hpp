@@ -4,12 +4,6 @@
 #include <Engine/ThreadPool.hpp>
 
 namespace Morpheus {
-	class Texture;
-	class Geometry;
-
-	struct MaterialDesc;
-	class Material;
-
 	typedef uint32_t ResourceFlags;
 
 	enum ResourceFlag : ResourceFlags {
@@ -22,11 +16,11 @@ namespace Morpheus {
 		RESOURCE_CPU_RESIDENT = 1u << 6
 	};
 
+	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
+
 	template <typename T>
 	struct LoadParams {
 	};
-
-	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
 
 	class IResource {
 	private:

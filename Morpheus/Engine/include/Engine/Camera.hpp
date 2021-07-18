@@ -1,17 +1,13 @@
 #pragma once
 
 #include "SwapChain.h"
-#include "BasicMath.hpp"
 
+#include <Engine/Defines.hpp>
 #include <Engine/Entity.hpp>
 
 #include <shaders/BasicStructures.hlsl>
 
-namespace DG = Diligent;
-
 namespace Morpheus {
-
-	class RealtimeGraphics;
 
 	HLSL::CameraAttribs CreateCameraAttribs(const DG::float2& viewportSize,
 		const DG::float4x4& view, const DG::float4x4& projection,

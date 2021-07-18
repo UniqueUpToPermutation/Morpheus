@@ -10,6 +10,13 @@ using namespace Assimp;
 using namespace std;
 
 namespace Morpheus {
+
+	void Geometry::CreateExternalAspect(IExternalGraphicsDevice* device, 
+		const Geometry* source) {
+		mExtAspect = ExternalAspect<ExtObjectType::GEOMETRY>(device, 
+			device->CreateGeometry(*source));
+	}
+
 	template <typename T>
 	ResourceTask<T> LoadTemplated(GraphicsDevice device, 
 		const LoadParams<Geometry>& params) {
@@ -161,15 +168,11 @@ namespace Morpheus {
 		}
 	}
 
-	void Geometry::CreateRaytraceAspect(Raytrace::IRaytraceDevice* device, const Geometry* source) {
-		throw std::runtime_error("Not implemented yet!");
-	}
-
 	void Geometry::CreateDeviceAspect(GraphicsDevice device, const Geometry* source) {
 		if (device.mGpuDevice)
 			CreateRasterAspect(device.mGpuDevice, source);
-		else if (device.mRtDevice)
-			CreateRaytraceAspect(device.mRtDevice, source);
+		else if (device.mExternal)
+			CreateExternalAspect(device.mExternal, source);
 		else
 			throw std::runtime_error("Device cannot be null!");
 	}
@@ -249,8 +252,8 @@ namespace Morpheus {
 		mRawAspect = std::move(other.mRawAspect);
 		mShared = std::move(other.mShared);
 		mRasterAspect = std::move(other.mRasterAspect);
-		mRtAspect = std::move(other.mRtAspect);
-		
+		mExtAspect = std::move(other.mExtAspect);
+
 		mFlags = other.mFlags;
 	}
 
@@ -808,8 +811,8 @@ namespace Morpheus {
 	void Geometry::Clear() {
 		mRasterAspect = RasterizerAspect();
 		mRawAspect = RawAspect();
-		mRtAspect = RaytracerAspect();
 		mShared = SharedAspect();
+		mExtAspect = ExternalAspect<ExtObjectType::GEOMETRY>();
 
 		mFlags = 0u;
 	}

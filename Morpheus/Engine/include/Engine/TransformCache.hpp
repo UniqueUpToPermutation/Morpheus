@@ -1,7 +1,7 @@
 #pragma once
 
+#include <Engine/Defines.hpp>
 #include <Engine/Components/Transform.hpp>
-#include <Engine/Frame.hpp>
 
 namespace Morpheus {
 
@@ -44,17 +44,7 @@ namespace Morpheus {
 		Frame* mFrame;
 	
 	public:
-		inline void SetFrame(Frame* frame) {
-			mTransformUpdateObs.clear();
-			mNewTransformObs.clear();
-
-			mTransformUpdateObs.connect(frame->mRegistry, 
-				entt::collector.update<Transform>());
-			mNewTransformObs.connect(frame->mRegistry, 
-				entt::collector.group<Transform>(entt::exclude<TransformCache>));
-				
-			mFrame = frame;
-		}
+		void SetFrame(Frame* frame);
 
 		inline TransformCacheUpdater(Frame* frame) {
 			SetFrame(frame);

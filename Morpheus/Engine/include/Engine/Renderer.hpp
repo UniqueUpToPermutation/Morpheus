@@ -51,9 +51,6 @@ namespace Morpheus {
 		}
 	};
 
-	typedef int32_t MaterialId;
-	constexpr MaterialId NullMaterialId = -1;
-
 	class Material {
 	private:
 		IRenderer* mRenderer;

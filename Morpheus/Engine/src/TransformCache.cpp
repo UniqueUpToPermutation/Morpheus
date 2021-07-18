@@ -1,6 +1,20 @@
 #include <Engine/TransformCache.hpp>
+#include <Engine/Frame.hpp>
 
 namespace Morpheus {
+
+	void TransformCacheUpdater::SetFrame(Frame* frame) {
+		mTransformUpdateObs.clear();
+		mNewTransformObs.clear();
+
+		mTransformUpdateObs.connect(frame->mRegistry, 
+			entt::collector.update<Transform>());
+		mNewTransformObs.connect(frame->mRegistry, 
+			entt::collector.group<Transform>(entt::exclude<TransformCache>));
+			
+		mFrame = frame;
+	}
+
 	void TransformCacheUpdater::UpdateDescendants(entt::entity node, const DG::float4x4& matrix) {
 		for (auto child = mFrame->GetFirstChild(node); child != entt::null; child = mFrame->GetNext(child)) {
 			auto transform = mFrame->mRegistry.try_get<Transform>(child);
