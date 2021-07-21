@@ -51,7 +51,7 @@ namespace Morpheus {
 			if constexpr (std::is_same<destT, float>::value) {
 				return ((destT)t / 255.0f);
 			} else {
-				return (destT)(std::max(t, 1.0f) * 255.0f);
+				return (destT)(std::min(std::max(t, 0.0f), 1.0f) * 255.0f);
 			}
 		} else {
 			return (destT)t;

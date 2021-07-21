@@ -2,6 +2,7 @@
 
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Systems/System.hpp>
+#include <Engine/Resources/Resource.hpp>
 
 namespace Morpheus {
 

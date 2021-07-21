@@ -1,22 +1,14 @@
 #pragma once
 
 #include "BasicMath.hpp"
-#include "NativeAppBase.hpp"
-#include "RefCntAutoPtr.hpp"
-#include "EngineFactory.h"
-#include "RenderDevice.h"
-#include "DeviceContext.h"
-#include "SwapChain.h"
-#include "ScreenCapture.hpp"
-#include "Image.h"
+#include "BasicTypes.h"
 #include "Timer.hpp"
 
 #include <vector>
-#include <Engine/Entity.hpp>
+
+#include <Engine/Defines.hpp>
 #include <Engine/ThreadPool.hpp>
-#include <Engine/Frame.hpp>
-#include <Engine/Resources/Resource.hpp>
-#include <Engine/GeometryStructures.hpp>
+#include <Engine/Entity.hpp>
 
 namespace DG = Diligent;
 
@@ -142,6 +134,10 @@ namespace Morpheus {
 			queue->YieldUntilFinished(&mRender);
 		}
 		inline void WaitOnUpdate(ITaskQueue* queue) {
+			queue->YieldUntilFinished(&mUpdate);
+		}
+		inline void WaitUntilFinished(ITaskQueue* queue) {
+			queue->YieldUntilFinished(&mRender);
 			queue->YieldUntilFinished(&mUpdate);
 		}
 	};
@@ -300,10 +296,22 @@ namespace Morpheus {
 		inline void WaitOnUpdate(ITaskQueue* queue) {
 			mFrameProcessor.WaitOnUpdate(queue);
 		}
+		inline void WaitUntilFrameFinished(ITaskQueue* queue) {
+			mFrameProcessor.WaitUntilFinished(queue);
+		}
 
 		template <typename T, typename ... Args>
 		inline T* Add(Args&& ... args) {
 			auto ptr = new T(args...);
+			mSystemsByType[entt::type_id<T>()] = ptr;
+			mSystems.emplace(ptr);
+			ptr->OnAddedTo(*this);
+			return ptr;
+		}
+
+		template <typename T, typename ... Args> 
+		inline ISystem* AddFromFactory(Args&& ... args) {
+			auto ptr = T::Create(args...);
 			mSystemsByType[entt::type_id<T>()] = ptr;
 			mSystems.emplace(ptr);
 			ptr->OnAddedTo(*this);

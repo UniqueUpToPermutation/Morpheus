@@ -1,4 +1,5 @@
 #include <Engine/Systems/SimpleFPSCameraSystem.hpp>
+#include <Engine/Frame.hpp>
 
 namespace Morpheus {
 	void SimpleFPSCameraController::SetFromTransform(const Transform& transform, const Camera& camera) {

@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.6)
 project(Morpheus VERSION 0.1.0)
 
+
+# Set include directories for other projects
+set(MORPHEUS_INCLUDE_DIR  
+	"${CMAKE_CURRENT_SOURCE_DIR}/Engine/include" 
+	CACHE INTERNAL "MORPHEUS_INCLUDE_DIR")
+
+set(ENTT_INCLUDE_DIR
+	"${CMAKE_SOURCE_DIR}/entt/src"
+	CACHE INTERNAL "ENTT_INCLUDE_DIR")
+
 function(add_third_party_libraries APP_NAME)
 	message(${APP_NAME})
 	target_include_directories(${APP_NAME} PRIVATE
@@ -21,31 +31,30 @@ function(add_msvc_ignores TARGET_NAME)
     target_compile_options(${TARGET_NAME} PRIVATE /wd4201)
 endfunction()
 
-function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
-
+function(add_engine_includes LIB_NAME)
 	if(USE_BULLET)
 		INCLUDE_DIRECTORIES(
-			${BULLET_PHYSICS_SOURCE_DIR}/src
-		)
-		
-		LINK_LIBRARIES(
-			BulletDynamics BulletCollision LinearMath
+			${LIB_NAME} ${BULLET_PHYSICS_SOURCE_DIR}/src
 		)
 	endif()
 
 	INCLUDE_DIRECTORIES(
-		${CMAKE_SOURCE_DIR}
+		${LIB_NAME} 
+		${DILIGENT_CORE_SOURCE_DIR}/Common/interface
+		${DILIGENT_CORE_SOURCE_DIR}/Primitives/interface
+		${DILIGENT_CORE_SOURCE_DIR}/Graphics/GraphicsEngine/interface
+		${ENTT_INCLUDE_DIR}
 	)
+endfunction()
 
-	if(USE_PBRT)
-		IF ( HAVE_CONSTEXPR )
-			ADD_DEFINITIONS ( -D PBRT_HAVE_CONSTEXPR )
-			ADD_DEFINITIONS ( -D PBRT_CONSTEXPR=constexpr )
-		ELSE ()
-			ADD_DEFINITIONS ( -D PBRT_CONSTEXPR=const )
-		ENDIF ()
+function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 
-		LINK_LIBRARIES(pbrt)
+	add_engine_includes(${APP_NAME})
+
+	if (USE_BULLET)
+		LINK_LIBRARIES(
+			${APP_NAME} BulletDynamics BulletCollision LinearMath
+		)
 	endif()
 
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")

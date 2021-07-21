@@ -1,16 +1,13 @@
 #include <Engine/Core.hpp>
+#include <MorpheusPbrt/Interface.hpp>
 
 using namespace Morpheus;
 
 MAIN() {
-	Platform platform;
-	platform.Startup();
-
-	RealtimeGraphics graphics(platform);
-	graphics.Startup();
+	Raytrace::RaytracePlatform platform;
 
 	SystemCollection systems;
-	systems.Add<DefaultRenderer>(graphics);
+	systems.AddFromFactory<Raytrace::RaytraceDeviceFactory>(platform);
 	systems.Startup();
 
 	auto frame = std::make_unique<Frame>();
@@ -21,18 +18,14 @@ MAIN() {
 
 	ImmediateTaskQueue queue;
 
-	while (platform.IsValid()) {
-		time.UpdateFrom(timer);
-		platform.MessagePump();
+	time.UpdateFrom(timer);
 
-		systems.RunFrame(time, &queue);
-		systems.WaitOnRender(&queue);
-		graphics.Present(1);
-		systems.WaitOnUpdate(&queue);
-	}
+	systems.RunFrame(time, &queue);
+	systems.WaitUntilFrameFinished(&queue);
 
 	frame.reset();
 	systems.Shutdown();
-	graphics.Shutdown();
-	platform->Shutdown();
+
+	auto texture = platform.GetBackbuffer();
+	texture->SavePng("output.png");
 }

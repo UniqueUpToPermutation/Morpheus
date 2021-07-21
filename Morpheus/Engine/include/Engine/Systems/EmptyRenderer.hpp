@@ -3,6 +3,7 @@
 #include <Engine/Graphics.hpp>
 #include <Engine/Systems/System.hpp>
 #include <Engine/Renderer.hpp>
+#include <Engine/GeometryStructures.hpp>
 
 namespace Morpheus {
 	class EmptyRenderer : public ISystem, 
