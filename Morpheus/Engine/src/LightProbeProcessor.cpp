@@ -8,13 +8,10 @@
 
 namespace Morpheus {
 
-	ResourceTask<LightProbeProcessorShaders> LightProbeProcessorShaders::Load(
+	Future<LightProbeProcessorShaders> LightProbeProcessorShaders::Load(
 		DG::IRenderDevice* device,
 		const LightProbeProcessorConfig& config,
 		IVirtualFileSystem* fileSystem) {
-
-		Promise<LightProbeProcessorShaders> promise;
-		Promise<LightProbeProcessorShaders> future(promise);
 
 		struct {
 			Future<Handle<DG::IShader>> mVS;
@@ -22,68 +19,55 @@ namespace Morpheus {
 			Future<Handle<DG::IShader>> mCS;
 		} data;
 
-		Task task([promise = std::move(promise), device, config, fileSystem, data]
-			(const TaskParams& e) mutable {
-			
-			if (e.mTask->BeginSubTask()) {
-				ShaderPreprocessorConfig prefilterEnvConfig;
-				ShaderPreprocessorConfig irradianceSHConfig;
+		ShaderPreprocessorConfig prefilterEnvConfig;
+		ShaderPreprocessorConfig irradianceSHConfig;
 
-				prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
-				irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
+		prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
+		irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
 
-				LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
-					DG::SHADER_TYPE_VERTEX,
-					"Cubemap Face Vertex Shader");
+		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+			DG::SHADER_TYPE_VERTEX,
+			"Cubemap Face Vertex Shader");
 
-				LoadParams<RawShader> envPsParams("internal/PrefilterEnvironment.psh",
-					DG::SHADER_TYPE_PIXEL,
-					"Compute Environment Pixel Shader",
-					prefilterEnvConfig);
+		LoadParams<RawShader> envPsParams("internal/PrefilterEnvironment.psh",
+			DG::SHADER_TYPE_PIXEL,
+			"Compute Environment Pixel Shader",
+			prefilterEnvConfig);
 
-				LoadParams<RawShader> irrSHParams("internal/ComputeIrradianceSH.csh",
-					DG::SHADER_TYPE_COMPUTE,
-					"Compute Irradiance SH Compute Shader",
-					irradianceSHConfig);
+		LoadParams<RawShader> irrSHParams("internal/ComputeIrradianceSH.csh",
+			DG::SHADER_TYPE_COMPUTE,
+			"Compute Irradiance SH Compute Shader",
+			irradianceSHConfig);
 
-				LightProbeProcessorShaders shaders;
+		data.mVS = LoadShaderHandle(device, vsParams, fileSystem);
+		data.mPS = LoadShaderHandle(device, envPsParams, fileSystem);
+		data.mCS = LoadShaderHandle(device, irrSHParams, fileSystem);
 
-				auto loadVS = 
-					LoadShaderHandle(device, vsParams, fileSystem);
-				auto loadPS = 
-					LoadShaderHandle(device, envPsParams, fileSystem);
-				auto loadSHCS = 
-					LoadShaderHandle(device, irrSHParams, fileSystem);
-
-				data.mVS = e.mQueue->AdoptAndTrigger(std::move(loadVS));
-				data.mPS = e.mQueue->AdoptAndTrigger(std::move(loadPS));
-				data.mCS = e.mQueue->AdoptAndTrigger(std::move(loadSHCS));
-
-				e.mTask->EndSubTask();
-
-				if (e.mTask->In().Lock()
-					.Connect(data.mVS.Out())
-					.Connect(data.mPS.Out())
-					.Connect(data.mCS.Out())
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
+		FunctionPrototype<
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Promise<LightProbeProcessorShaders>>
+			prototype([](const TaskParams& e,
+				Future<Handle<DG::IShader>> vs,
+				Future<Handle<DG::IShader>> ps,
+				Future<Handle<DG::IShader>> cs,
+				Promise<LightProbeProcessorShaders> result) {
 
 			LightProbeProcessorShaders shaders;
-			shaders.mPrefilterEnvVS = data.mVS.Get();
-			shaders.mPrefilterEnvPS = data.mPS.Get();
-			shaders.mSHShaderCS = data.mCS.Get();
+			shaders.mPrefilterEnvVS = vs.Get();
+			shaders.mPrefilterEnvPS = ps.Get();
+			shaders.mSHShaderCS = cs.Get();
+		
+			result = std::move(shaders);
+		});
 
-			promise.Set(std::move(shaders), e.mQueue);
+		Promise<LightProbeProcessorShaders> result;
 
-			return TaskResult::FINISHED;
-		}, "Load Light Probe Shaders", TaskType::FILE_IO);
+		prototype(data.mVS, data.mPS, data.mCS, result)
+			.SetName("Create Light Probe Processor Shader Struct");
 
-		ResourceTask<LightProbeProcessorShaders> res;
-		res.mTask = std::move(task);
-		res.mFuture = std::move(future);
-
-		return res;
+		return result;
 	}
 
 	void CookTorranceLUT::Compute(DG::IRenderDevice* device,
@@ -105,7 +89,7 @@ namespace Morpheus {
 
 		DG::ITexture* lut = nullptr;
 		device->CreateTexture(desc, nullptr, &lut);
-		mLut = lut;
+		mLut = Texture(device, lut);
 
 		ShaderPreprocessorConfig overrides;
 		overrides.mDefines["NUM_SAMPLES"] = std::to_string(integrationSamples);
@@ -147,7 +131,7 @@ namespace Morpheus {
 		device->CreateGraphicsPipelineState(psoInfo, &pipelineState);
 		context->SetPipelineState(pipelineState);
 
-		DG::ITextureView* pRTVs[] = {mLut->GetDefaultView(DG::TEXTURE_VIEW_RENDER_TARGET)};
+		DG::ITextureView* pRTVs[] = {mLut.GetRenderTargetView()};
 		context->SetRenderTargets(1, pRTVs, nullptr, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 		DG::DrawAttribs attrs(3, DG::DRAW_FLAG_VERIFY_ALL);
 		context->Draw(attrs);
@@ -155,7 +139,7 @@ namespace Morpheus {
 		// clang-format off
 		DG::StateTransitionDesc Barriers[] =
 		{
-			{mLut.Ptr(), DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
+			{mLut.GetRasterTexture(), DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
 		};
 		// clang-format on
 		context->TransitionResourceStates(_countof(Barriers), Barriers);
@@ -168,9 +152,8 @@ namespace Morpheus {
 	void CookTorranceLUT::SavePng(const std::string& path, 
 		DG::IDeviceContext* context, 
 		DG::IRenderDevice* device) {
-
-		Texture texture;
-		texture.RetrieveRawData(mLut.Ptr(), device, context);
+		
+		Texture texture = mLut.To(Device::CPU(), context);
 		texture.SavePng(path);
 	}
 
@@ -430,7 +413,7 @@ namespace Morpheus {
 		uint prefilteredEnvironmentSize) {
 
 		Handle<Texture> texture;
-		texture.Adopt(new Texture(ComputePrefilteredEnvironment(device, context,
+		texture.Adopt(new Texture(device, ComputePrefilteredEnvironment(device, context,
 			incommingEnvironmentSRV, prefilteredEnvironmentSize)));
 
 		Handle<DG::IBuffer> shBuffer;

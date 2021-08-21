@@ -7,71 +7,59 @@
 #include "MapHelper.hpp"
 
 namespace Morpheus {
-	ResourceTask<HDRIToCubemapShaders> HDRIToCubemapShaders::Load(
+	Future<HDRIToCubemapShaders> HDRIToCubemapShaders::Load(
 		DG::IRenderDevice* device,
 		bool bConvertSRGBToLinear,
 		IVirtualFileSystem* fileSystem) {
 
-		Promise<HDRIToCubemapShaders> promise;
-		Future<HDRIToCubemapShaders> future(promise);
-
 		struct {
-			Future<DG::IShader*> mVS;
-			Future<DG::IShader*> mPS;
+			Future<Handle<DG::IShader>> mVS;
+			Future<Handle<DG::IShader>> mPS;
 		} data;
 
-		Task task([device, promise = std::move(promise), data, 
-			bConvertSRGBToLinear, fileSystem]
-			(const TaskParams& e) mutable {
-			if (e.mTask->BeginSubTask()) {
+		ShaderPreprocessorConfig config;
+		if (bConvertSRGBToLinear)
+			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "1";
+		else 
+			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
 
-				ShaderPreprocessorConfig config;
-				if (bConvertSRGBToLinear)
-					config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "1";
-				else 
-					config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
+		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+			DG::SHADER_TYPE_VERTEX,
+			"Cubemap Face Vertex Shader",
+			config,
+			"main");
 
-				LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
-					DG::SHADER_TYPE_VERTEX,
-					"Cubemap Face Vertex Shader",
-					config,
-					"main");
+		LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
+			DG::SHADER_TYPE_PIXEL,
+			"HDRI Convert Pixel Shader",
+			config,
+			"main");
 
-				LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
-					DG::SHADER_TYPE_PIXEL,
-					"HDRI Convert Pixel Shader",
-					config,
-					"main");
+		data.mVS = LoadShaderHandle(device, vsParams, fileSystem);
+		data.mPS = LoadShaderHandle(device, psParams, fileSystem);
 
-				auto vsTask = LoadShader(device, vsParams, fileSystem);
-				auto psTask = LoadShader(device, psParams, fileSystem);
-
-				data.mVS = e.mQueue->AdoptAndTrigger(std::move(vsTask));
-				data.mPS = e.mQueue->AdoptAndTrigger(std::move(psTask));
-
-				e.mTask->EndSubTask();
-
-				if (e.mTask->In().Lock()
-					.Connect(data.mVS.Out())
-					.Connect(data.mPS.Out())
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
-
+		FunctionPrototype<
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Promise<HDRIToCubemapShaders>>
+			prototype([](
+				const TaskParams& e,
+				Future<Handle<DG::IShader>> vs,
+				Future<Handle<DG::IShader>> ps,
+				Promise<HDRIToCubemapShaders> output) {
+			
 			HDRIToCubemapShaders shaders;
-			shaders.mVS.Adopt(data.mVS.Get());
-			shaders.mPS.Adopt(data.mPS.Get());
+			shaders.mVS = vs.Get();
+			shaders.mPS = ps.Get();
 
-			promise.Set(std::move(shaders), e.mQueue);
+			output = std::move(shaders);
+		});
 
-			return TaskResult::FINISHED;
-		}, "Load HDRI To Cubemap Shaders", TaskType::FILE_IO);
+		Promise<HDRIToCubemapShaders> output;
 
-		ResourceTask<HDRIToCubemapShaders> result;
-		result.mTask = std::move(task);
-		result.mFuture = std::move(future);
+		prototype(data.mVS, data.mPS, output).SetName("Create HDRIToCubemapShaders struct");
 
-		return result;
+		return output;
 	}
 
 	HDRIToCubemapConverter::HDRIToCubemapConverter(DG::IRenderDevice* device, 

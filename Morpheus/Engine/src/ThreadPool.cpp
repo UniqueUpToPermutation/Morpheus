@@ -1,337 +1,567 @@
 #include <Engine/ThreadPool.hpp>
+
 #include <iostream>
 
+std::atomic<uint64_t> gCurrentTaskId;
+
 #ifdef THREAD_POOL_DEBUG
+#include <iostream>
 std::mutex gPoolOutput;
 #endif
 
 namespace Morpheus {
+	struct TaskNodeImpl {
+		std::vector<std::shared_ptr<TaskNodeImpl>> mIn;
+		std::vector<std::shared_ptr<TaskNodeImpl>> mOut;
+		std::mutex mInMutex;
+		std::mutex mOutMutex;
+		uint32_t mInLeft = 0;
+		bool bStarted = false;
+		bool bScheduled = false;
+		bool bIsFinished = false;
+		int mPriority = 0;
+		ThreadMask mThreadMask = ~(ThreadMask)0;
+		TaskId mId;
+		const char* mName = nullptr;
 
-	void TaskBarrier::Trigger() {
-		auto lock = mOut.Lock();
+		std::unique_ptr<IBoundFunction> mBoundFunction;
+	};
 
-		if (!lock.IsFinished()) {
-			ImmediateTaskQueue queue;
-			queue.Trigger(this);
+	TaskNode::SearchResult TaskNode::BackwardSearch(TaskNode output) {
+		return BackwardSearch(std::vector<TaskNode>{output});
+	}
+
+	template <TaskNode::SearchDirection dir>
+	TaskNode::SearchResult TaskNode::Search(
+		const std::vector<TaskNode>& begin) {
+		
+		std::queue<TaskNode> queue;
+		std::queue<TaskNode> newItems;
+		std::set<TaskId> visited;
+		TaskNode::SearchResult result;
+
+		// Enqueue helper
+		auto enqueue = [&queue, &visited, &result](TaskNode node) {
+			bool bLeaf = false;
+			bool bEmplace = false;
+
+			if constexpr (dir == SearchDirection::BACKWARD) {
+				auto inLock = node.In();
+				bLeaf = inLock.IsReady();
+				bEmplace = !inLock.IsScheduled();
+			} else if constexpr (dir == SearchDirection::FORWARD) {
+				auto outLock = node.Out();
+				bEmplace = outLock.IsFinished();
+			}
+
+			if (bEmplace) {
+				auto it = visited.find(node.GetId());
+
+				if (it == visited.end()) {
+					queue.emplace(node);
+					visited.emplace_hint(it, node.GetId());
+					result.mVisited.emplace_back(node);
+
+					if (bLeaf) {
+						result.mLeaves.emplace_back(node);
+					}
+				}
+			}
+		};
+
+		// Enqueue starting nodes
+		for (auto node : begin) {
+			enqueue(node);
 		}
-	}
 
-	ITaskQueue::~ITaskQueue() {
-	}
+		while (!queue.empty()) {
+			TaskNode top = queue.front();
+			queue.pop();
 
-	TaskNodeInLock& TaskNodeInLock::Connect(TaskNodeOut* out) {
-		if (out) {
-			auto lock = out->Lock();
+			// Prepare to enqueue children
+			if constexpr (dir == SearchDirection::BACKWARD) {
+				auto inLock = top.In();
+				for (auto& item : top.mNode->mIn) {
+					newItems.emplace(item);
+				}
+			} else if constexpr (dir == SearchDirection::FORWARD) {
+				auto outLock = top.Out();
+				for (auto& item : top.mNode->mOut) {
+					newItems.emplace(item);
+				}
+			}
 
-			if (!lock.IsFinished()) {
-				out->mOutputs.push_back(mNode);
-				mNode->mInputs.push_back(out);
-				mNode->mInputsLeft++;
-				bWait = true;
+			// Actually enqueue children
+			while (!newItems.empty()) {
+				auto node = newItems.front();
+				newItems.pop();
+				enqueue(node);
 			}
 		}
 
+		return result;
+	}
+
+	TaskNode::SearchResult TaskNode::ForwardSearch(const std::vector<TaskNode>& outputs) {
+		return Search<SearchDirection::FORWARD>(outputs);
+	}
+
+	TaskNode::SearchResult TaskNode::ForwardSearch(TaskNode output) {
+		return ForwardSearch(std::vector<TaskNode>{output});
+	}
+
+	TaskNode::SearchResult TaskNode::BackwardSearch(
+		const std::vector<TaskNode>& outputs) {
+		return Search<SearchDirection::BACKWARD>(outputs);
+	}
+
+	NodeIn::NodeIn(std::shared_ptr<TaskNodeImpl> parent) :
+		 mParent(parent), mLock(parent->mInMutex) {
+	}
+
+	bool NodeIn::IsStarted() const {
+		return mParent->bStarted;
+	}
+
+	void NodeIn::Connect(std::shared_ptr<TaskNodeImpl> join) {
+		mParent->mIn.emplace_back(join);
+		mParent->mInLeft++;
+	}
+
+	NodeIn& NodeIn::SetStarted(bool value) {
+		mParent->bStarted = value;
 		return *this;
 	}
 
-	void TaskNodeIn::ResetUnsafe() {
-		mInputsLeft = mInputs.size();
-		bIsStarted = false;
+	NodeIn& NodeIn::SetScheduled(bool value) {
+		mParent->bScheduled = value;
+		return *this;
 	}
 
-	void TaskNodeOut::ResetUnsafe() {
-		bIsFinished = false;
+	void NodeIn::Reset() {
+		mParent->bStarted = false;
+		mParent->bScheduled = false;
 	}
 
-	void ImmediateTaskQueue::Emplace(ITask* task) {
-		mImmediateQueue.push(task);
+	bool NodeIn::Trigger() {
+		mParent->mInLeft--;
+
+		if (IsReady())
+			return true;
+
+		return false;
 	}
 
-	void ImmediateTaskQueue::YieldUntilCondition(const std::function<bool()>& predicate) {
+	bool NodeIn::IsReady() const {
+		return mParent->mInLeft == 0 && !mParent->bStarted && mParent->bScheduled;
+	}
+	
+	bool NodeIn::IsScheduled() const {
+		return mParent->bScheduled;
+	}
+
+	NodeOut::NodeOut(std::shared_ptr<TaskNodeImpl> parent) : 
+		mParent(parent), mLock(parent->mOutMutex) {
+	}
+
+	bool NodeOut::IsFinished() const {
+		return mParent->bIsFinished;
+	}
+
+	void NodeOut::Connect(std::shared_ptr<TaskNodeImpl> join) {
+		mParent->mOut.emplace_back(join);
+	}
+
+	void NodeOut::SetFinished(bool value) {
+		mParent->bIsFinished = value;
+	}
+
+	void NodeOut::Fire(std::vector<TaskNode>& executable) {
+		mParent->bIsFinished = true;
+		for (auto& target : mParent->mOut) {
+			if (NodeIn(target).Trigger()) {
+				executable.emplace_back(target);
+			}
+		}
+	}
+
+	void NodeOut::Skip() {
+		mParent->bIsFinished = true;
+		for (auto& target : mParent->mOut) {
+			auto in = NodeIn(target);
+			target->mInLeft--;
+		}
+	}
+
+	NodeIn TaskNode::In() {
+		return NodeIn(mNode);
+	}
+
+	NodeOut TaskNode::Out() {
+		return NodeOut(mNode);
+	}
+
+	void TaskNode::SetFunction(std::unique_ptr<IBoundFunction>&& func) {
+		mNode->mBoundFunction = std::move(func);
+	}
+
+	IBoundFunction* TaskNode::GetFunction() const {
+		return mNode->mBoundFunction.get();
+	}
+
+	std::shared_ptr<TaskNodeImpl> TaskNode::GetImpl() {
+		return mNode;
+	}
+
+	TaskNode& TaskNode::After(TaskNode other) {
+		other.Out().Connect(mNode);
+		In().Connect(other.mNode);
+		return *this;
+	}
+
+	int TaskNode::GetPriority() const {
+		return mNode->mPriority;
+	}
+	
+	TaskId TaskNode::GetId() const {
+		return mNode->mId;
+	}
+
+	void TaskNode::Reset() {
+		In().Reset();
+		Out().Reset();
+	}
+
+	void TaskNode::ResetDescendants() {
+		SearchResult result = ForwardSearch(*this);
+
+		for (auto& n : result.mVisited) {
+			n.Reset();
+		}
+	}
+
+	void TaskNode::Skip() {
+		Out().Skip();
+	}
+
+	void TaskNode::SkipAncestors() {
+		SearchResult result = BackwardSearch(*this);
+
+		for (auto& n : result.mVisited) {
+			n.Skip();
+		}
+	}
+
+	TaskNode::operator bool() const {
+		return (bool)mNode;
+	}
+
+	TaskNode& TaskNode::SetPriority(int priority) {
+		mNode->mPriority = priority;
+		return *this;
+	}
+
+	TaskNode& TaskNode::SetThreadMask(ThreadMask mask) {
+		mNode->mThreadMask = mask;
+		return *this;
+	}
+
+	ThreadMask TaskNode::GetThreadMask() const {
+		return mNode->mThreadMask;
+	}
+
+	TaskNode& TaskNode::DisallowThread(uint threadId) {
+		mNode->mThreadMask &= ~((ThreadMask)1 << threadId);
+		return *this;
+	}
+
+	TaskNode& TaskNode::OnlyThread(uint threadId) {
+		mNode->mThreadMask = (ThreadMask)1 << threadId;
+		return *this;
+	}
+
+	TaskNode& TaskNode::Before(TaskNode other) {
+		Out().Connect(other.mNode);
+		other.In().Connect(mNode);
+		return *this;
+	}
+
+	void NodeOut::Reset() {
+		mParent->bIsFinished = false;
+
+		for (auto& child : mParent->mOut) {
+			auto inLock = TaskNode(child).In();
+			child->mInLeft++;
+		}
+	}
+
+	void TaskNode::Execute(IComputeQueue* queue, int threadId) {
+		if (mNode->mBoundFunction) {
+			mNode->mBoundFunction->Execute(queue, threadId);
+		}
+	}
+
+	const char* TaskNode::GetName() const {
+		return mNode->mName;
+	}
+
+	TaskNode& TaskNode::SetName(const char* name) {
+		mNode->mName = name;
+		return *this;
+	}
+
+	TaskNode::TaskNode(std::shared_ptr<TaskNodeImpl> node) :
+		mNode(node) {
+	}
+
+	TaskNode IBoundFunction::Node() {
+		return TaskNode(mNode);
+	}
+
+	TaskNode TaskNode::Create() {
+		auto result = std::make_shared<TaskNodeImpl>();
+		result->mId = gCurrentTaskId.fetch_add(1);
+		return TaskNode(result);
+	}
+
+	NodeIn Task::In() {
+		return mTaskStart.In();
+	}
+
+	NodeOut Task::Out() {
+		return mTaskEnd.Out();
+	}
+
+	TaskNode Task::InNode() const {
+		return mTaskStart;
+	}
+
+	TaskNode Task::OutNode() const {
+		return mTaskEnd;
+	}
+
+	Task::Task(TaskNode node) :
+		Task() {
+		Add(node);
+	}
+
+	Task::Task() : 
+		mTaskStart(TaskNode::Create()),
+		mTaskEnd(TaskNode::Create()) { 
+		mTaskStart.SetName("[TASK START]");
+		mTaskEnd.SetName("[TASK END]");
+	}
+
+	void Task::After(TaskNode node) {
+		mTaskStart.After(node);
+	}
+
+	void Task::Reset() {
+		mTaskStart.Reset();
+		for (auto internal : mInternalNodes) {
+			internal.Reset();
+		}
+		for (auto internal : mInternalTasks) {
+			internal->Reset();
+		}
+		mTaskEnd.Reset();
+	}
+
+	void Task::Skip() {
+		mTaskEnd.Skip();
+	}
+
+	void Task::Before(TaskNode node) {
+		mTaskEnd.Before(node);
+	}
+
+	void Task::After(const Task& task) {
+		mTaskStart.After(task.mTaskEnd);
+	}
+
+	void Task::Before(const Task& task) {
+		mTaskEnd.Before(task.mTaskStart);
+	}
+
+	void Task::Add(TaskNode node) {
+		mTaskEnd.After(node);
+		mTaskStart.Before(node);
+		mInternalNodes.emplace_back(node);
+	}
+
+	void Task::Add(std::shared_ptr<Task> task) {
+		mTaskEnd.After(task->mTaskEnd);
+		mTaskStart.Before(task->mTaskStart);
+		mInternalTasks.emplace_back(task);
+	}
+
+	void Task::operator()() {
+		ImmediateComputeQueue queue;
+		queue.Submit(OutNode());
+		queue.YieldUntilEmpty();
+	}
+
+	void IComputeQueue::Submit(TaskNode node) {
+		SubmitImpl(node);
+	}
+
+	void IComputeQueue::Submit(const Task& task) {
+		SubmitImpl(task.OutNode());
+	}
+
+	void IComputeQueue::YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
+		auto start = std::chrono::high_resolution_clock::now();
+		
+		YieldUntilCondition([start, duration]() {
+			auto now = std::chrono::high_resolution_clock::now();
+			return (now - start) > duration;
+		});
+	}
+
+	void IComputeQueue::YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
+		YieldUntilCondition([time]() {
+			auto now = std::chrono::high_resolution_clock::now();
+			return now > time;
+		});
+	}
+
+	void IComputeQueue::YieldUntilFinished(TaskNode node) {
+		YieldUntilCondition([&node](){
+			return node.Out().IsFinished();
+		});
+	}
+
+	void IComputeQueue::YieldUntilFinished(const Task& task) {
+		YieldUntilFinished(task.OutNode());
+	}
+
+	void ImmediateComputeQueue::SubmitImpl(TaskNode node) {
+		if (!node.In().IsStarted()) {
+			auto toTrigger = TaskNode::BackwardSearch(node);
+
+			for (auto& node : toTrigger.mVisited) {
+				node.In().SetScheduled(true);
+			}
+
+			for (auto& node : toTrigger.mLeaves) {
+				mImmediateQueue.emplace(node);
+			}
+		}
+	}
+
+	void ImmediateComputeQueue::RunOneJob() {
+		if (mImmediateQueue.size() == 0)
+			return;
+
+		TaskNode node = std::move(mImmediateQueue.front());
+		mImmediateQueue.pop();
+
+		std::vector<TaskNode> next;
+
+		// Signal that we've started this task!
+		{
+#ifdef THREAD_POOL_DEBUG
+			{
+				std::lock_guard<std::mutex> lock2(gPoolOutput);
+
+				if (node.GetName()) {
+					std::cout << "Arrived at node: " 
+						<< node.GetName() << std::endl;
+				} else {
+					std::cout << "Arrived at node: " 
+						<< "[UNNAMED]" << std::endl;
+				}
+			}
+#endif
+
+			auto inLock = node.In();
+
+			// Task has already been started. Don't start twice!
+			if (inLock.IsStarted())
+				return;
+
+			inLock.SetStarted(true);
+		}
+
+		node.Execute(this, THREAD_MAIN);
+		node.Out().Fire(next);
+
+#ifdef THREAD_POOL_DEBUG
+		{
+			std::lock_guard<std::mutex> lock2(gPoolOutput);
+
+			if (node.GetName()) {
+				std::cout << "Leaving at node: " 
+					<< node.GetName() << std::endl;
+			} else {
+				std::cout << "Leaving at node: " 
+					<< "[UNNAMED]" << std::endl;
+			}
+		}
+#endif
+
+		for (auto& n : next)
+			mImmediateQueue.push(n);
+	}
+
+	void ImmediateComputeQueue::YieldUntilCondition(const std::function<bool()>& predicate) {
 		while (!predicate()) {
 			RunOneJob();
 		}
 	}
 
-	void ImmediateTaskQueue::YieldUntilEmpty() {
+	void ImmediateComputeQueue::YieldUntilEmpty() {
 		YieldUntilCondition([this]{
 			return RemainingJobCount() == 0;
 		});
 	}
 
-	ITask* ImmediateTaskQueue::Adopt(Task&& task) {
-		auto ptr = task.Ptr();
-	
-		mOwnedTasks.emplace(ptr, std::move(task));
-
-		return ptr;
+	size_t ImmediateComputeQueue::RemainingJobCount() const {
+		return mImmediateQueue.size();
 	}
 
-	void ImmediateTaskQueue::RunOneJob() {
-		if (mImmediateQueue.size() == 0)
-			return;
+	void CustomTask::Add(TaskNode node) {
+		Task::Add(node);
+	}
 
-		Task task = std::move(mImmediateQueue.front());
-		mImmediateQueue.pop();
+	void CustomTask::Add(std::shared_ptr<Task> task) {
+		Task::Add(task);
+	}
 
-		// Signal that we've started this task!
-		{
-			auto lock = task->In().Lock();
-			
-#ifdef THREAD_POOL_DEBUG
-			if (!task->In().bIsStarted) {
-				std::lock_guard<std::mutex> lock2(gPoolOutput);
-				std::cout << "Start Task: " 
-					<< task->GetName() << std::endl;
-			} else {
-				std::lock_guard<std::mutex> lock2(gPoolOutput);
-				std::cout << "Task Unshelved: " 
-					<< task->GetName() << std::endl;
-			}
-#endif
+	bool ThreadPool::IsQueueEmpty() {
+		return mTasksPending == 0;
+	}
 
-			task->In().bIsStarted = true;
-		}
+	uint ThreadPool::ThreadCount() const {
+		return mThreads.size() + 1;
+	}
 
-		TaskParams params;
-		params.mQueue = this;
-		params.mThreadId = ASSIGN_THREAD_MAIN;
-		params.mTask = task.Ptr();
+	ThreadPool::ThreadPool() : 
+		bInitialized(false),
+		bExit(false) {
+		mTasksPending = 0;
+	}
 
-		auto result = task->Run(params);
+	ThreadPool::~ThreadPool() {
+		Shutdown();
+	}
 
-		if (result != TaskResult::FINISHED) {
+	void ThreadPool::SubmitImpl(TaskNode node) {
+		if (!node.In().IsStarted()) {
+			auto toTrigger = TaskNode::BackwardSearch(node);
 
-			if (result == TaskResult::WAITING) {
-#ifdef THREAD_POOL_DEBUG
-				{
-					std::lock_guard<std::mutex> lock(gPoolOutput);
-					std::cout << "Shelving Task: " 
-						<< task->GetName() << std::endl;
-				}
-#endif
-			}
-			else if (result == TaskResult::REQUEST_THREAD_SWITCH) {
-				throw std::runtime_error("Thread switch not supported with Immediate Queue!");
+			for (auto& node : toTrigger.mVisited) {
+				node.In().SetScheduled(true);
 			}
 
-		} else {
-#ifdef THREAD_POOL_DEBUG
 			{
-				std::lock_guard<std::mutex> lock(gPoolOutput);
-				std::cout << "End Task: " 
-					<< task->GetName() << std::endl;
-			}
-#endif
-
-			Fire(&task->Out());
-
-			auto it = mOwnedTasks.find(task.Ptr());
-			if (it != mOwnedTasks.end()) {
-				mOwnedTasks.erase(it);
-			}
-		}
-	}
-
-	void ITaskQueue::Trigger(TaskNodeIn* in, bool bFromNodeOut) {
-		bool bActuallyTrigger = false;
-		{
-			std::lock_guard<std::mutex> lock(in->mMutex);
-			if (bFromNodeOut) {
-				in->mInputsLeft--;
-				bActuallyTrigger = in->mInputsLeft == 0;
-			} else {
-				bActuallyTrigger = in->mInputsLeft == 0;
-			}
-		}
-
-		if (bActuallyTrigger) {
-			switch (in->mOwnerType) {
-			case TaskPinOwnerType::BARRIER:
-#ifdef THREAD_POOL_DEBUG
-				{
-					std::lock_guard<std::mutex> lock2(gPoolOutput);
-					std::cout << "Barrier Triggered!" << std::endl;
-				}
-#endif
-				Fire(&in->mOwner.mBarrier->mOut);
-				break;
-			case TaskPinOwnerType::TASK:
-				Emplace(in->mOwner.mTask);
-				break;
-			}
-		}
-	}
-
-	void ITaskQueue::Fire(TaskNodeOut* out) {
-		std::lock_guard<std::mutex> lock(out->mMutex);
-		out->bIsFinished = true;
-
-		for (auto in : out->mOutputs) {
-			Trigger(in, true);
-		}
-	}
-
-	void ThreadPool::ThreadProc(bool bIsMainThread, uint threadNumber, const std::function<bool()>* finishPredicate) {
-		TaskParams params;
-		params.mThreadId = threadNumber;
-		params.mQueue = this;
-
-		while (!bExit) {
-			// We have reached our finish predicate
-			if (finishPredicate && (*finishPredicate)()) {
-				break;
-			}
-
-			ITask* task = nullptr;
-			{
-				// Select a task assigned to the current thread
-				{
-					std::lock_guard<std::mutex> lock(mIndividualMutexes[threadNumber]);
-					if (mIndividualQueues[threadNumber].size() > 0) {
-						task = mIndividualQueues[threadNumber].top();
-						mIndividualQueues[threadNumber].pop();
-					}
-				}
-
-				if (!task) {
-
-					// Select a task assigned to the collective queue
-					std::lock_guard<std::mutex> lock(mCollectiveQueueMutex);
-
-					while (mCollectiveQueue.size() > 0) {
-						task = mCollectiveQueue.top();
-						mCollectiveQueue.pop();
-
-						auto assignedThread = task->GetAssignedThread();
-
-						if (assignedThread != ASSIGN_THREAD_ANY &&
-							assignedThread != threadNumber) {
-							// This task was meant for another thread, assign it to that thread
-							Emplace(task);
-							--mTasksPending;
-						} else {
-							// This task can be performed by this thread.
-							break;
-						}
-					}
-				}
-			}
-
-			if (task) {
-
-				// Start this task if it hasn't already
-				{
-					auto lock = task->In().Lock();
-					
-#ifdef THREAD_POOL_DEBUG
-					if (!task->In().bIsStarted) {
-						std::lock_guard<std::mutex> lock2(gPoolOutput);
-						std::cout << "Start Task (Thread " << threadNumber << "): " 
-							<< task->GetName() << std::endl;
-					} else {
-						std::lock_guard<std::mutex> lock2(gPoolOutput);
-						std::cout << "Task Unshelved (Thread " << threadNumber << "): " 
-							<< task->GetName() << std::endl;
-					}
-#endif
-					if (task->In().mInputsLeft != 0) {
-
-#ifdef THREAD_POOL_DEBUG
-						{
-							std::lock_guard<std::mutex> lock(gPoolOutput);
-							std::cout << "Shelving Task (Thread " << threadNumber << "): " 
-								<< task->GetName() << std::endl;
-						}
-#endif
-					} else {
-						task->In().bIsStarted = true;
-					}
-				}
-
-				params.mTask = task;
-				auto result = task->Run(params);
-
-				if (result == TaskResult::FINISHED) {
-#ifdef THREAD_POOL_DEBUG
-					{
-						std::lock_guard<std::mutex> lock(gPoolOutput);
-						std::cout << "End Task (Thread " << threadNumber << "): " 
-							<< task->GetName() << std::endl;
-					}
-#endif
-					// Finish Task
-					Fire(&task->Out());
-
-					{
-						// If we own the task, we should deallocate it
-						std::lock_guard<std::mutex> lock(mOwnedTasksMutex);
-						auto it = mOwnedTasks.find(task);
-						if (it != mOwnedTasks.end()) {
-							mOwnedTasks.erase(it);
-						}
-					}
-
-					--mTasksPending;
-				} else {
-					if (result == TaskResult::WAITING) {
-
-#ifdef THREAD_POOL_DEBUG
-						{
-							std::lock_guard<std::mutex> lock(gPoolOutput);
-							std::cout << "Shelving Task (Thread " << threadNumber << "): " 
-								<< task->GetName() << std::endl;
-						}
-#endif
-
-					} else if (result == TaskResult::REQUEST_THREAD_SWITCH) {
-						auto assignedThread = task->GetAssignedThread();
-
-#ifdef THREAD_POOL_DEBUG
-						{
-							std::lock_guard<std::mutex> lock(gPoolOutput);
-							std::cout << "Swapping Thread (" << threadNumber << "->" 
-								<< assignedThread << "): " 
-								<< task->GetName() << std::endl;
-						}
-#endif
-						// This task was meant for another thread, assign it to that thread
-						Emplace(task);
-						--mTasksPending;
-					}
-				}
-			} else {
-				// Figure out if we should quit
-				if (bIsMainThread) {
-					if (finishPredicate) {
-						std::this_thread::yield();
-					} else {
-						break;	
-					}
-				} else {
-					std::this_thread::yield();
+				std::unique_lock<std::mutex> lock(mCollectiveQueueMutex);
+				for (auto& node : toTrigger.mLeaves) {
+					mCollectiveQueue.emplace(node);
+					++mTasksPending;
 				}
 			}
 		}
-	}
-
-	void ThreadPool::Emplace(ITask* task) {
-		++mTasksPending;
-		auto thread = task->GetAssignedThread();
-
-		if (thread == ASSIGN_THREAD_ANY) {
-			std::lock_guard<std::mutex> lock(mCollectiveQueueMutex);
-			mCollectiveQueue.emplace(task);
-		} else {
-			std::lock_guard<std::mutex> lock(mIndividualMutexes[thread]);
-			mIndividualQueues[thread].emplace(task);
-		}
-	}
-
-	void ThreadPool::YieldUntilEmpty() {
-		YieldUntilCondition([this] {
-			return IsQueueEmpty();
-		});
 	}
 
 	void ThreadPool::YieldUntilCondition(const std::function<bool()>& predicate) {
@@ -340,11 +570,14 @@ namespace Morpheus {
 		}
 	}
 
-	void ThreadPool::Startup(uint threads) {	
+	void ThreadPool::YieldUntilEmpty() {
+		YieldUntilCondition([this] {
+			return IsQueueEmpty();
+		});
+	}
+	
+	void ThreadPool::Startup(uint threads) {
 		bExit = false;
-
-		mIndividualQueues.resize(threads);
-		mIndividualMutexes = std::vector<std::mutex>(threads);
 
 		for (uint i = 1; i < threads; ++i) {
 			std::cout << "Initializing Thread " << i << std::endl;
@@ -368,26 +601,109 @@ namespace Morpheus {
 				thread.join();
 			}
 
-			mIndividualMutexes.clear();
-			mIndividualQueues.clear();
 			mTaskQueue = queue_t();
-			mOwnedTasks.clear();
 		}
 		bInitialized = false;
 	}
 
-	ITask* ThreadPool::Adopt(Task&& task) {
-		auto ptr = task.Ptr();
+	void ThreadPool::ThreadProc(bool bIsMainThread, 
+		uint threadNumber, 
+		const std::function<bool()>* finishPredicate) {
+		
+		ThreadMask mask = (ThreadMask)1 << threadNumber;
 
-		if (!ptr) {
-			return nullptr;
+		while (!bExit) {
+			// We have reached our finish predicate
+			if (finishPredicate && (*finishPredicate)()) {
+				break;
+			}
+
+			TaskNode task;
+			{
+				// Select a task assigned to the collective queue
+				std::lock_guard<std::mutex> lock(mCollectiveQueueMutex);
+
+				for (auto it = mCollectiveQueue.begin(); 
+					it != mCollectiveQueue.end(); ++it) {
+
+					if (it->GetThreadMask() | mask) {
+						task = *it;
+						mCollectiveQueue.erase(it);
+						break;
+					}
+				}
+			}
+
+			if (task) {
+
+				std::vector<TaskNode> next;
+
+				// Signal that we've started this task!
+				{
+#ifdef THREAD_POOL_DEBUG
+					{
+						std::lock_guard<std::mutex> lock2(gPoolOutput);
+
+						if (task.GetName()) {
+							std::cout << "Arrived at node: " 
+								<< task.GetName() << std::endl;
+						} else {
+							std::cout << "Arrived at node: " 
+								<< "[UNNAMED]" << std::endl;
+						}
+					}
+#endif
+
+					auto inLock = task.In();
+
+					// Task has already been started. Don't start twice!
+					if (inLock.IsStarted())
+						task = TaskNode();
+
+					inLock.SetStarted(true);
+				}
+
+				if (task) {
+					task.Execute(this, threadNumber);
+					task.Out().Fire(next);
+
+#ifdef THREAD_POOL_DEBUG
+					{
+						std::lock_guard<std::mutex> lock2(gPoolOutput);
+
+						if (task.GetName()) {
+							std::cout << "Leaving at node: " 
+								<< task.GetName() << std::endl;
+						} else {
+							std::cout << "Leaving at node: " 
+								<< "[UNNAMED]" << std::endl;
+						}
+					}
+#endif
+
+					{
+						std::unique_lock<std::mutex> lock(mCollectiveQueueMutex);
+						for (auto& n : next) {
+							mCollectiveQueue.emplace(n);
+							++mTasksPending;
+						}
+					}
+				}
+
+				--mTasksPending;
+				
+			} else {
+				// Figure out if we should quit
+				if (bIsMainThread) {
+					if (finishPredicate) {
+						std::this_thread::yield();
+					} else {
+						break;	
+					}
+				} else {
+					std::this_thread::yield();
+				}
+			}
 		}
-
-		{
-			std::lock_guard<std::mutex> lock(mOwnedTasksMutex);
-			mOwnedTasks.emplace(ptr, std::move(task));
-		}
-
-		return ptr;
 	}
 }

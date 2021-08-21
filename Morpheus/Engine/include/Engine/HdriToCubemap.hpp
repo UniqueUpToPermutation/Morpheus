@@ -15,7 +15,7 @@ namespace Morpheus {
 		Handle<DG::IShader> mVS;
 		Handle<DG::IShader> mPS;
 
-		static ResourceTask<HDRIToCubemapShaders> Load(DG::IRenderDevice* device,
+		static Future<HDRIToCubemapShaders> Load(DG::IRenderDevice* device,
 			bool bConvertSRGBToLinear = false,
 			IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance());
 	};

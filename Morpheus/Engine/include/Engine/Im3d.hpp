@@ -59,10 +59,10 @@ namespace Morpheus {
 		Handle<DG::IShader> mLinesPS;
 		Handle<DG::IShader> mPointsPS;
 
-		static ResourceTask<Im3dShaders> LoadDefault(DG::IRenderDevice* device, 
+		static Future<Im3dShaders> LoadDefault(DG::IRenderDevice* device, 
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 
-		static inline ResourceTask<Im3dShaders> LoadDefault(RealtimeGraphics& graphics,
+		static inline Future<Im3dShaders> LoadDefault(RealtimeGraphics& graphics,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
 			return LoadDefault(graphics.Device(), system);
 		}
@@ -121,7 +121,7 @@ namespace Morpheus {
 
 		Im3dState CreateState();
 
-		static ResourceTask<Im3dPipeline> LoadDefault(DG::IRenderDevice* device, 
+		static Future<Im3dPipeline> LoadDefault(DG::IRenderDevice* device, 
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 	};
 

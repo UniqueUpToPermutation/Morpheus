@@ -11,1082 +11,762 @@
 #include <memory>
 #include <unordered_map>
 
-#include <Engine/Defines.hpp>
-
-#define ASSIGN_THREAD_ANY -1
-#define ASSIGN_THREAD_MAIN 0
-
 #ifndef NDEBUG
 // #define THREAD_POOL_DEBUG
 #endif
 
-typedef uint TaskId;
+#define THREAD_MAIN 0UL
+
+typedef uint64_t TaskId;
+typedef uint64_t ThreadMask;
 
 namespace Morpheus {
-	enum class TaskType {
-		UNSPECIFIED,
-		RENDER,
-		UPDATE,
-		FILE_IO
-	};
-
-	inline int GetTaskPriority(TaskType type) {
-		switch (type) {
-			case TaskType::RENDER:
-				return 2;
-			case TaskType::UPDATE:
-				return 1;
-			case TaskType::FILE_IO:
-				return -1;
-			default:
-				return 0;
-		}
-	}
-
-	struct TaskParams {
-		ITask* mTask;
-		ITaskQueue* mQueue;
-		uint mThreadId;
-	};
-
-	enum class TaskResult {
-		FINISHED,
-		WAITING,
-		REQUEST_THREAD_SWITCH
-	};
-
-	enum class TaskPinOwnerType {
-		TASK,
-		BARRIER
-	};
-
-	struct TaskNodeInLock;
-
-	class IVirtualTaskNodeOut {
-	public:
-		virtual void Connect(TaskNodeInLock& lock) = 0;
-	};
-
-	struct TaskNodeInLock {
-	private:
-		std::unique_lock<std::mutex> mLock;
-		TaskNodeIn* mNode;
-		bool bWait = false;
-
-	public:
-		inline TaskNodeInLock(TaskNodeIn* in);
-
-		TaskNodeInLock& Connect(TaskNodeOut* out);
-
-		inline TaskNodeInLock& Connect(ITask* task);
-		inline TaskNodeInLock& Connect(Task* task);
-
-		inline TaskNodeInLock& Connect(Task& task) {
-			return Connect(&task);
-		}
-		inline TaskNodeInLock& Connect(TaskNodeOut& out) {
-			return Connect(&out);
-		}
-		inline TaskNodeInLock& Connect(IVirtualTaskNodeOut& connector) {
-			connector.Connect(*this);
-			return *this;
-		}
-
-		inline TaskNodeInLock& Reset();
-		inline uint InputsLeft() const;
-		inline bool IsStarted() const;
-		inline bool IsReady() const;
-		inline void Clear();
-
-		inline bool ShouldWait() const {
-			return bWait;
-		}
-	};
-
-	class TaskNodeIn {
-	private:
-		bool bIsStarted = false;
-		uint mInputsLeft = 0;
-		std::mutex mMutex;
-		std::vector<TaskNodeOut*> mInputs;
-		TaskPinOwnerType mOwnerType;
-		
-		union {
-			ITask* mTask;
-			TaskBarrier* mBarrier;
-		} mOwner;
-	public:
-		inline ITask* Task() {
-			if (mOwnerType == TaskPinOwnerType::TASK) {
-				return mOwner.mTask;
-			} else {
-				return nullptr;
-			}
-		}
-
-		inline TaskBarrier* Barrier() {
-			if (mOwnerType == TaskPinOwnerType::BARRIER) {
-				return mOwner.mBarrier;
-			} else {
-				return nullptr;
-			}
-		}
-
-		inline uint InputsLeftUnsafe() const {
-			return mInputsLeft;
-		}
-
-		inline bool IsStartedUnsafe() const {
-			return bIsStarted;
-		}
-
-		inline bool IsReadyUnsafe() const {
-			return mInputsLeft == 0;
-		}
-
-		inline TaskNodeInLock Lock() {
-			return TaskNodeInLock(this);
-		}
-
-		void ResetUnsafe();
-
-		inline TaskNodeIn(ITask* owner) {
-			mOwner.mTask = owner;
-			mOwnerType = TaskPinOwnerType::TASK;
-		}
-
-		inline TaskNodeIn(TaskBarrier* owner) {
-			mOwner.mBarrier = owner;
-			mOwnerType = TaskPinOwnerType::BARRIER;
-		}
-
-		friend class TaskNodeOut;
-		friend class ImmediateTaskQueue;
-		friend class ThreadPool;
-		friend class ITaskQueue;
-		friend class TaskNodeInLock;
-	};
-
-	struct TaskNodeOutLock {
-	private:
-		std::unique_lock<std::mutex> mLock;
-		TaskNodeOut* mNode;
-
-	public:
-		inline TaskNodeOutLock(TaskNodeOut* out);
-
-		inline bool IsFinished() const;
-		inline TaskNodeOutLock& Reset();
-		inline void Clear();
-	};
-
-	class TaskNodeOut {
-	private:
-		bool bIsFinished = false;
-		std::mutex mMutex;
-		std::vector<TaskNodeIn*> mOutputs;
-
-	public:
-		inline bool IsFinishedUnsafe() const {
-			return bIsFinished;
-		}
-
-		inline void SetFinishedUnsafe(bool value) {
-			bIsFinished = value;
-		}
-
-		void ResetUnsafe();
-
-		inline TaskNodeOutLock Lock() {
-			return TaskNodeOutLock(this);
-		}
-
-		friend class TaskNodeIn;
-		friend class ImmediateTaskQueue;
-		friend class ThreadPool;
-		friend class ITaskQueue;
-		friend class TaskNodeOutLock;
-		friend class TaskNodeInLock;
-	};
-
-	struct TaskBarrier {
-		TaskNodeIn mIn;
-		TaskNodeOut mOut;
-
-		inline TaskBarrier() : mIn(this) {
-		}
-
-		inline void Reset() {
-			mIn.Lock().Reset();
-			mOut.Lock().Reset();
-		}
-
-		inline void Clear() {
-			mIn.Lock().Clear();
-			mOut.Lock().Clear();
-		}
-
-		// Trigger via immediate mode.
-		void Trigger();
-	};
-
-	class ITask {
-	private:
-		int mAssignedThread;
-
-		TaskNodeIn mNodeIn;
-		TaskNodeOut mNodeOut;
-
-		uint mStagesFinished = 0;
-		uint mCurrentStage = 0;
-		TaskType mTaskType;
-
-	protected:
-		virtual TaskResult InternalRun(const TaskParams& params) = 0;
-
-	public:
-		virtual ~ITask() = default;
-
-		inline bool RequestThreadSwitch(const TaskParams& e, uint targetThread) {
-			if (e.mThreadId == targetThread) 
-				return false;
-			else {
-				mAssignedThread = targetThread;
-				return true;
-			}
-		}
-
-		inline bool BeginSubTask() {
-			bool result = mStagesFinished <= mCurrentStage;
-			++mCurrentStage;
-			return result;
-		}
-
-		inline void EndSubTask() {
-			++mStagesFinished;
-		}
-
-		inline TaskNodeIn& In() {
-			return mNodeIn;
-		}
-
-		inline TaskNodeOut& Out() {
-			return mNodeOut;
-		}
-
-		virtual std::string GetName() const = 0;
-
-		inline void Reset() {
-			mStagesFinished = 0;
-			mNodeIn.Lock().Reset();
-			mNodeOut.Lock().Reset();
-		}
-
-		inline TaskResult Run(const TaskParams& params) {
-			mCurrentStage = 0;
-			return InternalRun(params);
-		}
-
-		inline bool IsFinished() {
-			return mNodeOut.Lock().IsFinished();
-		}
-
-		inline bool IsStarted() {
-			return mNodeIn.Lock().IsStarted();
-		}
-
-		inline bool IsReady() {
-			return mNodeIn.Lock().IsReady();
-		}
-
-		inline int GetAssignedThread() const {
-			return mAssignedThread;
-		}
-
-		inline TaskType GetType() const {
-			return mTaskType;
-		}
-
-		ITask(TaskType taskType, int assignedThread = ASSIGN_THREAD_ANY) : 
-			mAssignedThread(assignedThread),
-			mTaskType(taskType),
-			mNodeIn(this) {
-		}
-
-		inline void operator()();
-	};
-
-	template <typename ...Args>
-	class IParameterizedTask : public ITask {
-	private:
-		std::tuple<Args...> mArgs;
-
-		virtual TaskResult InternalParameterizedRun(const TaskParams& params, const Args&... args) = 0;
-
-		TaskResult InternalRun(const TaskParams& params) override {
-			TaskResult result;
-			std::apply([this, &params, &result](const Args&... args) {
-				result = InternalParameterizedRun(params, args...);
-			}, mArgs);
-			return result;
-		}
-
-	public:
-		inline void SetParameters(Args&&... args) {
-			mArgs = std::make_tuple<Args...>(std::forward<Args...>(args)...);
-		}
-
-		inline IParameterizedTask(TaskType taskType, int assignedThread = ASSIGN_THREAD_ANY) : 
-			ITask(taskType, assignedThread) {
-		}
-	};
-
-	template <typename LambdaT, bool IsVoid>
-	struct TaskResultCast {
-	};
-
-	template <typename LambdaT>
-	struct TaskResultCast<LambdaT, true> {
-		static TaskResult Perform(LambdaT& l, const TaskParams& e) {
-			l(e);
-			return TaskResult::FINISHED;
-		}
-	};
-
-	template <typename LambdaT>
-	struct TaskResultCast<LambdaT, false> {
-		static TaskResult Perform(LambdaT& l, const TaskParams& e) {
-			return l(e);
-		}
-	};
-
-	template <typename T, typename... Args>
-	inline auto ParameterizedTaskPerform(T& delegate, const TaskParams& params, const Args&... args) {
-		return delegate(params, args...);
-	}
-
-	template <typename T, typename... Args>
-	class ParameterizedLambdaTask : public IParameterizedTask<Args...> {
-	private:
-		T mDelegate;
-		std::string mName;
-
-		inline TaskResult PerformAndConvert(void(*func)(T& delegate, const TaskParams& params, const Args&... args), 
-			const TaskParams& params, 
-			const Args&... args) {
-			(*func)(mDelegate, params, args...);
-			return TaskResult::FINISHED;
-		}
-
-		inline TaskResult PerformAndConvert(TaskResult(*func)(T& delegate, const TaskParams& params, const Args&... args), 
-			const TaskParams& params, 
-			const Args&... args) {
-			return (*func)(mDelegate, params, args...);
-		}
-
-	public:
-		inline ParameterizedLambdaTask(T&& func, const std::string& name = "",
-			TaskType type = TaskType::UNSPECIFIED,
-			int assignedThread = ASSIGN_THREAD_ANY) :
-			IParameterizedTask<Args...>(type, assignedThread),
-			mName(name), mDelegate(std::move(func)) {
-		}
-
-		TaskResult InternalParameterizedRun(const TaskParams& params, const Args&... args) override {
-			static_assert(!std::is_same_v<T, const ITask*>);
-			return PerformAndConvert(&ParameterizedTaskPerform<T, Args...>,
-				params, args...);
-		}
-
-		std::string GetName() const override {
-			return mName;
-		}
-	};
-
-	template <typename T>
-	class LambdaTask : public ITask {
-	private:
-		T mDelegate;
-		std::string mName;
-
-	public:
-		inline LambdaTask(T&& func, const std::string& name = "",
-			TaskType type = TaskType::UNSPECIFIED,
-			int assignedThread = ASSIGN_THREAD_ANY) :
-			ITask(type, assignedThread),
-			mName(name), mDelegate(std::move(func)) {
-		}
-
-		TaskResult InternalRun(const TaskParams& params) override {
-			static_assert(!std::is_same_v<T, const ITask*>);
-			return TaskResultCast<T, std::is_void<decltype(mDelegate(params))>::value>::
-				Perform(mDelegate, params);
-		}
-
-		std::string GetName() const override {
-			return mName;
-		}
-	};
-
-	template <typename ...Args>
-	struct ParameterizedTask {
-	private:
-		IParameterizedTask<Args...>* mPtr;
-
-	public:
-		inline ParameterizedTask() : mPtr(nullptr) {
-		}
-
-		inline ParameterizedTask(IParameterizedTask<Args...>* ptr) : mPtr(ptr) {
-		}
-
-		inline ParameterizedTask(const IParameterizedTask<Args...>* ptr) : mPtr(nullptr) {
-			throw std::runtime_error("Cannot create task from const pointer!");
-		}
-
-		inline ParameterizedTask(TaskNodeIn* n) : mPtr(nullptr) {
-			throw std::runtime_error("Cannot create task from TaskNodeIn!");
-		}
-
-		inline IParameterizedTask<Args...>* Ptr() {
-			return mPtr;
-		}
-
-		inline const IParameterizedTask<Args...>* Ptr() const {
-			return mPtr;
-		}
-
-		ParameterizedTask(const ParameterizedTask<Args...>& task) = delete;
-		ParameterizedTask& operator=(const ParameterizedTask<Args...>& task) = delete;
-
-		template <typename T>
-		inline ParameterizedTask(T&& lambda, 
-			const std::string& name = "",
-			TaskType type = TaskType::UNSPECIFIED, 
-			int assignedThread = ASSIGN_THREAD_ANY) {
-			mPtr = new ParameterizedLambdaTask<T, Args...>(std::move(lambda), name, type, assignedThread);
-		}
-
-		inline void Swap(ParameterizedTask<Args...>& task) {
-			std::swap(task.mPtr, mPtr);
-		}
-
-		inline ParameterizedTask(ParameterizedTask<Args...>&& task) : mPtr(nullptr) {
-			Swap(task);
-		}
-
-		inline ParameterizedTask<Args...>& operator=(ParameterizedTask<Args...>&& task) {
-			Swap(task);
-			return *this;
-		}
-
-		~ParameterizedTask() {
-			if (!mPtr) {
-				delete mPtr;
-			}
-		}
-
-		inline IParameterizedTask<Args...>* operator->() {
-			return mPtr;
-		}
-
-		inline const IParameterizedTask<Args...>* operator->() const {
-			return mPtr;
-		}
-
-		inline void operator()() {
-			mPtr->operator()();
-		}
-
-		inline void SetParameters(Args&&... args) {
-			mPtr->SetParameters(std::forward(args)...);
-		}
-
-		inline void SetParameters(const Args&... args) {
-			mPtr->SetParameters(args...);
-		}
-
-		friend struct Task;
-	};
-
-	struct Task {
-	private:
-		ITask* mPtr;
-
-	public:
-		inline Task() : mPtr(nullptr) {
-		}
-
-		inline Task(ITask* ptr) : mPtr(ptr) {
-		}
-
-		inline Task(const ITask* ptr) : mPtr(nullptr) {
-			throw std::runtime_error("Cannot create task from const pointer!");
-		}
-
-		inline Task(TaskNodeIn* n) : mPtr(nullptr) {
-			throw std::runtime_error("Cannot create task from TaskNodeIn!");
-		}
-
-		inline ITask* Ptr() {
-			return mPtr;
-		}
-
-		inline const ITask* Ptr() const {
-			return mPtr;
-		}
-
-		Task(const Task& task) = delete;
-		Task& operator=(const Task& task) = delete;
-
-		template <typename T>
-		inline Task(T&& lambda, 
-			const std::string& name = "",
-			TaskType type = TaskType::UNSPECIFIED, 
-			int assignedThread = ASSIGN_THREAD_ANY) {
-			mPtr = new LambdaTask<T>(std::move(lambda), name, type, assignedThread);
-		}
-
-		inline void Swap(Task& task) {
-			std::swap(task.mPtr, mPtr);
-		}
-
-		inline Task(Task&& task) : mPtr(nullptr) {
-			Swap(task);
-		}
-
-		template <typename ...Args>
-		inline Task(ParameterizedTask<Args...>&& other) : 
-			mPtr(other.mPtr) {
-			other.mPtr = nullptr;
-		}
-
-		inline Task& operator=(Task&& task) {
-			Swap(task);
-			return *this;
-		}
-
-		~Task() {
-			if (!mPtr) {
-				delete mPtr;
-			}
-		}
-
-		inline ITask* operator->() {
-			return mPtr;
-		}
-
-		inline const ITask* operator->() const {
-			return mPtr;
-		}
-
-		inline void operator()() {
-			mPtr->operator()();
-		}
-
-		inline operator bool() const {
-			return mPtr;
-		}
-	};
-
-	class TaskGroup {
-	private:
-		std::string mName;
-		TaskBarrier mBarrierIn;
-		TaskBarrier mBarrierOut;
-		std::vector<ITask*> mMembers;
-		std::vector<Task> mOwnedMembers;
-		std::vector<TaskGroup*> mSubGroups;
-
-	public:
-		inline TaskGroup() {
-			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
-		}
-
-		inline std::vector<ITask*>& GetExternalMembers() {
-			return mMembers;
-		}
-
-		inline std::vector<Task>& GetOwnedMembers() {
-			return mOwnedMembers;
-		}
-
-		inline TaskBarrier& BarrierIn() {
-			return mBarrierIn;
-		}
-
-		inline TaskBarrier& BarrierOut() {
-			return mBarrierOut;
-		}
-
-		inline TaskNodeIn& In() {
-			return mBarrierIn.mIn;
-		}
-
-		inline TaskNodeOut& Out() {
-			return mBarrierOut.mOut;
-		}
-
-		inline void Add(ITask* member) {
-			if (member) {
-				mMembers.push_back(member);
-
-				member->In().Lock().Connect(&mBarrierIn.mOut);
-				mBarrierOut.mIn.Lock().Connect(&member->Out());
-			}
-		}
-
-		inline void Adopt(Task&& member) {
-			if (member.Ptr()) {
-				member->In().Lock().Connect(&mBarrierIn.mOut);
-				mBarrierOut.mIn.Lock().Connect(&member->Out());
-
-				mOwnedMembers.push_back(std::move(member));
-			}
-		}
-
-		inline void Add(TaskGroup* subGroup) {
-			if (subGroup) {
-				mSubGroups.push_back(subGroup);
-
-				subGroup->In().Lock().Connect(&mBarrierIn.mOut);
-				mBarrierOut.mIn.Lock().Connect(&subGroup->Out());
-			}
-		}
-
-		inline void Reset() {
-			mBarrierIn.Reset();
-			mBarrierOut.Reset();
-
-			for (auto& mem : mMembers) {
-				mem->Reset();
-			}
-
-			for (auto& mem : mOwnedMembers) {
-				mem->Reset();
-			}
-
-			for (auto& sub : mSubGroups) {
-				sub->Reset();
-			}
-		}
-
-		inline void Clear() {
-			mBarrierIn.Clear();
-			mBarrierOut.Clear();
-			mMembers.clear();
-			mOwnedMembers.clear();
-			mSubGroups.clear();
-
-			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
-		}
-
-		inline bool IsFinished() {
-			return Out().Lock().IsFinished();
-		}
-
-		inline bool IsStarted() {
-			return In().Lock().IsStarted();
-		}
-
-		inline void operator()();
-
-		friend class ITaskQueue;
-	};
-
-	template <typename ...Args>
-	class ParameterizedTaskGroup {
-	private:
-		std::string mName;
-		TaskBarrier mBarrierIn;
-		TaskBarrier mBarrierOut;
-		std::vector<IParameterizedTask<Args...>*> mMembers;
-		std::vector<ParameterizedTask<Args...>> mOwnedMembers;
-		std::vector<ParameterizedTaskGroup<Args...>*> mSubGroups;
-
-	public:
-		inline ParameterizedTaskGroup() {
-			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
-		}
-
-		inline std::vector<IParameterizedTask<Args...>*>& GetExternalMembers() {
-			return mMembers;
-		}
-
-		inline std::vector<ParameterizedTask<Args...>>& GetOwnedMembers() {
-			return mOwnedMembers;
-		}
-
-		inline std::vector<ParameterizedTaskGroup<Args...>>& GetSubGroups() {
-			return mSubGroups;
-		}
-
-		inline void SetParameters(Args... args) {
-			for (auto& mem : mMembers) {
-				mem->SetParameters(std::forward<Args...>(args)...);
-			}
-
-			for (auto& mem : mOwnedMembers) {
-				mem->SetParameters(std::forward<Args...>(args)...);
-			}
-
-			for (auto& group : mSubGroups) {
-				group->SetParameters(std::forward<Args...>(args)...);
-			}
-		}
-
-		inline TaskBarrier& BarrierIn() {
-			return mBarrierIn;
-		}
-
-		inline TaskBarrier& BarrierOut() {
-			return mBarrierOut;
-		}
-
-		inline TaskNodeIn& In() {
-			return mBarrierIn.mIn;
-		}
-
-		inline TaskNodeOut& Out() {
-			return mBarrierOut.mOut;
-		}
-
-		inline void Add(IParameterizedTask<Args...>* member) {
-			mMembers.push_back(member);
-
-			member->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&member->Out());
-		}
-
-		inline void Adopt(ParameterizedTask<Args...>&& member) {
-			member->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&member->Out());
-
-			mOwnedMembers.push_back(std::move(member));
-		}
-
-		inline void Add(ParameterizedTaskGroup<Args...>* subGroup) {
-			mSubGroups.push_back(subGroup);
-
-			subGroup->In().Lock().Connect(&mBarrierIn.mOut);
-			mBarrierOut.mIn.Lock().Connect(&subGroup->Out());
-		}
-
-		inline void Clear() {
-			mBarrierIn.Clear();
-			mBarrierOut.Clear();
-			mMembers.clear();
-			mOwnedMembers.clear();
-			mSubGroups.clear();
-
-			mBarrierOut.mIn.Lock().Connect(&mBarrierIn.mOut);
-		}
-
-		inline void Reset() {
-			mBarrierIn.Reset();
-			mBarrierOut.Reset();
-
-			for (auto& mem : mMembers) {
-				mem->Reset();
-			}
-
-			for (auto& mem : mOwnedMembers) {
-				mem->Reset();
-			}
-
-			for (auto& sub : mSubGroups) {
-				sub->Reset();
-			}
-		}
-
-		inline bool IsFinished() {
-			return Out().Lock().IsFinished();
-		}
-
-		inline bool IsStarted() {
-			return In().Lock().IsStarted();
-		}
-
-		inline void operator()();
-
-		friend class ITaskQueue;
-	};
 
 	template <typename T>
 	class Future;
+	template <typename T>
+	class UniqueFuture;
+	template <typename T>
+	class Promise;
+
+	struct TaskNodeImpl;
+	class NodeIn;
+	class NodeOut;
+	class IComputeQueue;
+	class IBoundFunction;
+	struct TaskNodeImpl;
+	class TaskNode;
+
+	class NodeIn {
+	private:
+		std::unique_lock<std::mutex> mLock;
+		std::shared_ptr<TaskNodeImpl> mParent;
+
+		void Connect(std::shared_ptr<TaskNodeImpl> join);
+
+	public:
+		NodeIn(std::shared_ptr<TaskNodeImpl> parent);
+
+		NodeIn(const NodeIn&) = delete;
+		NodeIn& operator=(const NodeIn&) = delete;
+
+		NodeIn(NodeIn&&) = default;
+		NodeIn& operator=(NodeIn&&) = default;
+
+		NodeIn& SetStarted(bool value);
+		NodeIn& SetScheduled(bool value);
+
+		bool IsStarted() const;
+		bool IsScheduled() const;
+		void Reset();
+		bool Trigger();
+		bool IsReady() const;
+
+		friend class TaskNode;
+		friend class NodeOut;
+	};
+
+	class NodeOut {
+	private:
+		std::unique_lock<std::mutex> mLock;
+		std::shared_ptr<TaskNodeImpl> mParent;
+
+		void Connect(std::shared_ptr<TaskNodeImpl> join);
+	
+	public:
+		NodeOut(std::shared_ptr<TaskNodeImpl> parent);
+
+		NodeOut(const NodeOut&) = delete;
+		NodeOut& operator=(const NodeOut&) = delete;
+
+		NodeOut(NodeOut&&) = default;
+		NodeOut& operator=(NodeOut&&) = default;
+
+		bool IsFinished() const;
+		void SetFinished(bool value);
+		void Fire(std::vector<TaskNode>& executable);
+		void Reset();
+		void Skip();
+
+		friend class TaskNode;
+	};
+
+	class TaskNode {
+	public:
+		struct SearchResult {
+			std::vector<TaskNode> mVisited;
+			std::vector<TaskNode> mLeaves;
+		};
+
+	private:
+		std::shared_ptr<TaskNodeImpl> mNode;
+
+		enum SearchDirection {
+			BACKWARD,
+			FORWARD
+		};
+
+		template <SearchDirection dir>
+		static SearchResult Search(const std::vector<TaskNode>& begin);
+
+	public:
+		TaskNode() = default;
+		TaskNode(std::shared_ptr<TaskNodeImpl> node);
+
+		std::shared_ptr<TaskNodeImpl> GetImpl();
+		void SetFunction(std::unique_ptr<IBoundFunction>&& func);
+		IBoundFunction* GetFunction() const;
+		TaskNode& After(TaskNode other);
+		TaskNode& Before(TaskNode other);
+		void Execute(IComputeQueue* queue, int threadId);
+		NodeIn In();
+		NodeOut Out();
+		const char* GetName() const;
+		TaskNode& SetName(const char* name);
+		TaskNode& SetPriority(int priority);
+		TaskNode& SetThreadMask(ThreadMask mask);
+		ThreadMask GetThreadMask() const;
+		TaskNode& DisallowThread(uint threadId);
+		TaskNode& OnlyThread(uint threadId);
+		int GetPriority() const;
+		TaskId GetId() const;
+		void Reset();
+		void ResetDescendants();
+		void Skip();
+		void SkipAncestors();
+
+		operator bool() const;
+
+		template <typename T>
+		void After(const Future<T>& future);
+		template <typename T>
+		void After(const UniqueFuture<T>& future);
+		template <typename T>
+		void Before(const Promise<T>& promise);
+
+		static TaskNode Create();
+		static SearchResult BackwardSearch(const std::vector<TaskNode>& outputs);
+		static SearchResult BackwardSearch(TaskNode output);
+		static SearchResult ForwardSearch(const std::vector<TaskNode>& outputs);
+		static SearchResult ForwardSearch(TaskNode output);
+
+		struct Comparer {
+			inline bool operator()(const TaskNode& lhs, const TaskNode& rhs) const {
+				auto lhsPriority = lhs.GetPriority();
+				auto rhsPriority = rhs.GetPriority();
+
+				if (lhsPriority != rhsPriority) {
+					return lhsPriority < rhsPriority;
+				} else {
+					return lhs.mNode < rhs.mNode;
+				}
+			}
+		};
+
+		friend class NodeOut;
+	};
+
+	template <>
+	class Promise<void> {
+	private:
+		TaskNode mNode;
+		
+	public:
+		Promise() : 
+			mNode(TaskNode::Create()) {
+		}
+
+		TaskNode Node() {
+			return mNode;
+		}
+
+		Promise(Promise<void>&& other) = default;
+		Promise(const Promise& other) = default;
+		Promise<void>& operator=(Promise<void>&& other) = default;
+		Promise<void>& operator=(const Promise<void>& other) = default;
+
+		friend class Future<void>;
+		friend class TaskNode;
+		friend class IComputeQueue;
+	};
 
 	template <typename T>
 	class Promise {
 	private:
-		struct Internal {
-			T mData;
-			TaskNodeOut mOut;
-		};
-
-		std::shared_ptr<Internal> mInternal;
+		std::shared_ptr<T> mData;
+		TaskNode mNode;
 		
 	public:
-		inline Promise() {
-			mInternal = std::make_shared<Internal>();
+		Promise() : 
+			mNode(TaskNode::Create()),
+			mData(std::make_shared<T>()) {
 		}
 
-		inline TaskNodeOut* Out() {
-			return &mInternal->mOut;
+		Promise(T&& val) :
+			mData(std::make_shared<T>(std::move(val))),
+			mNode(TaskNode::Create()) {
 		}
 
-		inline bool IsAvailable() const {
-			return mInternal->mOut.Lock().IsFinished();
+		Promise(const T& val) :
+			mData(std::make_shared<T>(val)),
+			mNode(TaskNode::Create()) {
 		}
 
-		inline const T& Get() const {
-			return mInternal->mData;
+		TaskNode Node() {
+			return mNode;
 		}
 
-		inline T& Get() {
-			return mInternal->mData;
+		Promise(Promise&& other) = default;
+		Promise(const Promise& other) = default;
+		Promise<T>& operator=(Promise<T>&& other) = default;
+		Promise<T>& operator=(const Promise<T>& other) = default;
+
+		uint GetRefCount() const {
+			return mData.use_count();
 		}
 
-		void Set(const T& value, ITaskQueue* queue);
-		void Set(T&& value, ITaskQueue* queue);
+		void Set(const T& value) {
+			*mData = value;
+			if (mNode.Out().IsFinished())
+				mNode.Reset();
+		}
+
+		void Set(T&& value) { 
+			*mData = std::move(value);
+			if (mNode.Out().IsFinished())
+				mNode.Reset();
+		}
+
+		Promise<T>& operator=(T& value) {
+			Set(value);
+			return *this;
+		}
+
+		Promise<T>& operator=(T&& value) {
+			Set(std::move(value));
+			return *this;
+		}
+		
+		const T& Get() const {
+			return *mData.get();
+		}
+
+		Future<T> GetFuture() const;
+		UniqueFuture<T> GetUniqueFuture() const;
 
 		friend class Future<T>;
+		friend class UniqueFuture<T>;
+		friend class TaskNode;
+		friend class IComputeQueue;
+	};
+
+	template <>
+	class Future<void> {
+	private:
+		TaskNode mNode;
+
+	public:
+		Future(const Promise<void>& promise) : 
+			mNode(promise.mNode) {
+		}
+
+		TaskNode Node() {
+			return mNode;
+		}
+
+		bool IsAvailable() {
+			return mNode.Out().IsFinished();
+		}
+
+		bool IsFinished() {
+			return mNode.Out().IsFinished();
+		}
+
+		inline void Evaluate() const;
+
+		Future(Future<void>&& other) = default;
+		Future(const Future<void>& other) = default;
+		Future<void>& operator=(Future<void>&& other) = default;
+		Future<void>& operator=(const Future<void>& other) = default;
+
+		struct Comparer {
+			bool operator()(const Future<void>& f1, const Future<void>& f2) {
+				return f1.mNode.GetId() < f2.mNode.GetId();
+			}
+		};
+
+		friend class TaskNode;
+		friend class Task;
+		friend class IComputeQueue;
 	};
 
 	template <typename T>
 	class Future {
 	private:
-		typedef typename Promise<T>::Internal Internal;
-
-		std::shared_ptr<Internal> mInternal;
+		std::shared_ptr<T> mData;
+		TaskNode mNode;
 
 	public:
-
-		inline uint RefCount() const {
-			return mInternal.use_count();
+		Future() {
 		}
 
-		inline Future() {
+		Future(std::nullptr_t) {
 		}
 
-		inline Future(const Promise<T>& promise) {
-			mInternal = promise.mInternal;
+		Future(const Promise<T>& promise) : 
+			mData(promise.mData),
+			mNode(promise.mNode) {
 		}
 
-		inline TaskNodeOut* Out() {
-			return &mInternal->mOut;
+		Future(Future<T>&& other) = default;
+		Future(const Future<T>& other) = default;
+		Future<T>& operator=(Future<T>&& other) = default;
+		Future<T>& operator=(const Future<T>& other) = default;
+
+		uint RefCount() const {
+			return mData.use_count();
 		}
 
-		inline bool IsAvailable() const {
-			return mInternal->mOut.Lock().IsFinished();
+		TaskNode Node() {
+			return mNode;
 		}
 
-		inline const T& Get() const {
-			return mInternal->mData;
+		bool IsAvailable() {
+			return mNode.Out().IsFinished();
 		}
 
-		inline T& Get() {
-			return mInternal->mData;
+		const T& Get() const {
+			return *mData.get();
 		}
 
-		inline operator bool() const {
-			return mInternal != nullptr;
+		operator bool() const {
+			return mData != nullptr;
 		}
+
+		const T& Evaluate();
 
 		struct Comparer {
-			inline bool operator()(const Future<T>& f1, const Future<T>& f2) {
-				return f1.mInternal < f2.mInternal;
+			bool operator()(const Future<T>& f1, const Future<T>& f2) {
+				return f1.mData < f2.mData;
 			}
 		};
+		
+		friend class TaskNode;
+		friend class Task;
+		friend class IComputeQueue;
 	};
 
 	template <typename T>
-	struct ResourceTask {
-		Task mTask;
-		Future<T> mFuture;
+	class UniqueFuture {
+	private:
+		std::shared_ptr<T> mData;
+		TaskNode mNode;
 
-		inline T operator()() {
-			mTask();
-			return std::move(mFuture.Get());
+	public:
+		UniqueFuture() {
 		}
 
-		inline operator bool() const {
-			return mTask;
+		UniqueFuture(const Promise<T>& promise) : 
+			mData(promise.mData),
+			mNode(promise.mNode) {
+		}
+
+		UniqueFuture(UniqueFuture<T>&& other) = default;
+		UniqueFuture(const UniqueFuture<T>& other) = default;
+		UniqueFuture<T>& operator=(UniqueFuture<T>&& other) = default;
+		UniqueFuture<T>& operator=(const UniqueFuture<T>& other) = default;
+
+		uint RefCount() const {
+			return mData.use_count();
+		}
+
+		TaskNode Node() {
+			return mNode;
+		}
+
+		bool IsAvailable() {
+			return mNode.Out().IsFinished();
+		}
+
+		T& Get() {
+			return *mData.get();
+		}
+
+		operator bool() const {
+			return mData != nullptr;
+		}
+
+		T& Evaluate();
+
+		struct Comparer {
+			bool operator()(const UniqueFuture<T>& f1, const UniqueFuture<T>& f2) {
+				return f1.mData < f2.mData;
+			}
+		};
+		
+		friend class TaskNode;
+		friend class Task;
+		friend class IComputeQueue;
+	};
+
+	typedef Promise<void> BarrierIn;
+	typedef Future<void> BarrierOut;
+	typedef Promise<void> Barrier;
+
+	template <typename T>
+	Future<T> Promise<T>::GetFuture() const {
+		return Future<T>(*this);
+	}
+
+	template <typename T>
+	UniqueFuture<T> Promise<T>::GetUniqueFuture() const {
+		return UniqueFuture<T>(*this);
+	}
+
+	template <typename T>
+	void TaskNode::After(const Future<T>& future) {
+		After(future.mNode);
+	}
+
+	template <typename T>
+	void TaskNode::After(const UniqueFuture<T>& future) {
+		After(future.mNode);
+	}
+
+	template <typename T>
+	void TaskNode::Before(const Promise<T>& promise) {
+		Before(promise.mNode);
+	}
+	
+	struct TaskParams {
+		IBoundFunction* mCurrent;
+		IComputeQueue* mQueue;
+		uint32_t mThread;
+	};
+
+	class IBoundFunction {
+	private:
+		std::shared_ptr<TaskNodeImpl> mNode;
+
+	public:
+		virtual void Execute(IComputeQueue* queue, int threadId) = 0;
+		TaskNode Node();
+	};
+
+	template <typename T, typename... Args>
+	class BoundFunction : public IBoundFunction {
+	private:
+		T mLambda;
+		std::tuple<Args...> mArgs;
+
+	public:
+		BoundFunction(const T& lambda, std::tuple<Args...>&& args) : 
+			mLambda(lambda), mArgs(std::move(args)) {
+		}
+
+		void Execute(IComputeQueue* queue, int threadId) override {
+			TaskParams params;
+			params.mQueue = queue;
+			params.mThread = threadId;
+			params.mCurrent = this;
+
+			std::apply([this, &params, &lambda = mLambda](const Args&... args) {
+				lambda(params, args...);
+			}, mArgs);
 		}
 	};
 
-	class ITaskQueue {
-	protected:
-		void Trigger(TaskNodeIn* in, bool bFromNodeOut);
-		void Fire(TaskNodeOut* out);
-		virtual void Emplace(ITask* task) = 0;
+	template <typename First, typename... Rest>
+	struct FunctionArgsBinder {
+	};
+
+	template <typename T>
+	struct FunctionArgsBinder<Future<T>> {
+		static void Bind(TaskNode& node, Future<T>& future) {
+			if (future)
+				node.After(future);
+		}
+	};
+
+	template <typename T>
+	struct FunctionArgsBinder<UniqueFuture<T>> {
+		static void Bind(TaskNode& node, UniqueFuture<T>& future) {
+			if (future)
+				node.After(future);
+		}
+	};
+
+	template <typename T>
+	struct FunctionArgsBinder<Promise<T>> {
+		static void Bind(TaskNode& node, Promise<T>& promise) {
+			node.Before(promise);
+		}
+	};
+
+	template <typename T, typename... Rest>
+	struct FunctionArgsBinder<Future<T>, Rest...> {
+		static void Bind(TaskNode& node, Future<T>& future, Rest... rest) {
+			FunctionArgsBinder<Future<T>>::Bind(node, future);
+			FunctionArgsBinder<Rest...>::Bind(node, rest...);
+		}
+	};
+
+	template <typename T, typename... Rest>
+	struct FunctionArgsBinder<UniqueFuture<T>, Rest...> {
+		static void Bind(TaskNode& node, UniqueFuture<T>& future, Rest... rest) {
+			FunctionArgsBinder<UniqueFuture<T>>::Bind(node, future);
+			FunctionArgsBinder<Rest...>::Bind(node, rest...);
+		}
+	};
+
+	template <typename T, typename... Rest>
+	struct FunctionArgsBinder<Promise<T>, Rest...> {
+		static void Bind(TaskNode& node, Promise<T>& promise, Rest... rest) {
+			FunctionArgsBinder<Promise<T>>::Bind(node, promise);
+			FunctionArgsBinder<Rest...>::Bind(node, rest...);
+		}
+	};
+
+	template <typename... Args>
+	class ILambdaWrap {
+	public:
+		virtual void operator()(const TaskParams& e, Args... args) = 0;
+		virtual std::unique_ptr<IBoundFunction> Bind(Args... args) = 0;
+	};
+
+	template <typename T, typename... Args>
+	class LambdaWrap : public ILambdaWrap<Args...> {
+		T mLambda;
 
 	public:
-		virtual ~ITaskQueue();
-
-		inline void Trigger(TaskGroup* group);
-		inline void Trigger(ITask* task);
-		inline void Trigger(TaskBarrier* barrier);
-		template <typename ...Args>
-		inline void Trigger(ParameterizedTaskGroup<Args...>* group);
-
-		virtual ITask* Adopt(Task&& task) = 0;
-
-		template <typename T>
-		inline Future<T> AdoptAndTrigger(ResourceTask<T>&& task) {
-			auto future = task.mFuture;
-			Trigger(Adopt(std::move(task.mTask)));
-			return future;
+		LambdaWrap(T&& lambda) : mLambda(std::move(lambda)) {
 		}
 
-		inline void AdoptAndTrigger(Task&& task) {
-			Trigger(Adopt(std::move(task)));
+		void operator()(const TaskParams& e, Args... args) override {
+			mLambda(e, args...);
+		}
+
+		std::unique_ptr<IBoundFunction> Bind(Args... args) override {
+			return std::make_unique<BoundFunction<T, Args...>>(mLambda,
+				std::make_tuple<Args...>(std::move(args)...));
+		}
+	};
+
+	template <typename... Args>
+	class FunctionPrototype {
+	private:
+		std::unique_ptr<ILambdaWrap<Args...>> mLambda;
+
+	public:
+		template <typename T>
+		FunctionPrototype(T&& lambda) :
+			mLambda(std::make_unique<LambdaWrap<T, Args...>>(std::move(lambda))) {
+		}
+
+		TaskNode operator()(Args... args) {
+			auto result = TaskNode::Create();
+
+			// Bind the arguments to the task node
+			FunctionArgsBinder<Args...>::Bind(result, args...);
+
+			// Create the bound function
+			result.SetFunction(mLambda->Bind(std::move(args)...));
+
+			return result;
+		}
+	};
+
+	template <>
+	class FunctionPrototype<> {
+	private:
+		std::unique_ptr<ILambdaWrap<>> mLambda;
+
+	public:
+		template <typename T>
+		FunctionPrototype(T&& lambda) :
+			mLambda(std::make_unique<LambdaWrap<T>>(std::move(lambda))) {
+		}
+
+		TaskNode operator()() {
+			auto result = TaskNode::Create();
+
+			// Create the bound function
+			result.SetFunction(mLambda->Bind());
+
+			return result;
+		}
+	};
+
+	class Task {
+	private:
+		TaskNode mTaskStart;
+		TaskNode mTaskEnd;
+		std::vector<TaskNode> mInternalNodes;
+		std::vector<std::shared_ptr<Task>> mInternalTasks;
+
+	protected:
+		void Add(TaskNode node);
+		void Add(std::shared_ptr<Task> task);
+
+	public:
+		Task();
+		Task(TaskNode node);
+
+		virtual ~Task() = default;
+
+		const std::vector<TaskNode>& Inputs() const;
+
+		TaskNode InNode() const;
+		TaskNode OutNode() const;
+
+		NodeIn In();
+		NodeOut Out();
+
+		void Reset();
+		void Skip();
+
+		void After(TaskNode node);
+		void Before(TaskNode node);
+
+		void After(const Task& task);
+		void Before(const Task& task);
+
+		void operator()();
+
+		friend class IComputeQueue;
+	};
+
+	class CustomTask : public Task {
+	public:
+		void Add(TaskNode node);
+		void Add(std::shared_ptr<Task> task);
+	};
+
+	class IComputeQueue {
+	protected:
+		virtual void SubmitImpl(TaskNode node) = 0;
+
+	public:
+		void Submit(TaskNode node);
+		void Submit(const Task& task);
+
+		template <typename T>
+		void Submit(const Future<T>& future) {
+			SubmitImpl(future.mNode);
+		}
+
+		template <typename T>
+		void Submit(const UniqueFuture<T>& future) {
+			SubmitImpl(future.mNode);
+		}
+
+		inline void Submit(const Future<void>& future) {
+			SubmitImpl(future.mNode);
 		}
 
 		virtual void YieldUntilCondition(const std::function<bool()>& predicate) = 0;
-
-		inline void YieldFor(const std::chrono::high_resolution_clock::duration& duration) {
-			auto start = std::chrono::high_resolution_clock::now();
-			
-			YieldUntilCondition([start, duration]() {
-				auto now = std::chrono::high_resolution_clock::now();
-				return (now - start) > duration;
-			});
-		}
-
-		inline void YieldUntil(const std::chrono::high_resolution_clock::time_point& time) {
-			YieldUntilCondition([time]() {
-				auto now = std::chrono::high_resolution_clock::now();
-				return now > time;
-			});
-		}
-		
-		inline void YieldUntilFinished(TaskNodeOut* out) {
-			YieldUntilCondition([=]() {
-				return out->Lock().IsFinished();
-			});
-		}
-
-		inline void YieldUntilFinished(ITask* task) {
-			YieldUntilCondition([=]() {
-				return task->IsFinished();
-			});
-		}
-
-		inline void YieldUntilFinished(TaskGroup* group) {
-			YieldUntilCondition([=]() {
-				return group->IsFinished();
-			});
-		}
-
-		template <typename ...Args>
-		inline void YieldUntilFinished(ParameterizedTaskGroup<Args...>* group) {
-			YieldUntilCondition([=]() {
-				return group->IsFinished();
-			});
-		}
-
-		template <typename T>
-		inline void YieldUntil(const std::future<T>& future) {
-			YieldUntilCondition([&]() {
-				return future.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-			});
-		}
-
-		template <typename T>
-		inline void YieldUntil(Future<T>& future) {
-			YieldUntilFinished(future.Out());
-		}
-
 		virtual void YieldUntilEmpty() = 0;
 
+		void YieldFor(const std::chrono::high_resolution_clock::duration& duration);
+		void YieldUntil(const std::chrono::high_resolution_clock::time_point& time);
+		void YieldUntilFinished(TaskNode node);
+
 		template <typename T>
-		friend class Promise;
-	};
-
-	class ImmediateTaskQueue : public ITaskQueue {
-	private:
-		std::queue<ITask*> mImmediateQueue;
-		std::unordered_map<ITask*, Task> mOwnedTasks;
-
-	protected:
-		void Emplace(ITask* task) override;
-		void RunOneJob();
-
-	public:
-		~ImmediateTaskQueue() {
+		void YieldUntilFinished(const Future<T>& future) {
+			YieldUntilFinished(future.mNode);
 		}
 
+		inline void YieldUntilFinished(const Future<void>& future) {
+			YieldUntilFinished(future.mNode);
+		}
+
+		template <typename T>
+		void YieldUntilFinished(const UniqueFuture<T>& future) {
+			YieldUntilFinished(future.mNode);
+		}
+
+		template <typename T>
+		const T& Evaluate(const Future<T>& future) {
+			Submit(future);
+			YieldUntilFinished(future);
+			return future.Get();
+		}
+
+		template <typename T>
+		T& Evaluate(const UniqueFuture<T>& future) {
+			Submit(future);
+			YieldUntilFinished(future);
+			return future.Get();
+		}
+
+		inline void Evaluate(const Future<void>& future) {
+			Submit(future);
+			YieldUntilFinished(future);
+		}
+
+		inline void Evaluate(TaskNode node) {
+			Submit(node);
+			YieldUntilFinished(node);
+		}
+
+		template <typename T>
+		T& Evaluate(UniqueFuture<T>& future) {
+			Submit(future);
+			YieldUntilFinished(future);
+			return future.Get();
+		}
+
+		void YieldUntilFinished(const Task& task);
+	};
+
+	class ImmediateComputeQueue : public IComputeQueue {
+	private:
+		std::queue<TaskNode> mImmediateQueue;
+
+	protected:
+		void RunOneJob();
+		void SubmitImpl(TaskNode node) override;
+
+	public:
+		~ImmediateComputeQueue() = default;
+		
 		void YieldUntilCondition(const std::function<bool()>& predicate) override;
 		void YieldUntilEmpty() override;
 
-		ITask* Adopt(Task&& task) override;
-		
-		inline uint RemainingJobCount() const {
-			return mImmediateQueue.size();
-		}
+		size_t RemainingJobCount() const;
 	};
 
-	struct TaskComparePriority {
-		inline bool operator()(const ITask* lhs, const ITask* rhs) {
-			auto lhs_val = GetTaskPriority(lhs->GetType());
-			auto rhs_val = GetTaskPriority(rhs->GetType());
-
-			return lhs_val > rhs_val;
-		}
-	};
-
-	class ThreadPool : public ITaskQueue {
+	class ThreadPool : public IComputeQueue {
 	public:
-		using queue_t = std::priority_queue<ITask*, std::vector<ITask*>, TaskComparePriority>;
+		using queue_t = std::set<TaskNode, 
+			typename TaskNode::Comparer>;
 		using gaurd_t = std::lock_guard<std::mutex>;
 
 	private:
 		bool bInitialized;
 		std::vector<std::thread> mThreads;
 		std::atomic<bool> bExit;
+		std::atomic<uint> mTasksPending;
 
-		std::vector<std::mutex> mIndividualMutexes;
-		std::vector<queue_t> mIndividualQueues;
-		
 		std::mutex mCollectiveQueueMutex;
 		queue_t mCollectiveQueue;
-		
-		std::mutex mOwnedTasksMutex;
-		std::unordered_map<ITask*, Task> mOwnedTasks;
 
 		queue_t mTaskQueue;
-
-		std::atomic<uint> mTasksPending;
 
 		void ThreadProc(bool bIsMainThread, uint threadNumber, const std::function<bool()>* finishPredicate);
 
 	protected:
-		void Emplace(ITask* task) override;
+		void SubmitImpl(TaskNode node) override;
 
 	public:
-		bool IsQueueEmpty() {
-			return mTasksPending == 0;
-		}
-
-		inline uint ThreadCount() const {
-			return mThreads.size() + 1;
-		}
-
-		inline ThreadPool() : 
-			bInitialized(false),
-			bExit(false) {
-			mTasksPending = 0;
-		}
-
-		~ThreadPool() {
-			Shutdown();
-		}
+		bool IsQueueEmpty();
+		uint ThreadCount() const;
+		ThreadPool();
+		~ThreadPool();
 
 		void YieldUntilCondition(const std::function<bool()>& predicate) override;
 		void YieldUntilEmpty() override;
 	
-		ITask* Adopt(Task&& task) override;
-
 		void Startup(uint threads = std::thread::hardware_concurrency());
 		void Shutdown();
 
@@ -1095,100 +775,17 @@ namespace Morpheus {
 		friend class TaskNodeDependencies;
 	};
 
-	void ITask::operator()() {
-		ImmediateTaskQueue queue;
-		queue.Trigger(this);
-		queue.YieldUntilEmpty();
-	}
-
-	void TaskGroup::operator()() {
-		ImmediateTaskQueue queue;
-		queue.Trigger(&mBarrierIn);
-		queue.YieldUntilEmpty();
-	}
-
-	void ITaskQueue::Trigger(TaskGroup* group) {
-		Trigger(&group->In(), false);
-	}
-
-	void ITaskQueue::Trigger(ITask* task) {
-		if (task) {
-			Trigger(&task->In(), false);
-		}
-	}
-
-	void ITaskQueue::Trigger(TaskBarrier* barrier) {
-		Trigger(&barrier->mIn, false);
-	}
-
-	template <typename ...Args>
-	void ITaskQueue::Trigger(ParameterizedTaskGroup<Args...>* group) {
-		Trigger(&group->In(), false);
-	}
-
-	TaskNodeInLock::TaskNodeInLock(TaskNodeIn* in) : mLock(in->mMutex), mNode(in) {
-	}
-
-	TaskNodeInLock& TaskNodeInLock::Connect(ITask* task) {
-		if (task)
-			return Connect(&task->Out());
-		else 
-			return *this;
-	}
-
-	TaskNodeInLock& TaskNodeInLock::Connect(Task* task) {
-		return Connect(task->Ptr());
-	}
-
-	TaskNodeInLock& TaskNodeInLock::Reset() {
-		mNode->ResetUnsafe();
-		return *this;
-	}
-	
-	uint TaskNodeInLock::InputsLeft() const {
-		return mNode->InputsLeftUnsafe();
-	}
-
-	bool TaskNodeInLock::IsStarted() const {
-		return mNode->IsStartedUnsafe();
-	}
-
-	bool TaskNodeInLock::IsReady() const {
-		return mNode->IsReadyUnsafe();
-	}
-
-	void TaskNodeInLock::Clear() {
-		mNode->bIsStarted = false;
-		mNode->mInputs.clear();
-		mNode->mInputsLeft = 0;
-	}
-
-	bool TaskNodeOutLock::IsFinished() const {
-		return mNode->IsFinishedUnsafe();
-	}
-
-	void TaskNodeOutLock::Clear() {
-		mNode->bIsFinished = false;
-		mNode->mOutputs.clear();
-	}
-
-	TaskNodeOutLock& TaskNodeOutLock::Reset() {
-		mNode->ResetUnsafe();
-		return *this;
-	}
-
-	TaskNodeOutLock::TaskNodeOutLock(TaskNodeOut* out) : mLock(out->mMutex), mNode(out) {
+	template <typename T>
+	const T& Future<T>::Evaluate() {
+		return ImmediateComputeQueue().Evaluate(*this);
 	}
 
 	template <typename T>
-	void Promise<T>::Set(const T& value, ITaskQueue* queue) {
-		mInternal->mData = value;
-		queue->Fire(&mInternal->mOut);
+	T& UniqueFuture<T>::Evaluate() {
+		return ImmediateComputeQueue().Evaluate(*this);
 	}
 
-	template <typename T>
-	void Promise<T>::Set(T&& value, ITaskQueue* queue) {
-		mInternal->mData = std::move(value);
-		queue->Fire(&mInternal->mOut);
+	void Future<void>::Evaluate() const {
+		ImmediateComputeQueue().Evaluate(*this);
 	}
 }

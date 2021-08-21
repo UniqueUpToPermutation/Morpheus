@@ -47,7 +47,7 @@ namespace Morpheus {
 		 	SimpleFPSCameraSystem(&input) {
 		}
 
-		Task Startup(SystemCollection& systems) override;
+		std::unique_ptr<Task> Startup(SystemCollection& systems) override;
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;

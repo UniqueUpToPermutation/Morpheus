@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.6)
 project(Morpheus-Redux VERSION 0.1.0)
 
-option(USE_PBRT "Compile and integrate the PBRT Backend" ON)
+option(USE_PBRT "Compile and integrate the PBRT Backend" OFF)
 option(USE_BOX2D "Compile and integrate Box2D" OFF)
 option(USE_BULLET "Compile and integrate Bullet" OFF)
 option(COMPILE_MESH2CPP "Should CMAKE compile the mesh2cpp utility?" ON)
@@ -35,10 +35,10 @@ if(USE_PBRT)
 	add_subdirectory(morpheus-pbrt)
 endif()
 
-if(COMPILE_MESH2CPP)
-	add_subdirectory(mesh2cpp)
+if(BUILD_TESTS)
+	add_subdirectory(Tests)
 endif()
 
-if (BUILD_TESTS)
-	add_subdirectory(Tests)
+if(COMPILE_MESH2CPP)
+	add_subdirectory(mesh2cpp)
 endif()

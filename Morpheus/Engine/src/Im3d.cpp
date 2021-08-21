@@ -50,148 +50,147 @@ namespace Morpheus {
 			Im3dGlobals{translation, DG::float2(scDesc.Width, scDesc.Height)});
 	}
 
-	ResourceTask<Im3dShaders> Im3dShaders::LoadDefault(DG::IRenderDevice* device, 
+	Future<Im3dShaders> Im3dShaders::LoadDefault(DG::IRenderDevice* device, 
 		IVirtualFileSystem* system) {
 
 		Promise<Im3dShaders> promise;
 		Future<Im3dShaders> future(promise);
 
 		struct {
-			Future<DG::IShader*> mTrianglesVS;
-			Future<DG::IShader*> mOtherVS;
-			Future<DG::IShader*> mPointsGS;
-			Future<DG::IShader*> mLinesGS;
-			Future<DG::IShader*> mTrianglesPS;
-			Future<DG::IShader*> mLinesPS;
-			Future<DG::IShader*> mPointsPS;
+			Future<Handle<DG::IShader>> mTrianglesVS;
+			Future<Handle<DG::IShader>> mOtherVS;
+			Future<Handle<DG::IShader>> mPointsGS;
+			Future<Handle<DG::IShader>> mLinesGS;
+			Future<Handle<DG::IShader>> mTrianglesPS;
+			Future<Handle<DG::IShader>> mLinesPS;
+			Future<Handle<DG::IShader>> mPointsPS;
 		} data;
 
-		Task task([system, promise = std::move(promise), device, data](const TaskParams& e) mutable {
+		ShaderPreprocessorConfig vsTrianglesConfig;
+		vsTrianglesConfig.mDefines["TRIANGLES"] = "1";
+		vsTrianglesConfig.mDefines["VERTEX_SHADER"] = "1";
 
-			if (e.mTask->BeginSubTask()) {
-				ShaderPreprocessorConfig vsTrianglesConfig;
-				vsTrianglesConfig.mDefines["TRIANGLES"] = "1";
-				vsTrianglesConfig.mDefines["VERTEX_SHADER"] = "1";
+		LoadParams<RawShader> vsTrianglesParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_VERTEX,
+			"Im3d Triangle VS",
+			vsTrianglesConfig);
 
-				LoadParams<RawShader> vsTrianglesParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_VERTEX,
-					"Im3d Triangle VS",
-					vsTrianglesConfig);
+		ShaderPreprocessorConfig vsOtherConfig;
+		vsOtherConfig.mDefines["POINTS"] = "1";
+		vsOtherConfig.mDefines["VERTEX_SHADER"] = "1";
 
-				ShaderPreprocessorConfig vsOtherConfig;
-				vsOtherConfig.mDefines["POINTS"] = "1";
-				vsOtherConfig.mDefines["VERTEX_SHADER"] = "1";
+		LoadParams<RawShader> vsOtherParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_VERTEX,
+			"Im3d Other VS",
+			vsOtherConfig);
 
-				LoadParams<RawShader> vsOtherParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_VERTEX,
-					"Im3d Other VS",
-					vsOtherConfig);
+		ShaderPreprocessorConfig gsPtConfig;
+		gsPtConfig.mDefines["POINTS"] = "1";
+		gsPtConfig.mDefines["GEOMETRY_SHADER"] = "1";
 
-				ShaderPreprocessorConfig gsPtConfig;
-				gsPtConfig.mDefines["POINTS"] = "1";
-				gsPtConfig.mDefines["GEOMETRY_SHADER"] = "1";
+		LoadParams<RawShader> gsPointsParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_GEOMETRY,
+			"Im3d Point GS",
+			gsPtConfig
+		);
 
-				LoadParams<RawShader> gsPointsParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_GEOMETRY,
-					"Im3d Point GS",
-					gsPtConfig
-				);
+		ShaderPreprocessorConfig gsLineConfig;
+		gsLineConfig.mDefines["LINES"] = "1";
+		gsLineConfig.mDefines["GEOMETRY_SHADER"] = "1";
 
-				ShaderPreprocessorConfig gsLineConfig;
-				gsLineConfig.mDefines["LINES"] = "1";
-				gsLineConfig.mDefines["GEOMETRY_SHADER"] = "1";
+		LoadParams<RawShader> gsLinesParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_GEOMETRY,
+			"Im3d Line GS",
+			gsLineConfig
+		);
 
-				LoadParams<RawShader> gsLinesParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_GEOMETRY,
-					"Im3d Line GS",
-					gsLineConfig
-				);
+		ShaderPreprocessorConfig psTriangleConfig;
+		psTriangleConfig.mDefines["TRIANGLES"] = "1";
+		psTriangleConfig.mDefines["PIXEL_SHADER"] = "1";
 
-				ShaderPreprocessorConfig psTriangleConfig;
-				psTriangleConfig.mDefines["TRIANGLES"] = "1";
-				psTriangleConfig.mDefines["PIXEL_SHADER"] = "1";
+		LoadParams<RawShader> psTriangleParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_PIXEL,
+			"Im3d Triangle PS",
+			psTriangleConfig
+		);
 
-				LoadParams<RawShader> psTriangleParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_PIXEL,
-					"Im3d Triangle PS",
-					psTriangleConfig
-				);
+		ShaderPreprocessorConfig psLinesConfig;
+		psLinesConfig.mDefines["LINES"] = "1";
+		psLinesConfig.mDefines["PIXEL_SHADER"] = "1";
 
-				ShaderPreprocessorConfig psLinesConfig;
-				psLinesConfig.mDefines["LINES"] = "1";
-				psLinesConfig.mDefines["PIXEL_SHADER"] = "1";
+		LoadParams<RawShader> psLinesParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_PIXEL,
+			"Im3d Lines PS",
+			psLinesConfig
+		);
 
-				LoadParams<RawShader> psLinesParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_PIXEL,
-					"Im3d Lines PS",
-					psLinesConfig
-				);
+		ShaderPreprocessorConfig psPointConfig;
+		psPointConfig.mDefines["POINTS"] = "1";
+		psPointConfig.mDefines["PIXEL_SHADER"] = "1";
 
-				ShaderPreprocessorConfig psPointConfig;
-				psPointConfig.mDefines["POINTS"] = "1";
-				psPointConfig.mDefines["PIXEL_SHADER"] = "1";
+		LoadParams<RawShader> psPointParams(
+			"internal/Im3d.hlsl",
+			DG::SHADER_TYPE_PIXEL,
+			"Im3d Point PS",
+			psPointConfig
+		);
 
-				LoadParams<RawShader> psPointParams(
-					"internal/Im3d.hlsl",
-					DG::SHADER_TYPE_PIXEL,
-					"Im3d Point PS",
-					psPointConfig
-				);
+		data.mTrianglesVS = LoadShaderHandle(device, vsTrianglesParams, system);
+		data.mOtherVS = LoadShaderHandle(device, vsOtherParams, system);
+		data.mPointsGS = LoadShaderHandle(device, gsPointsParams, system);
+		data.mLinesGS = LoadShaderHandle(device, gsLinesParams, system);
+		data.mTrianglesPS = LoadShaderHandle(device, psTriangleParams, system);
+		data.mLinesPS = LoadShaderHandle(device, psLinesParams, system);
+		data.mPointsPS = LoadShaderHandle(device, psPointParams, system);
 
-				data.mTrianglesVS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, vsTrianglesParams, system));
-				data.mOtherVS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, vsOtherParams, system));
-				data.mPointsGS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, gsPointsParams, system));
-				data.mLinesGS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, gsLinesParams, system));
-				data.mTrianglesPS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, psTriangleParams, system));
-				data.mLinesPS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, psLinesParams, system));
-				data.mPointsPS = 
-					e.mQueue->AdoptAndTrigger(LoadShader(device, psPointParams, system));
-
-				e.mTask->EndSubTask();
-
-				if (e.mTask->In().Lock()
-					.Connect(data.mTrianglesVS.Out())
-					.Connect(data.mOtherVS.Out())
-					.Connect(data.mPointsGS.Out())
-					.Connect(data.mLinesGS.Out())
-					.Connect(data.mTrianglesPS.Out())
-					.Connect(data.mLinesPS.Out())
-					.Connect(data.mPointsPS.Out())
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
-
+		FunctionPrototype<
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Promise<Im3dShaders>> prototype([](
+				const TaskParams& e,
+				Future<Handle<DG::IShader>> triangleVS,
+				Future<Handle<DG::IShader>> otherVS,
+				Future<Handle<DG::IShader>> pointsGS,
+				Future<Handle<DG::IShader>> linesGS,
+				Future<Handle<DG::IShader>> trianglesPS,
+				Future<Handle<DG::IShader>> linesPS,
+				Future<Handle<DG::IShader>> pointsPS,
+				Promise<Im3dShaders> output
+			) {
 			Im3dShaders shaders;
-			shaders.mTrianglesVS.Adopt(data.mTrianglesVS.Get());
-			shaders.mOtherVS.Adopt(data.mOtherVS.Get());
-			shaders.mPointsGS.Adopt(data.mPointsGS.Get());
-			shaders.mLinesGS.Adopt(data.mLinesGS.Get());
-			shaders.mTrianglesPS.Adopt(data.mTrianglesPS.Get());
-			shaders.mLinesPS.Adopt(data.mLinesPS.Get());
-			shaders.mPointsPS.Adopt(data.mPointsPS.Get());
-
-			promise.Set(std::move(shaders), e.mQueue);
-
-			return TaskResult::FINISHED;
+			shaders.mTrianglesVS = triangleVS.Get();
+			shaders.mOtherVS = otherVS.Get();
+			shaders.mPointsGS = pointsGS.Get();
+			shaders.mLinesGS = linesGS.Get();
+			shaders.mTrianglesPS = trianglesPS.Get();
+			shaders.mLinesPS = linesPS.Get();
+			shaders.mPointsPS = pointsPS.Get();
+			output = std::move(shaders);
 		});
 
-		ResourceTask<Im3dShaders> result;
-		result.mTask = std::move(task);
-		result.mFuture = std::move(future);
+		Promise<Im3dShaders> output;
 
-		return result;
+		prototype(data.mTrianglesVS,
+			data.mOtherVS,
+			data.mPointsGS,
+			data.mLinesGS,
+			data.mTrianglesPS,
+			data.mLinesPS,
+			data.mPointsPS,
+			output).SetName("Create Im3dShaders Struct");
+
+		return output;
 	}
 
 	Im3dPipeline::Im3dPipeline(DG::IRenderDevice* device,

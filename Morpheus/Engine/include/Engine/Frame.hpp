@@ -2,7 +2,10 @@
 
 #include <Engine/Entity.hpp>
 #include <Engine/Camera.hpp>
+#include <Engine/Resources/Resource.hpp>
+
 #include <stack>
+#include <filesystem>
 
 namespace Morpheus {
 	class DepthFirstNodeIterator {
@@ -11,7 +14,8 @@ namespace Morpheus {
 		entt::registry* mRegistry;
 
 	public:
-		DepthFirstNodeIterator(entt::registry* registry, entt::entity start) {
+		DepthFirstNodeIterator(entt::registry* registry, 
+			entt::entity start) {
 			mNodeStack.emplace(start);
 			mRegistry = registry;
 		}
@@ -95,25 +99,47 @@ namespace Morpheus {
 		}
 	};
 
-	struct Frame {
+	struct SubFrameComponent {
+		Handle<Frame> mFrame;
+	};
+
+	class Frame : public IResource {
+	private:
 		entt::registry mRegistry;
 		entt::entity mRoot;
 		entt::entity mCamera = entt::null;
+		std::filesystem::path mPath;
 
-		inline entt::entity SpawnDefaultCamera(Camera** cameraOut = nullptr) {
-			auto cameraNode = CreateEntity();
-			auto& camera = Emplace<Camera>(cameraNode);
+		std::unordered_set<Handle<IResource>, 
+			Handle<IResource>::Hasher> mInternalResources;
 
-			if (cameraOut)
-				*cameraOut = &camera;
-
-			return cameraNode;
+	public:
+		inline std::filesystem::path GetPath() const {
+			return mPath;
+		}
+		inline entt::registry& Registry() {
+			return mRegistry;
+		}
+		inline entt::entity GetRoot() const {
+			return mRoot;
+		}
+		inline entt::entity GetCamera() const {
+			return mCamera;
+		}
+		inline void SetCamera(entt::entity e) {
+			mCamera = e;
 		}
 
-		inline Frame() {
-			mRoot = mRegistry.create();
-			mRegistry.emplace<HierarchyData>(mRoot);
-		}
+		void AttachResource(Handle<IResource> resource);
+		void RemoveResource(Handle<IResource> resource);
+
+		entt::entity SpawnDefaultCamera(Camera** cameraOut = nullptr);
+		entt::entity CreateEntity(entt::entity parent);
+		void Destroy(entt::entity ent);
+
+		Frame();
+		~Frame() = default;
+		Frame(const std::filesystem::path& path);
 
 		inline void Orphan(entt::entity ent) {
 			HierarchyData::Orphan(mRegistry, ent);
@@ -123,12 +149,6 @@ namespace Morpheus {
 		}
 		inline void SetParent(entt::entity child, entt::entity parent) {
 			AddChild(parent, child);
-		}
-		inline entt::entity CreateEntity(entt::entity parent) {
-			auto e = mRegistry.create();
-			mRegistry.emplace<HierarchyData>(e);
-			AddChild(parent, e);
-			return e;
 		}
 		inline entt::entity CreateEntity() {
 			return CreateEntity(mRoot);
@@ -160,48 +180,47 @@ namespace Morpheus {
 		inline DepthFirstNodeDoubleIterator GetDoubleIterator(entt::entity subtree) {
 			return DepthFirstNodeDoubleIterator(&mRegistry, subtree);
 		}
-		inline void Destroy(entt::entity ent) {
-			Orphan(ent);
-
-			for (entt::entity child = GetFirstChild(ent); 
-				child != entt::null; 
-				child = GetNext(child)) 
-				Destroy(child);
-
-			mRegistry.destroy(ent);
-		}
-
 		inline Camera& CameraData() {
 			return mRegistry.get<Camera>(mCamera);
 		}
-
 		inline const Camera& CameraData() const {
 			return mRegistry.get<Camera>(mCamera);
 		}
-
 		template <typename T>
 		inline T& Get(entt::entity e) {
 			return mRegistry.get<T>(e);
 		}
-
 		template <typename T>
 		inline T* TryGet(entt::entity e) {
 			return mRegistry.try_get<T>(e);
 		}
-
 		template <typename T>
 		inline T& Replace(entt::entity e, const T& obj) {
 			return mRegistry.replace<T>(e, obj);
 		}
-
 		template <typename T>
 		inline T& Replace(entt::entity e, T&& obj) {
 			return mRegistry.replace<T>(e, std::move(obj));
 		}
-
 		template <typename T, typename... Args>
 		inline T& Emplace(entt::entity e, Args&&... args) {
 			return mRegistry.emplace<T>(e, std::forward<Args>(args)...);
 		}
+		template <typename T>
+		inline bool Has(entt::entity e) {
+			return mRegistry.has<T>(e);
+		}
+
+		entt::meta_type GetType() const override;
+		entt::meta_any GetSourceMeta() const override;
+		void BinarySerialize(std::ostream& output) const override;
+		void BinaryDeserialize(std::istream& input) override;
+		void BinarySerializeSource(
+			const std::filesystem::path& workingPath, 
+			cereal::PortableBinaryOutputArchive& output) const override;
+		void BinaryDeserializeSource(
+			const std::filesystem::path& workingPath,
+			cereal::PortableBinaryInputArchive& input) override;
+		BarrierOut MoveAsync(Device device, Context context = Context()) override;
 	};
 }

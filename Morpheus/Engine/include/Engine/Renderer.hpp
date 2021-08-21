@@ -3,6 +3,7 @@
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Systems/System.hpp>
 #include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 namespace Morpheus {
 
@@ -15,41 +16,29 @@ namespace Morpheus {
 	};
 
 	struct MaterialDesc {
-		MaterialType mType = MaterialType::COOK_TORRENCE;
+		struct Params {
+			MaterialType mType = MaterialType::COOK_TORRENCE;
+			DG::float4 mAlbedoFactor 	= DG::float4(1.0f, 1.0f, 1.0f, 1.0f);
+			float mRoughnessFactor 		= 1.0f;
+			float mMetallicFactor 		= 1.0f;
+			float mDisplacementFactor 	= 1.0f;
+		} mParams;
 
-		Handle<Texture> mAlbedo;
-		Handle<Texture> mNormal;
-		Handle<Texture> mRoughness;
-		Handle<Texture> mMetallic;
-		Handle<Texture> mDisplacement;
-
-		DG::float4 mAlbedoFactor 	= DG::float4(1.0f, 1.0f, 1.0f, 1.0f);
-		float mRoughnessFactor 		= 1.0f;
-		float mMetallicFactor 		= 1.0f;
-		float mDisplacementFactor 	= 1.0f;
-	};
-
-	struct MaterialDescFuture : public IVirtualTaskNodeOut {
-		MaterialType mType = MaterialType::COOK_TORRENCE;
-
-		Future<Texture*> mAlbedo;
-		Future<Texture*> mNormal;
-		Future<Texture*> mRoughness;
-		Future<Texture*> mMetallic;
-		Future<Texture*> mDisplacement;
-
-		DG::float4 mAlbedoFactor 	= DG::float4(1.0f, 1.0f, 1.0f, 1.0f);
-		float mRoughnessFactor 		= 1.0f;
-		float mMetallicFactor 		= 1.0f;
-		float mDisplacementFactor 	= 1.0f;
-
-		MaterialDesc Get() const;
-		bool IsAvailable() const;
-		void Connect(TaskNodeInLock& lock) override;
-
-		inline IVirtualTaskNodeOut& Out() {
-			return *this;
-		}
+		struct Resources {
+			Handle<Texture> mAlbedo;
+			Handle<Texture> mNormal;
+			Handle<Texture> mRoughness;
+			Handle<Texture> mMetallic;
+			Handle<Texture> mDisplacement;
+		} mResources;
+		
+		static UniqueFuture<MaterialDesc> CreateFuture(
+			Future<Handle<Texture>> albedo,
+			Future<Handle<Texture>> normal,
+			Future<Handle<Texture>> roughness,
+			Future<Handle<Texture>> metallic,
+			Future<Handle<Texture>> displacement,
+			const Params& params);
 	};
 
 	class Material {
@@ -81,13 +70,17 @@ namespace Morpheus {
 
 		inline Material& operator=(const Material& mat);
 		inline Material& operator=(Material&& mat);
+
+		inline MaterialDesc GetDesc() const;
 	};
 
 	class IRenderer {
 	public:		
 		// Must be called from main thread!
 		virtual MaterialId CreateUnmanagedMaterial(const MaterialDesc& desc) = 0;
-
+		
+		// Thread Safe
+		virtual MaterialDesc GetMaterialDesc(MaterialId id) = 0;
 		// Thread Safe
 		virtual void AddMaterialRef(MaterialId id) = 0;
 		// Thread Safe
@@ -135,5 +128,9 @@ namespace Morpheus {
 		std::swap(mat.mRenderer, mRenderer);
 		std::swap(mat.mId, mId);
 		return *this;
+	}
+
+	MaterialDesc Material::GetDesc() const {
+		return mRenderer->GetMaterialDesc(mId);
 	}
 }

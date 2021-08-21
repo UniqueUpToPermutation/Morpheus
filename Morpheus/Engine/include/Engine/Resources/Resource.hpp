@@ -2,64 +2,44 @@
 
 #include <Engine/Entity.hpp>
 #include <Engine/ThreadPool.hpp>
+#include <Engine/Defines.hpp>
+#include <Engine/Graphics.hpp>
+
+#include <filesystem>
+
+#include "RenderDevice.h"
+#include "DeviceContext.h"
 
 namespace Morpheus {
-	typedef uint32_t ResourceFlags;
-
-	enum ResourceFlag : ResourceFlags {
-		RESOURCE_LOADED_FROM_DISK = 1u << 0,
-		RESOURCE_MANAGED = 1u << 1,
-		RESOURCE_RASTERIZER_ASPECT = 1u << 2,
-		RESOURCE_RAW_ASPECT = 1u << 3,
-		RESOURCE_RAYTRACER_ASPECT = 1u << 4,
-		RESOURCE_GPU_RESIDENT = 1u << 5,
-		RESOURCE_CPU_RESIDENT = 1u << 6
-	};
-
 	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
 
 	template <typename T>
 	struct LoadParams {
 	};
 
+	typedef int FrameId;
+
+	constexpr FrameId InvalidFrameId = -1;
+
 	class IResource {
 	private:
 		std::atomic<uint> mRefCount;
 
 	protected:
-		ResourceFlags mFlags = 0u;
+		FrameId mFrameId;
+		Device mDevice;
 
 	public:
-		inline ResourceFlags GetFlags() const {
-			return mFlags;
+		inline FrameId GetFrameId() const {
+			return mFrameId;
 		}
 
-		inline bool IsManaged() const {
-			return mFlags & RESOURCE_MANAGED;
+		inline void SetFrameId(FrameId value) {
+			mFrameId = value;
 		}
 
-		inline bool IsFromDisk() const {
-			return mFlags & RESOURCE_LOADED_FROM_DISK;
-		}
-
-		inline bool IsRaw() const {
-			return mFlags & RESOURCE_RAW_ASPECT;
-		}
-
-		inline bool IsRasterResource() const {
-			return mFlags & RESOURCE_RASTERIZER_ASPECT;
-		}
-
-		inline bool IsRaytraceResource() const {
-			return mFlags & RESOURCE_RAYTRACER_ASPECT;
-		}
-
-		inline bool IsGpu() const {
-			return mFlags & RESOURCE_GPU_RESIDENT;
-		}
-
-		inline bool IsCpu() const {
-			return mFlags & RESOURCE_CPU_RESIDENT;
+		inline Device GetDevice() const {
+			return mDevice;
 		}
 
 		inline IResource() {
@@ -85,6 +65,24 @@ namespace Morpheus {
 
 			return val - 1;
 		}
+
+		virtual entt::meta_type GetType() const = 0;
+		virtual entt::meta_any GetSourceMeta() const = 0;
+		virtual void BinarySerialize(std::ostream& output) const = 0;
+		virtual void BinaryDeserialize(std::istream& input) = 0;
+		virtual void BinarySerializeSource(
+			const std::filesystem::path& workingPath, 
+			cereal::PortableBinaryOutputArchive& output) const = 0;
+		virtual void BinaryDeserializeSource(
+			const std::filesystem::path& workingPath,
+			cereal::PortableBinaryInputArchive& input) = 0;
+		virtual BarrierOut MoveAsync(Device device, Context context = Context()) = 0;
+		
+		void Move(Device device, Context context = Context());
+
+		static void RegisterMetaData();
+
+		friend class Frame;
 	};
 
 	template <typename T>
@@ -178,5 +176,74 @@ namespace Morpheus {
 			}
 			return result;
 		}
+
+		struct Hasher {
+			inline std::size_t operator()(const Handle<T>& h) const
+			{
+				using std::hash;
+				return hash<T*>()(h.mResource);
+			}
+		};
+	};
+
+	template <typename T>
+	TaskNode PipeToHandle(UniqueFuture<T> in, Promise<Handle<T>> out) {
+		return FunctionPrototype<UniqueFuture<T>, Promise<Handle<T>>>([](
+			const TaskParams& e, UniqueFuture<T> in, Promise<Handle<T>> out) {
+			out.Set(Handle<T>(std::move(in.Get())));
+		})(in, out);
+	}
+
+	template <typename T>
+	TaskNode PipeFromHandle(UniqueFuture<Handle<T>> in, Promise<T> out) {
+		return FunctionPrototype<UniqueFuture<Handle<T>>, Promise<T>>([](
+			const TaskParams& e, UniqueFuture<Handle<T>> in, Promise<T> out) {
+			out.Set(std::move(*in.Get()));
+		})(in, out);
+	}
+
+	struct SerializationSet {
+		std::vector<entt::entity> mToSerialize;
+		std::vector<entt::entity> mSubFrames;
+	};
+
+	class IAbstractResourceCache {
+	public:
+		virtual entt::meta_type GetResourceType() const = 0;
+	};
+
+	template <typename T>
+	class IResourceCache : public IAbstractResourceCache {
+	public:
+		virtual Future<Handle<T>> Load(const LoadParams<T>& params, IComputeQueue* queue) = 0;
+
+		entt::meta_type GetResourceType() const override {
+			return entt::resolve<T>();
+		}
+	};
+
+	class IResourceCacheCollection {
+	public:
+		virtual bool TryQueryCache(
+			const entt::meta_type& resourceType,
+			entt::meta_any* cacheInterface) const = 0;
+
+		virtual bool TryQueryCacheAbstract(
+			const entt::meta_type& resourceType,
+			IAbstractResourceCache** cacheOut) const = 0;
+
+		virtual std::set<IAbstractResourceCache*> GetAllCaches() const = 0;
+
+		std::set<IAbstractResourceCache*> GetSerializableCaches() const;
+		
+		template <typename T>
+		IResourceCache<T>* QueryCache() const {
+			entt::meta_any result;
+			if (TryQueryCache(entt::resolve<T>(), &result))
+				return result.cast<IResourceCache<T>*>();
+			return nullptr;
+		}
+
+		IAbstractResourceCache* QueryCacheAbstract(const entt::meta_type& resourceType);
 	};
 }

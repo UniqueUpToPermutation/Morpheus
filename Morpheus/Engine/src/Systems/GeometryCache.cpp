@@ -16,7 +16,7 @@ namespace Morpheus {
 				modifiedParams.mVertexLayout = formatProvider->GetLayout(modifiedParams.mType);
 			}
 
-			return Geometry::LoadPointer(device, modifiedParams);
+			return Geometry::LoadHandle(device, modifiedParams);
 		};
 	}
 	
@@ -27,12 +27,12 @@ namespace Morpheus {
 		};
 	}
 
-	Future<Geometry*> GeometryCacheSystem::Load(
-		const LoadParams<Geometry>& params, ITaskQueue* queue) {
+	Future<Handle<Geometry>> GeometryCacheSystem::Load(
+		const LoadParams<Geometry>& params, IComputeQueue* queue) {
 		return mLoader.Load(params, &mCache, queue);
 	}
 
-	Task GeometryCacheSystem::Startup(SystemCollection& systems) {
+	std::unique_ptr<Task> GeometryCacheSystem::Startup(SystemCollection& systems) {
 
 		mFormatProvider = systems.QueryInterface<IVertexFormatProvider>();
 
@@ -41,16 +41,17 @@ namespace Morpheus {
 				"Geometry cache cannot be created without an IVertexFormatProvider!");
 		}
 
-		ParameterizedTask<UpdateParams> update([this](const TaskParams& e, const UpdateParams& params) {
+		update_proto_t updater([this](const TaskParams& e, Future<UpdateParams> params) {
 			mLoader.Update();
 			mGarbageCollector.CollectGarbage(e);
-		}, 
-		"Update Geometry Cache",
-		TaskType::UPDATE);
+		});
 
-		systems.GetFrameProcessor().AddUpdateTask(std::move(update));
+		auto& processor = systems.GetFrameProcessor();
 
-		return Task();
+		processor.AddUpdateTask(
+			updater(processor.GetUpdateInput()).SetName("Update Geometry Cache"));
+
+		return nullptr;
 	}
 
 	bool GeometryCacheSystem::IsInitialized() const {

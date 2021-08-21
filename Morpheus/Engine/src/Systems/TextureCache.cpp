@@ -5,7 +5,7 @@ namespace Morpheus {
 	TextureCacheSystem::loader_t::cache_load_t 
 		TextureCacheSystem::GetLoaderFunction() {
 		return [device = mDevice](const LoadParams<Texture>& params) {
-			return Texture::LoadPointer(device, params);
+			return Texture::LoadHandle(device, params);
 		};
 	}
 
@@ -16,21 +16,22 @@ namespace Morpheus {
 		};
 	}
 
-	Future<Texture*> TextureCacheSystem::Load(
-		const LoadParams<Texture>& params, ITaskQueue* queue) {
+	Future<Handle<Texture>> TextureCacheSystem::Load(
+		const LoadParams<Texture>& params, IComputeQueue* queue) {
 		return mLoader.Load(params, &mCache, queue);
 	}
 
-	Task TextureCacheSystem::Startup(SystemCollection& systems) {
-		ParameterizedTask<UpdateParams> update([this](const TaskParams& e, const UpdateParams& params) {
+	std::unique_ptr<Task> TextureCacheSystem::Startup(SystemCollection& systems) {
+
+		update_proto_t updater([this](const TaskParams& e, Future<UpdateParams> params) {
 			mLoader.Update();
 			mGarbageCollector.CollectGarbage(e);
-		}, 
-		"Update Texture Cache",
-		TaskType::UPDATE);
+		});
 
-		systems.GetFrameProcessor().AddUpdateTask(std::move(update));
-		return Task();
+		auto& processor = systems.GetFrameProcessor();
+
+		systems.GetFrameProcessor().AddUpdateTask(updater(processor.GetUpdateInput()));
+		return nullptr;
 	}
 
 	bool TextureCacheSystem::IsInitialized() const {

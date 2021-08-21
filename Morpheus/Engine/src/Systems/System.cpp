@@ -1,19 +1,83 @@
 #include <Engine/Systems/System.hpp>
 
 namespace Morpheus {
-	void SystemCollection::Startup(ITaskQueue* queue) {
-		TaskGroup group;
 
-		for (auto& system : mSystems) {
-			Task task = system->Startup(*this);
-			group.Adopt(std::move(task));
+	IAbstractResourceCache* IResourceCacheCollection::QueryCacheAbstract(const entt::meta_type& resourceType) {
+		IAbstractResourceCache* cache;
+		if (TryQueryCacheAbstract(resourceType, &cache))
+			return cache;
+		return nullptr;
+	}
+
+	bool SystemCollection::TryQueryInterface(
+		const entt::meta_type& interfaceType,
+		entt::meta_any* interfaceOut) const {
+		
+		auto it = mSystemInterfaces.find(interfaceType);
+
+		if (it != mSystemInterfaces.end()) {
+			*interfaceOut = it->second;
+			return true;
+		} 
+
+		return false;
+	}
+
+	bool SystemCollection::TryQueryCache(
+		const entt::meta_type& resourceType,
+		entt::meta_any* cacheInterface) const {
+
+		auto it = mCachesByResourceType.find(resourceType);
+
+		if (it != mCachesByResourceType.end()) {
+			*cacheInterface = it->second.mInterface;
+			return true;
 		}
 
+		return false;
+	}
+
+	bool SystemCollection::TryQueryCacheAbstract(
+		const entt::meta_type& resourceType,
+		IAbstractResourceCache** cacheOut) const {
+
+		auto it = mCachesByResourceType.find(resourceType);
+
+		if (it != mCachesByResourceType.end()) {
+			*cacheOut = it->second.mAbstractInterface;
+			return true;
+		}
+
+		return false;
+	}
+
+	std::set<IAbstractResourceCache*> SystemCollection::GetAllCaches() const {
+		std::set<IAbstractResourceCache*> result;
+
+		for (auto it : mCachesByResourceType) {
+			result.emplace(it.second.mAbstractInterface);
+		}
+
+		return result;
+	}
+
+	void SystemCollection::Startup(IComputeQueue* queue) {
+		Barrier barrier;
+
+		for (auto& system : mSystems) {
+			auto task = system->Startup(*this);
+			if (task) {
+				barrier.Node().After(task->OutNode());
+			}
+		}
+
+		auto barrierOut = BarrierOut(barrier);
+
+		// Run all initialization on thread queue if requested
 		if (queue) {
-			queue->Trigger(&group);
-			queue->YieldUntilFinished(&group);
+			queue->Evaluate(barrierOut);
 		} else {
-			group();
+			barrierOut.Evaluate();
 		}
 
 		bInitialized = true;
@@ -39,7 +103,7 @@ namespace Morpheus {
 	}
 
 	void FrameProcessor::Apply(const FrameTime& time, 
-			ITaskQueue* queue,
+			IComputeQueue* queue,
 			bool bUpdate,
 			bool bRender) {
 		UpdateParams updateParams;
@@ -54,50 +118,38 @@ namespace Morpheus {
 			bFirstFrame = false;
 		}
 
-		mInject.SetParameters(mFrame);
-		mRender.SetParameters(mSavedRenderParams);
-		mUpdate.SetParameters(updateParams);
+		// Write inputs
+		mInjectPromise = mFrame;
+		mRenderPromise = mSavedRenderParams;
+		mUpdatePromise = updateParams;
 
 		mSavedRenderParams.mTime = time;
 		mSavedRenderParams.mFrame = mFrame;
-
-		queue->Trigger(&mInject);
 		
 		if (bRender) {
-			queue->Trigger(&mRenderSwitch);
+			queue->Submit(mRender);
 		} else {
-			mRender.Out().SetFinishedUnsafe(true);
+			mRender.Skip();
 		}
 
 		if (bUpdate) {
-			queue->Trigger(&mUpdateSwitch);
-		} else {
-			mUpdate.Out().SetFinishedUnsafe(true);
-		}
+			queue->Submit(mUpdate);
+			queue->Submit(mInject);
+		} 
 	}
 
 	void FrameProcessor::Initialize(SystemCollection* systems, Frame* frame) {
-		mInject.Clear();
-		mUpdate.Clear();
-		mRender.Clear();
-		mRenderSwitch.Clear();
-		mUpdateSwitch.Clear();
-
 		Reset();
 
-		mUpdate.In().Lock()
-			.Connect(&mInject.Out())
-			.Connect(&mUpdateSwitch.mOut);
-		mRender.In().Lock()
-			.Connect(&mInject.Out())
-			.Connect(&mRenderSwitch.mOut);
+		mInject.After(mUpdate);
+		mInject.After(mRender);
 
 		mInjectByType.clear();
 
 		// For consistency
-		mInject.Out().SetFinishedUnsafe(true);
-		mUpdate.Out().SetFinishedUnsafe(true);
-		mRender.Out().SetFinishedUnsafe(true);
+		mInject.Skip();
+		mUpdate.Skip();
+		mRender.Skip();
 
 		SetFrame(frame);
 	}
@@ -111,12 +163,12 @@ namespace Morpheus {
 		mInject.Reset();
 		mRender.Reset();
 		mUpdate.Reset();
-		mRenderSwitch.Reset();
-		mUpdateSwitch.Reset();
 	}
 
-	void FrameProcessor::AddInjector(const InjectProc& proc) {
-		auto it = mInjectByType.find(proc.mTarget);
+	void FrameProcessor::AddInjector(entt::type_info target,
+		const inject_proc_t& proc, 
+		int phase) {
+		auto it = mInjectByType.find(target);
 
 		TypeInjector* injector;
 
@@ -125,43 +177,59 @@ namespace Morpheus {
 		} else {
 			// Create a new injector
 			TypeInjector newInjector;
-			newInjector.mTarget = proc.mTarget;
+			newInjector.mTarget = target;
 			
-			auto emplacement = mInjectByType.emplace(proc.mTarget, newInjector);
+			auto emplacement = mInjectByType.emplace(target, newInjector);
 			injector = &emplacement.first->second;
 
-			// Inject everything
-			ParameterizedTask<Frame*> task([iterator = emplacement.first](const TaskParams& e, Frame* frame) {
+			FunctionPrototype<Future<Frame*>> prototype(
+				[iterator = emplacement.first]
+				(const TaskParams& e, Future<Frame*> frame) {
+				if (iterator->second.bDirty) {
+					// Sort these things to make sure that we are doing these in the
+					// correct order.
+					std::sort(
+						iterator->second.mInjections.begin(),
+						iterator->second.mInjections.end(), [](
+						const TypeInjector::Injection& a, 
+						const TypeInjector::Injection& b) {
+						return a.mPhase < b.mPhase;
+					});
+					iterator->second.bDirty = false;
+				}
+				
 				for (auto& injection : iterator->second.mInjections)
-					injection(frame);
+					injection.mProc(frame.Get());
 			});
 
-			mInject.Adopt(std::move(task));
+			mInject.Add(prototype(mInjectPromise).SetName("Injector"));
 		}
 
 		// Add injector
-		injector->mInjections.push_back(proc.mProc);
+		injector->mInjections.push_back(
+			TypeInjector::Injection{proc, phase});
+		injector->bDirty = true;
 	}
 
-	void FrameProcessor::Flush(ITaskQueue* queue) {
+	void FrameProcessor::Flush(IComputeQueue* queue) {
 		Reset();
-		mInject.SetParameters(mFrame);
-		queue->Trigger(&mInject);
-		queue->YieldUntilFinished(&mInject);
+		mInjectPromise.Set(mFrame);
+		queue->Evaluate(mInject.OutNode());
 	}
 
-	void FrameProcessor::AddUpdateTask(ParameterizedTask<UpdateParams>&& task) {
-		mUpdate.Adopt(std::move(task));
+	void FrameProcessor::AddUpdateTask(TaskNode update) {
+		mUpdate.Add(update);
 	}
 
-	void FrameProcessor::AddRenderTask(ParameterizedTask<RenderParams>&& task) {
-		mRender.Adopt(std::move(task));
+	void FrameProcessor::AddRenderTask(TaskNode node) {
+		mRender.Add(node);
 	}
 
-	void FrameProcessor::AddRenderGroup(ParameterizedTaskGroup<RenderParams>* group) {
-		mRender.Add(group);
+	void FrameProcessor::AddRenderTask(std::shared_ptr<Task> task) {
+		mRender.Add(task);
 	}
-	void FrameProcessor::AddUpdateGroup(ParameterizedTaskGroup<UpdateParams>* group) {
-		mUpdate.Add(group);
+
+	void FrameProcessor::AddUpdateTask(std::shared_ptr<Task> task) {
+		mUpdate.Add(task);
 	}
 }

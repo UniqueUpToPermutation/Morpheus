@@ -4,9 +4,10 @@
 
 #pragma once
 
-#include <entt/entt.hpp>
+#include <Engine/Defines.hpp>
 
-#include <Engine/Components/UniquePointerComponent.hpp>
+#define ENTT_USE_ATOMIC
+#include <entt/entt.hpp>
 
 template<typename... Type>
 entt::type_list<Type...> as_type_list(const entt::type_list<Type...> &);

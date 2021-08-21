@@ -8,5 +8,8 @@ namespace Morpheus {
 	struct StaticMeshComponent {
 		Material mMaterial;
 		Handle<Geometry> mGeometry;
+
+		static void RegisterMetaData();
+		static void BuildResourceTable(const Frame* frame, FrameHeader* header);
 	};
 }

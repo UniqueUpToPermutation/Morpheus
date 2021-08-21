@@ -56,6 +56,8 @@ namespace Morpheus {
 
 	class Geometry : public IResource {
 	private:
+		LoadParams<Geometry> mSource;
+
 		// GPU Resident Stuff
 		struct RasterizerAspect {
 			Handle<DG::IBuffer> mVertexBuffer;
@@ -65,7 +67,7 @@ namespace Morpheus {
 		} mRasterAspect;
 
 		// CPU Resident Stuff (for staging, but can be moved to GPU)
-		struct RawAspect {
+		struct CpuAspect {
 			std::vector<DG::BufferDesc> mVertexBufferDescs;
 			DG::BufferDesc mIndexBufferDesc;
 
@@ -73,7 +75,7 @@ namespace Morpheus {
 			std::vector<uint8_t> mIndexBufferData;
 
 			bool bHasIndexBuffer;
-		} mRawAspect;
+		} mCpuAspect;
 
 		// Stuff resident on an external device
 		ExternalAspect<ExtObjectType::GEOMETRY> mExtAspect;
@@ -89,20 +91,22 @@ namespace Morpheus {
 				LoadParams<Geometry>, 
 				LoadParams<Geometry>::Hasher>::iterator_t mCacheIterator;
 
-		void Set(DG::IBuffer* vertexBuffer, 
+		void Set(DG::IRenderDevice* device,
+			DG::IBuffer* vertexBuffer, 
 			DG::IBuffer* indexBuffer,
 			uint vertexBufferOffset, 
 			const DG::DrawIndexedAttribs& attribs,
 			const VertexLayout& layout,
 			const BoundingBox& aabb);
 
-		void Set(DG::IBuffer* vertexBuffer,
+		void Set(DG::IRenderDevice* device,
+			DG::IBuffer* vertexBuffer,
 			uint vertexBufferOffset,
 			const DG::DrawAttribs& attribs,
 			const VertexLayout& layout,
 			const BoundingBox& aabb);
 
-		void ReadAssimpRaw(const aiScene* scene,
+		static Geometry ReadAssimpRaw(const aiScene* scene,
 			const VertexLayout& vertexLayout);
 
 		template <typename I3T, typename V3T, typename V2T>
@@ -116,7 +120,6 @@ namespace Morpheus {
 			const V3T tangents[],
 			const V3T bitangents[]);
 
-	public:
 		// -------------------------------------------------------------
 		// Geometry Aspects
 		// -------------------------------------------------------------
@@ -134,22 +137,22 @@ namespace Morpheus {
 			const Geometry* source);
 		
 		void CreateDeviceAspect(
-			GraphicsDevice device, 
+			Device device, 
 			const Geometry* source);
 
 		inline void CreateRasterAspect(DG::IRenderDevice* device) {
 			CreateRasterAspect(device, this);
 		}
 
-		inline void CreateDeviceAspect(GraphicsDevice device) {
+		inline void CreateDeviceAspect(Device device) {
 			CreateDeviceAspect(device);
 		}
-		inline void To(GraphicsDevice device, Geometry* out) {
-			out->CreateDeviceAspect(device, this);
-		}
-		inline Geometry To(GraphicsDevice device) {
+
+	public:
+
+		inline static Geometry CopyToDevice(Device device, const Geometry& in) {
 			Geometry geo;
-			To(device, &geo);
+			geo.CreateDeviceAspect(device, &in);
 			return geo;
 		}
 
@@ -157,35 +160,34 @@ namespace Morpheus {
 		// Geometry IO
 		// -------------------------------------------------------------
 
-		Task ReadAssimpRawTask(const LoadParams<Geometry>& params);
-		inline void ReadAssimpRaw(const LoadParams<Geometry>& params) {
-			ReadAssimpRawTask(params)();
+		static UniqueFuture<Geometry> ReadAssimpRawAsync(const LoadParams<Geometry>& params);
+		inline static Geometry ReadAssimpRaw(const LoadParams<Geometry>& params) {
+			return std::move(ReadAssimpRawAsync(params).Evaluate());
 		}
 
-		Task ReadTask(const LoadParams<Geometry>& params);
-		inline void Read(const LoadParams<Geometry>& params) {
-			ReadTask(params)();
+		static UniqueFuture<Geometry> ReadAsync(const LoadParams<Geometry>& params);
+		inline static Geometry Read(const LoadParams<Geometry>& params) {
+			return std::move(ReadAsync(params).Evaluate());
 		}
 
-		inline void Read(const std::string& source) {
+		inline static Geometry Read(const std::string& source) {
 			LoadParams<Geometry> params;
 			params.mSource = source;
 			params.mVertexLayout = VertexLayout::PositionUVNormalTangentBitangent();
-			Read(params);
+			return Read(params);
 		}
 		
-		void SpawnOnGPU(DG::IRenderDevice* device, 
+		void ToDiligent(DG::IRenderDevice* device, 
 			DG::IBuffer** vertexBufferOut, 
 			DG::IBuffer** indexBufferOut) const;
 
-		static ResourceTask<Geometry*> LoadPointer(
-			GraphicsDevice device, const LoadParams<Geometry>& params);
-		static ResourceTask<Handle<Geometry>> Load(
-			GraphicsDevice device, const LoadParams<Geometry>& params);
-
-		static ResourceTask<Geometry*> LoadRawPointer(
+		static UniqueFuture<Geometry> Load(
+			Device device, const LoadParams<Geometry>& params);
+		static UniqueFuture<Geometry> Load(
 			const LoadParams<Geometry>& params);
-		static ResourceTask<Handle<Geometry>> LoadRaw(
+		static Future<Handle<Geometry>> LoadHandle(
+			Device device, const LoadParams<Geometry>& params);
+		static Future<Handle<Geometry>> LoadHandle(
 			const LoadParams<Geometry>& params);
 
 		void FromMemory(const VertexLayout& layout,
@@ -216,34 +218,38 @@ namespace Morpheus {
 		inline Geometry() {
 		}
 
-		Geometry(
-			GraphicsDevice device, 
+		inline Geometry(
+			Device device, 
 			const Geometry* geometry) {
 			CreateDeviceAspect(device, geometry);
 		}
 
 		inline Geometry(
-			GraphicsDevice device, 
+			Device device, 
 			const Geometry& geometry) :
 			Geometry(device, &geometry) {
 		}
 
-		inline Geometry(DG::IBuffer* vertexBuffer, 
+		inline Geometry(
+			DG::IRenderDevice* device,
+			DG::IBuffer* vertexBuffer, 
 			DG::IBuffer* indexBuffer,
 			uint vertexBufferOffset, 
 			const DG::DrawIndexedAttribs& attribs,
 			const VertexLayout& layout,
 			const BoundingBox& aabb) {
-			Set(vertexBuffer, indexBuffer, vertexBufferOffset,
+			Set(device, vertexBuffer, indexBuffer, vertexBufferOffset,
 				attribs, layout, aabb);
 		}
 
-		inline Geometry(DG::IBuffer* vertexBuffer,
+		inline Geometry(
+			DG::IRenderDevice* device,
+			DG::IBuffer* vertexBuffer,
 			uint vertexBufferOffset,
 			const DG::DrawAttribs& attribs,
 			const VertexLayout& layout,
 			const BoundingBox& aabb)  {
-			Set(vertexBuffer, vertexBufferOffset, attribs,
+			Set(device, vertexBuffer, vertexBufferOffset, attribs,
 				layout, aabb);
 		}
 
@@ -339,7 +345,7 @@ namespace Morpheus {
 		// -------------------------------------------------------------
 
 		inline int GetChannelCount() const {
-			return mRawAspect.mVertexBufferDatas.size();
+			return mCpuAspect.mVertexBufferDatas.size();
 		}
 
 		inline DG::IBuffer* GetVertexBuffer() {
@@ -355,18 +361,18 @@ namespace Morpheus {
 		}
 
 		inline const std::vector<uint8_t>& GetVertexData(int channel = 0) const {
-			assert(!(mFlags & RESOURCE_RAW_ASPECT));
-			return mRawAspect.mVertexBufferDatas[channel];
+			assert(mDevice.IsCPU());
+			return mCpuAspect.mVertexBufferDatas[channel];
 		}
 
 		inline const std::vector<uint8_t>& GetIndexData() const {
-			assert(!(mFlags & RESOURCE_RAW_ASPECT));
-			return mRawAspect.mIndexBufferData;
+			assert(mDevice.IsCPU());
+			return mCpuAspect.mIndexBufferData;
 		}
 
 		inline const DG::BufferDesc& GetVertexDesc(int channel = 0) const {
-			assert(!(mFlags & RESOURCE_RAW_ASPECT));
-			return mRawAspect.mVertexBufferDescs[channel];
+			assert(mDevice.IsCPU());
+			return mCpuAspect.mVertexBufferDescs[channel];
 		}
 
 		inline const VertexLayout& GetLayout() const {
@@ -385,10 +391,6 @@ namespace Morpheus {
 			return mShared.mBoundingBox;
 		}
 
-		inline operator bool() const {
-			return mFlags != 0u;
-		}
-
 		typedef LoadParams<Geometry> LoadParameters;
 
 		struct Prefabs {
@@ -401,15 +403,38 @@ namespace Morpheus {
 			static Geometry StanfordBunny(const VertexLayout& layout);
 			static Geometry UtahTeapot(const VertexLayout& layout);
 
-			static Geometry MaterialBall(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry Box(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry Sphere(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry BlenderMonkey(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry Torus(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry Plane(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry StanfordBunny(GraphicsDevice device, const VertexLayout& layout);
-			static Geometry UtahTeapot(GraphicsDevice device, const VertexLayout& layout);
+			static Geometry MaterialBall(Device device, const VertexLayout& layout);
+			static Geometry Box(Device device, const VertexLayout& layout);
+			static Geometry Sphere(Device device, const VertexLayout& layout);
+			static Geometry BlenderMonkey(Device device, const VertexLayout& layout);
+			static Geometry Torus(Device device, const VertexLayout& layout);
+			static Geometry Plane(Device device, const VertexLayout& layout);
+			static Geometry StanfordBunny(Device device, const VertexLayout& layout);
+			static Geometry UtahTeapot(Device device, const VertexLayout& layout);
 		};
+
+		static void RegisterMetaData();
+
+		Geometry To(Device device, Context context = Context());
+		BarrierOut MoveAsync(Device device, Context context = Context()) override;
+		UniqueFuture<Geometry> ToAsync(Device device, Context context = Context());
+		UniqueFuture<Geometry> GPUToCPUAsync(Device device, Context context) const;
+
+		entt::meta_type GetType() const override;
+		entt::meta_any GetSourceMeta() const override;
+
+		inline const LoadParams<Geometry>& GetSource() const {
+			return mSource;
+		}
+
+		void BinarySerialize(std::ostream& output) const override;
+		void BinaryDeserialize(std::istream& input)  override;
+		void BinarySerializeSource(
+			const std::filesystem::path& workingPath, 
+			cereal::PortableBinaryOutputArchive& output) const override;
+		void BinaryDeserializeSource(
+			const std::filesystem::path& workingPath,
+			cereal::PortableBinaryInputArchive& input) override;
 
 		friend class RawGeometry;
 	};

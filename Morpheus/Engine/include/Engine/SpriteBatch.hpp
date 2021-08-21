@@ -50,11 +50,11 @@ namespace Morpheus {
 			mVS(vs), mGS(gs), mPS(ps) {
 		}
 
-		static ResourceTask<SpriteShaders> LoadDefaults(
+		static Future<SpriteShaders> LoadDefaults(
 			DG::IRenderDevice* device, 
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 	
-		static inline ResourceTask<SpriteShaders> LoadDefaults(
+		static inline Future<SpriteShaders> LoadDefaults(
 			RealtimeGraphics& graphics,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance()) {
 			return LoadDefaults(graphics.Device(), system);
@@ -131,7 +131,7 @@ namespace Morpheus {
 
 		SpriteBatchState CreateState();
 
-		static ResourceTask<SpriteBatchPipeline> LoadDefault(
+		static Future<SpriteBatchPipeline> LoadDefault(
 			DG::IRenderDevice* device,
 			SpriteBatchGlobals* globals,
 			DG::TEXTURE_FORMAT backbufferFormat,
@@ -140,7 +140,7 @@ namespace Morpheus {
 			DG::FILTER_TYPE filterType,
 			IVirtualFileSystem* system = EmbeddedFileLoader::GetGlobalInstance());
 
-		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(
+		inline static Future<SpriteBatchPipeline> LoadDefault(
 			RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::TEXTURE_FORMAT backbufferFormat,
@@ -152,7 +152,7 @@ namespace Morpheus {
 				depthbufferFormat, samples, filterType, system);
 		}
 
-		inline static ResourceTask<SpriteBatchPipeline> LoadDefault(
+		inline static Future<SpriteBatchPipeline> LoadDefault(
 			RealtimeGraphics& graphics,
 			SpriteBatchGlobals* globals,
 			DG::FILTER_TYPE filterType = DG::FILTER_TYPE_LINEAR,

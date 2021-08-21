@@ -2,6 +2,7 @@
 
 #include "BasicMath.hpp"
 
+#include <Engine/Defines.hpp>
 #include <Engine/Entity.hpp>
 
 namespace DG = Diligent;
@@ -96,6 +97,14 @@ namespace Morpheus {
 
 #ifdef USE_BULLET
 		void ToBullet(btTransform& output) const;
+		btTransform ToBullet() const;
+		void FromBullet(const btTransform& input);
+
+		Transform(const btTransform& input) {
+			FromBullet(input);
+		}
 #endif
+
+		static void RegisterMetaData();
 	};
 }

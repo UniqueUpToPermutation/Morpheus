@@ -24,7 +24,7 @@ MAIN() {
 	DG::Timer timer;
 	FrameTime time(timer);
 
-	ImmediateTaskQueue queue;
+	ImmediateComputeQueue queue;
 
 	while (platform.IsValid()) {
 		time.UpdateFrom(timer);

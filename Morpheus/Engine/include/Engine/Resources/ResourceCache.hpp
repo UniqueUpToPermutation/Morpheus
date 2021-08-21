@@ -8,8 +8,7 @@ namespace Morpheus {
 
 	template <typename iteratorType, typename LoadParamsHasher>
 	struct MetaHasher {
-		inline std::size_t operator()(const iteratorType& k) const
-		{
+		inline std::size_t operator()(const iteratorType& k) const {
 			return LoadParamsHasher()(k->first);
 		}
 	};
@@ -101,7 +100,7 @@ namespace Morpheus {
 		typename LoadParamsHasher>
 	class DefaultLoader {
 	public:
-		using cache_load_t = std::function<ResourceTask<T>(const LoadParameters&)>;
+		using cache_load_t = std::function<Future<T>(const LoadParameters&)>;
 		using cache_t = ResourceCache<T, LoadParameters, LoadParamsHasher>;
 		using load_callback_t = std::function<void(const typename cache_t::iterator_t&)>;
 
@@ -121,7 +120,7 @@ namespace Morpheus {
 		}
 
 		Future<T> Load(const LoadParameters& params, 
-			cache_t* cache, ITaskQueue* queue) {
+			cache_t* cache, IComputeQueue* queue) {
 			
 			{
 				auto lock = cache->LockShared();
@@ -131,13 +130,12 @@ namespace Morpheus {
 				}
 			}
 
-			auto task = mLoad(params);
-			Future<T> future;
+			Future<T> future = mLoad(params);
 			typename cache_t::iterator_t it;
 
 			{
 				auto lock = cache->LockUnique();
-				future = queue->AdoptAndTrigger(std::move(task));
+				queue->Submit(future);
 				it = cache->AddUnsafe(params, future);
 			}
 
@@ -233,15 +231,15 @@ namespace Morpheus {
 
 			// There's stuff we need to send to thread 1 to dispose of
 			if (actualGarbage.size() > 0) {
-				if (e.mThreadId == ASSIGN_THREAD_MAIN) {
+				if (e.mThread == THREAD_MAIN) {
 					// Dispose everything
 					actualGarbage.clear();
 				} else {
-					Task task([garbage = std::move(actualGarbage)](const TaskParams& e) mutable {
+					FunctionPrototype<> prototype([&garbage = actualGarbage](const TaskParams& e) {
 						// Dispose everything
 						garbage.clear();
-					}, "Dispose Garbage", TaskType::UNSPECIFIED, ASSIGN_THREAD_MAIN);
-					e.mQueue->AdoptAndTrigger(std::move(task));
+					});
+					e.mQueue->Submit(prototype().SetName("Dispose Garbage").OnlyThread(THREAD_MAIN));
 				}
 			}
 		}

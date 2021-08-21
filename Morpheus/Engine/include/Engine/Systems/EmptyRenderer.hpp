@@ -21,7 +21,7 @@ namespace Morpheus {
 			return mGraphics;
 		}
 
-		Task Startup(SystemCollection& collection) override;
+		std::unique_ptr<Task> Startup(SystemCollection& collection) override;
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;

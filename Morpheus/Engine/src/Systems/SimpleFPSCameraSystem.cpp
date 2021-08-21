@@ -39,7 +39,7 @@ namespace Morpheus {
 	}
 
 	void SimpleFPSCameraSystem::Update(Frame* frame, const FrameTime& time) {
-		auto cameraEnt = frame->mCamera;
+		auto cameraEnt = frame->GetCamera();
 
 		if (cameraEnt == entt::null) {
 			mData.mUpdateTarget = entt::null;
@@ -111,26 +111,28 @@ namespace Morpheus {
 			.SetRotation(newRotation);
 	}
 
-	Task SimpleFPSCameraSystem::Startup(SystemCollection& systems) {
+	std::unique_ptr<Task> SimpleFPSCameraSystem::Startup(SystemCollection& systems) {
 
 		auto& processor = systems.GetFrameProcessor();
 
-		// This task updates simple fps camera controllers
-		processor.AddUpdateTask(ParameterizedTask<UpdateParams>(
-			[this](const TaskParams& e, const UpdateParams& params) {
-				Update(params.mFrame, params.mTime);
-			}, "Update FPS Camera", TaskType::UPDATE
-		));
+		update_proto_t updater([this](const TaskParams& e, Future<UpdateParams> params) {
+			Update(params.Get().mFrame, params.Get().mTime);
+		});
+
+		processor.AddUpdateTask(
+			updater(processor.GetUpdateInput()).SetName("Update FPS Camera"));
 
 		// This injects the changes to camera transform into the frame
 		InjectProc injectCameraTransform;
-		injectCameraTransform.mTarget = entt::type_id<Transform>();
-		injectCameraTransform.mProc = [this](Frame* frame) {
-			Inject(frame);
-		};
-		processor.AddInjector(injectCameraTransform);
+		injectCameraTransform.mTarget = entt::resolve<Transform>();
 
-		return Task();
+		processor.AddInjector(
+			entt::type_id<Transform>(), 
+			[this](Frame* frame) {
+				Inject(frame);
+		});
+
+		return nullptr;
 	}
 
 	bool SimpleFPSCameraSystem::IsInitialized() const {

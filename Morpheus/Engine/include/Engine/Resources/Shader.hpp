@@ -59,15 +59,15 @@ namespace Morpheus {
 			mCreateInfo.SourceLanguage = DG::SHADER_SOURCE_LANGUAGE_HLSL;
 		}
 
-		DG::IShader* SpawnOnGPU(DG::IRenderDevice* device);
+		DG::IShader* ToDiligent(DG::IRenderDevice* device);
 	};
 
-	ResourceTask<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
+	Future<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
 		const LoadParams<RawShader>& shader,
 		IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance(),
 		ShaderPreprocessorConfig* defaults = nullptr);
 
-	ResourceTask<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
+	Future<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
 		const LoadParams<RawShader>& shader,
 		IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance(),
 		ShaderPreprocessorConfig* defaults = nullptr);

@@ -2,11 +2,13 @@
 
 namespace Morpheus {
 
-	Task EmptyRenderer::Startup(SystemCollection& collection) {
+	std::unique_ptr<Task> EmptyRenderer::Startup(SystemCollection& collection) {
+
+		auto& frameProcessor = collection.GetFrameProcessor();
 
 		// Just clear the screen
-		ParameterizedTask<RenderParams> renderTask([graphics = mGraphics](const TaskParams& e, const RenderParams& params) {
-			
+		render_proto_t renderPrototype([graphics = mGraphics]
+			(const TaskParams& e, Future<RenderParams> f_params) {
 			auto context = graphics->ImmediateContext();
 			auto swapChain = graphics->SwapChain();
 			auto rtv = swapChain->GetCurrentBackBufferRTV();
@@ -16,13 +18,15 @@ namespace Morpheus {
 			context->ClearRenderTarget(rtv, color, DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 			context->ClearDepthStencil(dsv, DG::CLEAR_DEPTH_FLAG, 1.0f, 0, 
 				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		}, "Clear Screen", TaskType::RENDER, ASSIGN_THREAD_MAIN);
+		});
 
 		// Give this task to the frame processor
-		collection.GetFrameProcessor().AddRenderTask(std::move(renderTask));
+		frameProcessor.AddRenderTask(
+			renderPrototype(frameProcessor.GetRenderInput())
+			.SetName("Render")
+			.OnlyThread(THREAD_MAIN));
 
-		return Task();
+		return nullptr;
 	}
 	
 	bool EmptyRenderer::IsInitialized() const { 

@@ -9,75 +9,61 @@ using namespace DG;
 
 namespace Morpheus {
 
-	ResourceTask<SpriteShaders> SpriteShaders::LoadDefaults(
+	Future<SpriteShaders> SpriteShaders::LoadDefaults(
 			DG::IRenderDevice* device, 
 			IVirtualFileSystem* system) {
-		Promise<SpriteShaders> shadersPromise;
-		Future<SpriteShaders> shadersFuture(shadersPromise);
 		
 		struct {
-			Future<DG::IShader*> mVS;
-			Future<DG::IShader*> mGS;
-			Future<DG::IShader*> mPS;
+			Future<Handle<DG::IShader>> mVS;
+			Future<Handle<DG::IShader>> mGS;
+			Future<Handle<DG::IShader>> mPS;
 		} data;
 
-		Task task([data, promise = std::move(shadersPromise), 
-			device, system](const TaskParams& e) mutable {
-
-			if (e.mTask->BeginSubTask()) {
 				LoadParams<RawShader> vsParams("internal/SpriteBatch.vsh",
-					DG::SHADER_TYPE_VERTEX,
-					"Sprite Batch VS");
+			DG::SHADER_TYPE_VERTEX,
+			"Sprite Batch VS");
 
-				LoadParams<RawShader> gsParams("internal/SpriteBatch.gsh",
-					DG::SHADER_TYPE_GEOMETRY,
-					"Sprite Batch GS");
+		LoadParams<RawShader> gsParams("internal/SpriteBatch.gsh",
+			DG::SHADER_TYPE_GEOMETRY,
+			"Sprite Batch GS");
 
-				LoadParams<RawShader> psParams("internal/SpriteBatch.psh",
-					DG::SHADER_TYPE_PIXEL,
-					"Sprite Batch PS");
+		LoadParams<RawShader> psParams("internal/SpriteBatch.psh",
+			DG::SHADER_TYPE_PIXEL,
+			"Sprite Batch PS");
 
-				auto vsTask = LoadShader(device, vsParams, system);
-				auto gsTask = LoadShader(device, gsParams, system);
-				auto psTask = LoadShader(device, psParams, system);
+		data.mVS = LoadShaderHandle(device, vsParams, system);
+		data.mGS = LoadShaderHandle(device, gsParams, system);
+		data.mPS = LoadShaderHandle(device, psParams, system);
 
-				data.mVS = e.mQueue->AdoptAndTrigger(std::move(vsTask));
-				data.mGS = e.mQueue->AdoptAndTrigger(std::move(gsTask));
-				data.mPS = e.mQueue->AdoptAndTrigger(std::move(psTask));
-
-				e.mTask->EndSubTask();
-
-				if (e.mTask->In().Lock()
-					.Connect(data.mVS.Out())
-					.Connect(data.mGS.Out())
-					.Connect(data.mPS.Out())
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
-
-			// Forward shaders to promise
+		FunctionPrototype<
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Future<Handle<DG::IShader>>,
+			Promise<SpriteShaders>>
+			prototype([]
+				(const TaskParams& e,
+				Future<Handle<DG::IShader>> vs,
+				Future<Handle<DG::IShader>> gs,
+				Future<Handle<DG::IShader>> ps,
+				Promise<SpriteShaders> output) {
+			
 			SpriteShaders shaders;
-			shaders.mVS = data.mVS.Get();
-			shaders.mGS = data.mGS.Get();
-			shaders.mPS = data.mPS.Get();
+			shaders.mVS = vs.Get();
+			shaders.mGS = gs.Get();
+			shaders.mPS = ps.Get();
 
-			data.mVS.Get()->Release();
-			data.mGS.Get()->Release();
-			data.mPS.Get()->Release();
-
-			promise.Set(shaders, e.mQueue);
-
-			return TaskResult::FINISHED;
+			output = std::move(shaders);
 		});
 
-		ResourceTask<SpriteShaders> result;
-		result.mFuture = shadersFuture;
-		result.mTask = std::move(task);
+		Promise<SpriteShaders> result;
+
+		prototype(data.mVS, data.mGS, data.mPS, result)
+			.SetName("Create SpriteShaders struct");
 
 		return result;
 	}
 
-	ResourceTask<SpriteBatchPipeline> SpriteBatchPipeline::LoadDefault(
+	Future<SpriteBatchPipeline> SpriteBatchPipeline::LoadDefault(
 		DG::IRenderDevice* device,
 		SpriteBatchGlobals* globals,
 		DG::TEXTURE_FORMAT backbufferFormat,
@@ -86,42 +72,27 @@ namespace Morpheus {
 		DG::FILTER_TYPE filterType,
 		IVirtualFileSystem* fileSystem) {
 
-		Promise<SpriteBatchPipeline> pipelinePromise;
-		Future<SpriteBatchPipeline> pipelineFuture(pipelinePromise);
-
-		struct {
-			Future<SpriteShaders> mShaders;
-		} data;
-
-		Task task([pipelinePromise = std::move(pipelinePromise), 
-			data, device, backbufferFormat, depthbufferFormat, 
-			samples, filterType, fileSystem, globals](const TaskParams& e) mutable {
-			if (e.mTask->BeginSubTask()) {
-
-				auto loadShaders = SpriteShaders::LoadDefaults(device, fileSystem);
-				data.mShaders = e.mQueue->AdoptAndTrigger(std::move(loadShaders));
-
-				e.mTask->EndSubTask();
-
-				if (e.mTask->In().Lock()
-					.Connect(data.mShaders.Out())
-					.ShouldWait())
-					return TaskResult::WAITING;
-			}
-
-			SpriteBatchPipeline pipeline(device, globals, 
+		FunctionPrototype<
+			Future<SpriteShaders>,
+			Promise<SpriteBatchPipeline>>
+			prototype([device, backbufferFormat, depthbufferFormat, 
+			samples, filterType, fileSystem, globals](const TaskParams& e,
+				Future<SpriteShaders> in,
+				Promise<SpriteBatchPipeline> out) {
+			
+			out = SpriteBatchPipeline(device, globals, 
 				backbufferFormat, depthbufferFormat, samples,
-				filterType, data.mShaders.Get());
-
-			pipelinePromise.Set(pipeline, e.mQueue);
-			return TaskResult::FINISHED;
+				filterType, in.Get());
 		});
 
-		ResourceTask<SpriteBatchPipeline> loadTask;
-		loadTask.mFuture = pipelineFuture;
-		loadTask.mTask = std::move(task);
+		Promise<SpriteBatchPipeline> result;
+		Future<SpriteShaders> shaders = SpriteShaders::LoadDefaults(device, fileSystem);
 
-		return loadTask;
+		prototype(shaders, result)
+			.SetName("Create Sprite Batch Pipeline")
+			.OnlyThread(THREAD_MAIN);
+
+		return result;
 	}
 
 	SpriteBatchPipeline::SpriteBatchPipeline(

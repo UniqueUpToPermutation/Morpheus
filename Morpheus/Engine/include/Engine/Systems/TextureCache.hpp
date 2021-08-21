@@ -9,20 +9,20 @@ namespace Morpheus {
 	class TextureCacheSystem : public ISystem, 
 		public IResourceCache<Texture> {
 	private:
-		using cache_t = ResourceCache<Texture*, 
+		using cache_t = ResourceCache<Handle<Texture>, 
 			Texture::LoadParameters, 
 			Texture::LoadParameters::Hasher>;
-		using loader_t = DefaultLoader<Texture*, 
+		using loader_t = DefaultLoader<Handle<Texture>, 
 			Texture::LoadParameters, 
 			Texture::LoadParameters::Hasher>;
-		using gc_t = DefaultGarbageCollector<Texture*, 
+		using gc_t = DefaultGarbageCollector<Handle<Texture>, 
 			Texture::LoadParameters, 
 			Texture::LoadParameters::Hasher>;
 
 		loader_t::cache_load_t GetLoaderFunction();
 		loader_t::load_callback_t GetLoadCallback();
 
-		GraphicsDevice mDevice;
+		Device mDevice;
 
 		cache_t mCache;
 		loader_t mLoader;
@@ -33,7 +33,7 @@ namespace Morpheus {
 		inline loader_t& Loader() { return mLoader; }
 		inline gc_t& GarbageCollector() { return mGarbageCollector; }
 
-		inline TextureCacheSystem(GraphicsDevice device) : 
+		inline TextureCacheSystem(Device device) : 
 			mDevice(device), mLoader(GetLoaderFunction(), 
 				GetLoadCallback()), mGarbageCollector(mCache) {	
 		}
@@ -42,9 +42,9 @@ namespace Morpheus {
 			TextureCacheSystem(graphics.Device()) {	
 		}
 
-		Future<Texture*> Load(const LoadParams<Texture>& params, ITaskQueue* queue) override;
+		Future<Handle<Texture>> Load(const LoadParams<Texture>& params, IComputeQueue* queue) override;
 
-		Task Startup(SystemCollection& systems) override;
+		std::unique_ptr<Task> Startup(SystemCollection& systems) override;
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;

@@ -2,7 +2,7 @@
 #include <Engine/Resources/ShaderPreprocessor.hpp>
 
 namespace Morpheus {
-	DG::IShader* RawShader::SpawnOnGPU(DG::IRenderDevice* device) {
+	DG::IShader* RawShader::ToDiligent(DG::IRenderDevice* device) {
 		DG::IShader* shader = nullptr;
 		mCreateInfo.Source = mShaderSource.c_str();
 		mCreateInfo.EntryPoint = mEntryPoint.c_str();
@@ -17,7 +17,7 @@ namespace Morpheus {
 		const std::string& name, 
 		const std::string& entryPoint) {
 		RawShader raw(preprocessorOutput, type, name, entryPoint);
-		return raw.SpawnOnGPU(device);
+		return raw.ToDiligent(device);
 	}
 
 	DG::IShader* CompileEmbeddedShader(DG::IRenderDevice* device,
@@ -33,61 +33,47 @@ namespace Morpheus {
 		ShaderPreprocessorConfig defaultConfig;
 		preprocessor.Load(source, fileLoader, &output, &defaultConfig, config);
 		RawShader raw(output, type, name, entryPoint);
-		return raw.SpawnOnGPU(device);
+		return raw.ToDiligent(device);
 	}
 
 	template <typename T>
-	ResourceTask<T> LoadShaderTemplated(DG::IRenderDevice* device, 
+	Future<T> LoadShaderTemplated(DG::IRenderDevice* device, 
 		const LoadParams<RawShader>& shader,
 		IVirtualFileSystem* fileSystem,
 		ShaderPreprocessorConfig* defaults) {
-		struct Data {
-			RawShader mRawShader;
-		};
 
-		Promise<T> promise;
-		Future<T> future(promise);
+		Promise<RawShader> raw;
+		Promise<T> result;
 
-		Task task([params = shader, device, fileSystem,
-			defaults, data = Data(), promise = std::move(promise)](const TaskParams& e) mutable {
-			if (e.mTask->BeginSubTask()) {
-				ShaderPreprocessorConfig nothing;
-				if (!defaults)
-					defaults = &nothing;
+		FunctionPrototype<Promise<RawShader>> rawPrototype(
+			[params = shader, device, fileSystem, defaults]
+				(const TaskParams& e, Promise<RawShader> result) mutable {
+			ShaderPreprocessorConfig nothing;
+			if (!defaults)
+				defaults = &nothing;
 
-				ShaderPreprocessorOutput output;
-				ShaderPreprocessor::Load(params.mSource, fileSystem, &output, defaults, &params.mOverrides);
-				data.mRawShader = RawShader(output, params.mShaderType, params.mName, params.mEntryPoint);
+			ShaderPreprocessorOutput output;
+			ShaderPreprocessor::Load(params.mSource, fileSystem, &output, defaults, &params.mOverrides);
+			result = RawShader(output, params.mShaderType, params.mName, params.mEntryPoint);
+		});
 
-				e.mTask->EndSubTask();
-				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
-					return TaskResult::REQUEST_THREAD_SWITCH;
+		FunctionPrototype<UniqueFuture<RawShader>, Promise<T>> diligentPrototype(
+			[params = shader, device, fileSystem, defaults]
+				(const TaskParams& e, UniqueFuture<RawShader> raw, Promise<T> output) {
+			DG::IShader* shader = raw.Get().ToDiligent(device);
+			output = shader;
+			if constexpr (std::is_same_v<T, Handle<DG::IShader>>) {
+				shader->Release();
 			}
+		});
 
-			if (e.mTask->BeginSubTask()) {
-				DG::IShader* shader = data.mRawShader.SpawnOnGPU(device);
-				promise.Set(shader, e.mQueue);
-
-				if constexpr (std::is_same_v<T, Handle<DG::IShader>>) {
-					shader->Release();
-				}
-
-				e.mTask->EndSubTask();
-			}
-
-			return TaskResult::FINISHED;
-		}, 
-		std::string("Load Shader ") + shader.mSource,
-		TaskType::FILE_IO);
-
-		ResourceTask<T> resTask;
-		resTask.mFuture = std::move(future);
-		resTask.mTask = std::move(task);
+		rawPrototype(raw).SetName("Load Raw Shader");
+		diligentPrototype(raw, result).SetName("Compile Shader").OnlyThread(THREAD_MAIN);
 		
-		return resTask;
+		return result;
 	}
 
-	ResourceTask<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
+	Future<Handle<DG::IShader>> LoadShaderHandle(DG::IRenderDevice* device, 
 		const LoadParams<RawShader>& shader,
 		IVirtualFileSystem* fileSystem,
 		ShaderPreprocessorConfig* defaults) {
@@ -95,7 +81,7 @@ namespace Morpheus {
 	}
 
 	// Loads resource and adds resulting task to the specified barrier
-	ResourceTask<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
+	Future<DG::IShader*> LoadShader(DG::IRenderDevice* device, 
 		const LoadParams<RawShader>& params,
 		IVirtualFileSystem* system,
 		ShaderPreprocessorConfig* defaults) {

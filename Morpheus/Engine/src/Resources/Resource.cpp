@@ -1,8 +1,15 @@
 #include <Engine/Resources/Resource.hpp>
 
+#include <Engine/Entity.hpp>
+
 #include <fstream>
 
+using namespace entt;
+
 namespace Morpheus {
+	void IResource::Move(Device device, Context context) {
+		MoveAsync(device, context).Evaluate();
+	}
 
 	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out) {
 		auto stream = std::ifstream(source, std::ios::binary | std::ios::ate);
@@ -24,5 +31,9 @@ namespace Morpheus {
 
 			out[size] = 0;
 		}
+	}
+
+	void IResource::RegisterMetaData() {
+		meta<IResource>().type("IResource"_hs);
 	}
 }

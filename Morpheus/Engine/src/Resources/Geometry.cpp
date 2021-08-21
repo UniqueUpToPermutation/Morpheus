@@ -8,6 +8,7 @@
 
 using namespace Assimp;
 using namespace std;
+using namespace entt;
 
 namespace Morpheus {
 
@@ -17,113 +18,47 @@ namespace Morpheus {
 			device->CreateGeometry(*source));
 	}
 
-	template <typename T>
-	ResourceTask<T> LoadTemplated(GraphicsDevice device, 
-		const LoadParams<Geometry>& params) {
-		Promise<T> promise;
-		Future<T> future(promise);
-
-		struct Data {
-			Geometry mRaw;
-		};
-
-		Task task([params, device, promise = std::move(promise), data = Data()](const TaskParams& e) mutable {
-			if (e.mTask->BeginSubTask()) {
-				data.mRaw.Read(params);
-				e.mTask->EndSubTask();
-			}
-
-			if (device.mGpuDevice) {
-				// GPU devices can only create objects on the main thread!
-				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
-					return TaskResult::REQUEST_THREAD_SWITCH;
-			}
-
-			if (e.mTask->BeginSubTask()) {
-				Geometry* geo = new Geometry(device, data.mRaw);
-				promise.Set(geo, e.mQueue);
-				e.mTask->EndSubTask();
-
-				if constexpr (std::is_same_v<T, Handle<Geometry>>) {
-					geo->Release();
-				}
-			}
-
-			return TaskResult::FINISHED;
-		}, 
-		std::string("Load ") + params.mSource, 
-		TaskType::FILE_IO);
-
-		ResourceTask<T> resourceTask;
-		resourceTask.mTask = std::move(task);
-		resourceTask.mFuture = std::move(future);
-
-		return resourceTask;
-	}
-
-	template <typename T>
-	ResourceTask<T> LoadRawTemplated(const LoadParams<Geometry>& params) {
-		Promise<T> promise;
-		Future<T> future(promise);
-
-		Task task([params, promise = std::move(promise)](const TaskParams& e) mutable {
-			Geometry* geo = new Geometry();
-			geo->LoadRaw(params);
-			promise.Set(geo, e.mQueue);
-
-			if constexpr (std::is_same_v<T, Handle<Geometry>>) {
-				geo->Release();
-			}
-		}, 
-		std::string("Load ") + params.mSource, 
-		TaskType::FILE_IO);
-
-		ResourceTask<T> resourceTask;
-		resourceTask.mTask = std::move(task);
-		resourceTask.mFuture = std::move(future);
-
-		return resourceTask;
-	}
-
-	Geometry Geometry::Prefabs::MaterialBall(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::MaterialBall(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::MaterialBall(layout));
 	}
 
-	Geometry Geometry::Prefabs::Box(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::Box(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::Box(layout));
 	}
 
-	Geometry Geometry::Prefabs::Sphere(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::Sphere(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::Sphere(layout));
 	}
 
-	Geometry Geometry::Prefabs::BlenderMonkey(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::BlenderMonkey(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::BlenderMonkey(layout));
 	}
 
-	Geometry Geometry::Prefabs::Torus(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::Torus(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::Torus(layout));
 	}
 
-	Geometry Geometry::Prefabs::Plane(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::Plane(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::Plane(layout));
 	}
 
-	Geometry Geometry::Prefabs::StanfordBunny(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::StanfordBunny(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::StanfordBunny(layout));
 	}
 
-	Geometry Geometry::Prefabs::UtahTeapot(GraphicsDevice device, const VertexLayout& layout) {
+	Geometry Geometry::Prefabs::UtahTeapot(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::UtahTeapot(layout));
 	}
 
-	void Geometry::Set(DG::IBuffer* vertexBuffer, 
+	void Geometry::Set(
+		DG::IRenderDevice* device,
+		DG::IBuffer* vertexBuffer, 
 		DG::IBuffer* indexBuffer,
 		uint vertexBufferOffset, 
 		const DG::DrawIndexedAttribs& attribs,
 		const VertexLayout& layout,
 		const BoundingBox& aabb) {
-		mFlags |= RESOURCE_RASTERIZER_ASPECT;
+		mDevice = device;
 
 		mRasterAspect.mVertexBuffer = vertexBuffer;
 		mRasterAspect.mIndexBuffer = indexBuffer;
@@ -133,12 +68,14 @@ namespace Morpheus {
 		mShared.mIndexedAttribs = attribs;
 	}
 
-	void Geometry::Set(DG::IBuffer* vertexBuffer,
+	void Geometry::Set(
+		DG::IRenderDevice* device,
+		DG::IBuffer* vertexBuffer,
 		uint vertexBufferOffset,
 		const DG::DrawAttribs& attribs,
 		const VertexLayout& layout,
 		const BoundingBox& aabb) {
-		mFlags |= RESOURCE_RASTERIZER_ASPECT;
+		mDevice = device;
 
 		mRasterAspect.mVertexBuffer = vertexBuffer;
 		mRasterAspect.mIndexBuffer = nullptr;
@@ -150,51 +87,59 @@ namespace Morpheus {
 
 	void Geometry::CreateRasterAspect(DG::IRenderDevice* device, const Geometry* geometry) {
 		
-		mFlags |= RESOURCE_RASTERIZER_ASPECT;
-		mFlags |= RESOURCE_GPU_RESIDENT;
-
 		DG::IBuffer* vertexBuffer = nullptr;
 		DG::IBuffer* indexBuffer = nullptr;
 
-		geometry->SpawnOnGPU(device, &vertexBuffer, &indexBuffer);
+		geometry->ToDiligent(device, &vertexBuffer, &indexBuffer);
 
 		if (indexBuffer) {
-			Set(vertexBuffer, indexBuffer, 0,
+			Set(device, vertexBuffer, indexBuffer, 0,
 				geometry->GetIndexedDrawAttribs(), 
 				mShared.mLayout, geometry->GetBoundingBox());
 		} else {
-			Set(vertexBuffer, 0, geometry->GetDrawAttribs(), 
+			Set(device, vertexBuffer, 0, geometry->GetDrawAttribs(), 
 				mShared.mLayout,  geometry->GetBoundingBox());
 		}
 	}
 
-	void Geometry::CreateDeviceAspect(GraphicsDevice device, const Geometry* source) {
-		if (device.mGpuDevice)
-			CreateRasterAspect(device.mGpuDevice, source);
-		else if (device.mExternal)
-			CreateExternalAspect(device.mExternal, source);
+	void Geometry::CreateDeviceAspect(Device device, const Geometry* source) {
+		if (!source->mDevice.IsCPU())
+			throw std::runtime_error("Input geometry must be CPU!");
+
+		if (device.IsGPU())
+			CreateRasterAspect(device, source);
+		else if (device.IsExternal())
+			CreateExternalAspect(device, source);
+		else if (device.IsCPU()) 
+			CopyFrom(*source);
+		else if (device.IsDisk())
+			throw std::runtime_error("Cannot create a device aspect on disk!");
 		else
 			throw std::runtime_error("Device cannot be null!");
 	}
 
-	ResourceTask<Handle<Geometry>> Geometry::Load(
-		GraphicsDevice device, const LoadParams<Geometry>& params) {
-		return LoadTemplated<Handle<Geometry>>(device, params);
+	UniqueFuture<Geometry> Geometry::Load(
+		Device device, const LoadParams<Geometry>& params) {
+		return Geometry(params).ToAsync(device);
 	}
 
-	ResourceTask<Geometry*> Geometry::LoadPointer(GraphicsDevice device, 
+	UniqueFuture<Geometry> Geometry::Load(
 		const LoadParams<Geometry>& params) {
-		return LoadTemplated<Geometry*>(device, params);
+		return Geometry(params).ToAsync(Device::CPU());
 	}
 
-	ResourceTask<Geometry*> Geometry::LoadRawPointer(
-		const LoadParams<Geometry>& params) {
-		return LoadRawTemplated<Geometry*>(params);
+	Future<Handle<Geometry>> Geometry::LoadHandle(
+		Device device, const LoadParams<Geometry>& params) {
+		Promise<Handle<Geometry>> result;
+		PipeToHandle(Load(device, params), result);
+		return result;
 	}
 
-	ResourceTask<Handle<Geometry>> Geometry::LoadRaw(
+	Future<Handle<Geometry>> Geometry::LoadHandle(
 		const LoadParams<Geometry>& params) {
-		return LoadRawTemplated<Handle<Geometry>>(params);
+		Promise<Handle<Geometry>> result;
+		PipeToHandle(Load(params), result);
+		return result;
 	}
 
 	void Geometry::CopyTo(Geometry* geometry) const {
@@ -202,12 +147,13 @@ namespace Morpheus {
 	}
 
 	void Geometry::CopyFrom(const Geometry& geometry) {
-		if (geometry.mFlags & RESOURCE_RASTERIZER_ASPECT)
-			throw std::runtime_error("Cannot copy GPU geometry with CopyFrom!");
+		if (!geometry.mDevice.IsCPU())
+			throw std::runtime_error("Cannot copy non-CPU geometry with CopyFrom!");
 
-		mFlags = geometry.mFlags;
-		mRawAspect = geometry.mRawAspect;
+		mCpuAspect = geometry.mCpuAspect;
+		mDevice = geometry.mDevice;
 		mShared = geometry.mShared;
+		mSource = geometry.mSource;
 	}
 
 	void Geometry::Set(const VertexLayout& layout,
@@ -216,11 +162,11 @@ namespace Morpheus {
 		const DG::DrawAttribs& unindexedDrawAttribs,
 		const BoundingBox& aabb) {
 
-		mFlags |= RESOURCE_RAW_ASPECT;
+		mDevice = Device::CPU();
 		
-		mRawAspect.mVertexBufferDescs = std::move(vertexBufferDescs);
-		mRawAspect.mVertexBufferDatas = std::move(vertexBufferDatas);
-		mRawAspect.bHasIndexBuffer = false;
+		mCpuAspect.mVertexBufferDescs = std::move(vertexBufferDescs);
+		mCpuAspect.mVertexBufferDatas = std::move(vertexBufferDatas);
+		mCpuAspect.bHasIndexBuffer = false;
 
 		mShared.mLayout = layout;
 		mShared.mUnindexedAttribs = unindexedDrawAttribs;
@@ -235,13 +181,13 @@ namespace Morpheus {
 		DG::DrawIndexedAttribs& indexedDrawAttribs,
 		const BoundingBox& aabb) {
 
-		mFlags |= RESOURCE_RAW_ASPECT;
+		mDevice = Device::CPU();
 		
-		mRawAspect.mVertexBufferDescs = std::move(vertexBufferDescs);
-		mRawAspect.mIndexBufferDesc = indexBufferDesc;
-		mRawAspect.mVertexBufferDatas = std::move(vertexBufferDatas);
-		mRawAspect.mIndexBufferData = indexBufferData;
-		mRawAspect.bHasIndexBuffer = true;
+		mCpuAspect.mVertexBufferDescs = std::move(vertexBufferDescs);
+		mCpuAspect.mIndexBufferDesc = indexBufferDesc;
+		mCpuAspect.mVertexBufferDatas = std::move(vertexBufferDatas);
+		mCpuAspect.mIndexBufferData = indexBufferData;
+		mCpuAspect.bHasIndexBuffer = true;
 
 		mShared.mIndexedAttribs = indexedDrawAttribs;
 		mShared.mLayout = layout;
@@ -249,39 +195,39 @@ namespace Morpheus {
 	}
 
 	void Geometry::AdoptData(Geometry&& other) {
-		mRawAspect = std::move(other.mRawAspect);
+		mCpuAspect = std::move(other.mCpuAspect);
 		mShared = std::move(other.mShared);
 		mRasterAspect = std::move(other.mRasterAspect);
 		mExtAspect = std::move(other.mExtAspect);
-
-		mFlags = other.mFlags;
+		mDevice = std::move(other.mDevice);
+		mSource = std::move(other.mSource);
 	}
 
-	void Geometry::SpawnOnGPU(DG::IRenderDevice* device, 
+	void Geometry::ToDiligent(DG::IRenderDevice* device, 
 		DG::IBuffer** vertexBufferOut, 
 		DG::IBuffer** indexBufferOut) const {
 
-		if (!(mFlags & RESOURCE_RAW_ASPECT))
+		if (!mDevice.IsCPU())
 			throw std::runtime_error("Spawn on GPU requires geometry have a raw aspect!");
 
-		if (mRawAspect.mVertexBufferDatas.size() == 0)
+		if (mCpuAspect.mVertexBufferDatas.size() == 0)
 			throw std::runtime_error("Spawning on GPU requires at least one channel!");
 
 		DG::BufferData data;
-		data.pData = &mRawAspect.mVertexBufferDatas[0][0];
-		data.DataSize = mRawAspect.mVertexBufferDatas[0].size();
-		device->CreateBuffer(mRawAspect.mVertexBufferDescs[0], &data, vertexBufferOut);
+		data.pData = &mCpuAspect.mVertexBufferDatas[0][0];
+		data.DataSize = mCpuAspect.mVertexBufferDatas[0].size();
+		device->CreateBuffer(mCpuAspect.mVertexBufferDescs[0], &data, vertexBufferOut);
 
-		if (mRawAspect.bHasIndexBuffer) {
-			data.pData = &mRawAspect.mIndexBufferData[0];
-			data.DataSize = mRawAspect.mIndexBufferData.size();
-			device->CreateBuffer(mRawAspect.mIndexBufferDesc, &data, indexBufferOut);
+		if (mCpuAspect.bHasIndexBuffer) {
+			data.pData = &mCpuAspect.mIndexBufferData[0];
+			data.DataSize = mCpuAspect.mIndexBufferData.size();
+			device->CreateBuffer(mCpuAspect.mIndexBufferDesc, &data, indexBufferOut);
 		}
 	}
 
-	Task Geometry::ReadAssimpRawTask(const LoadParams<Geometry>& params) {
+	UniqueFuture<Geometry> Geometry::ReadAssimpRawAsync(const LoadParams<Geometry>& params) {
 
-		Task task([this, params](const TaskParams& e) {
+		FunctionPrototype<Promise<Geometry>> prototype([params](const TaskParams& e, Promise<Geometry> result) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
 
@@ -307,12 +253,12 @@ namespace Morpheus {
 
 			const VertexLayout* layout = &params.mVertexLayout;
 	
-			ReadAssimpRaw(pScene, *layout);
-		},
-		std::string("Load Raw Geometry ") + params.mSource + " (Assimp)",
-		TaskType::FILE_IO);
-
-		return task;
+			result = ReadAssimpRaw(pScene, *layout);
+		});
+		
+		Promise<Geometry> result;
+		prototype(result).SetName("Load Raw Geometry (Assimp)");
+		return result;
 	}
 
 	void ComputeLayoutProperties(
@@ -495,7 +441,7 @@ namespace Morpheus {
 		const V3T tangents[],
 		const V3T bitangents[]) {
 
-		mFlags |= RESOURCE_RAW_ASPECT;
+		mDevice = Device::CPU();
 
 		auto& layoutElements = layout.mElements;
 		std::vector<size_t> offsets;
@@ -774,7 +720,7 @@ namespace Morpheus {
 			bitangents);
 	}
 
-	void Geometry::ReadAssimpRaw(const aiScene* scene, const VertexLayout& layout) {
+	Geometry Geometry::ReadAssimpRaw(const aiScene* scene, const VertexLayout& layout) {
 
 		uint nVerts;
 		uint nIndices;
@@ -788,7 +734,9 @@ namespace Morpheus {
 		nVerts = mesh->mNumVertices;
 		nIndices = mesh->mNumFaces * 3;
 
-		Unpack<aiFace, aiVector3D, aiVector3D>(layout,
+		Geometry result;
+
+		result.Unpack<aiFace, aiVector3D, aiVector3D>(layout,
 			nVerts, nIndices,
 			mesh->mFaces,
 			mesh->mVertices,
@@ -796,24 +744,89 @@ namespace Morpheus {
 			mesh->mNormals,
 			mesh->mTangents,
 			mesh->mBitangents);
+
+		return result;
 	}
 
-	Task Geometry::ReadTask(const LoadParams<Geometry>& params) {
+	UniqueFuture<Geometry> Geometry::ReadAsync(const LoadParams<Geometry>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
 		}
 		auto ext = params.mSource.substr(pos);
 
-		return ReadAssimpRawTask(params);
+		return ReadAssimpRawAsync(params);
 	}
 
 	void Geometry::Clear() {
 		mRasterAspect = RasterizerAspect();
-		mRawAspect = RawAspect();
+		mCpuAspect = CpuAspect();
 		mShared = SharedAspect();
 		mExtAspect = ExternalAspect<ExtObjectType::GEOMETRY>();
 
-		mFlags = 0u;
+		mDevice = Device::None();
+	}
+
+	void Geometry::RegisterMetaData() {
+		meta<Geometry>().type("Geometry"_hs)
+			.base<IResource>();
+	}
+
+	Geometry Geometry::To(Device device, Context context) {
+		return std::move(ToAsync(device, context).Evaluate());
+	}
+
+	BarrierOut Geometry::MoveAsync(Device device, Context context) {
+		Barrier result;
+
+		FunctionPrototype<UniqueFuture<Geometry>, Barrier> swapPrototype([this](
+			const TaskParams& e, 
+			UniqueFuture<Geometry> inGeometry, 
+			Barrier) {
+			*this = std::move(inGeometry.Get());
+		});
+
+		UniqueFuture<Geometry> movedGeo = ToAsync(device, context);
+		swapPrototype(movedGeo, result);
+		return result;
+	}
+
+	UniqueFuture<Geometry> Geometry::ToAsync(Device device, Context context) {
+		Device currentDevice = mDevice;
+
+		if (device.IsDisk())
+			throw std::runtime_error("Cannot move to disk! Use a save method instead!");
+
+		Promise<Handle<Geometry>> cpuGeometryHandle;
+		Promise<Geometry> result;
+
+		if (currentDevice.IsDisk()) {
+			auto readResult = ReadAsync(mSource);
+			PipeToHandle(readResult, cpuGeometryHandle);
+		} else if (currentDevice.IsCPU()) {
+			cpuGeometryHandle.Set(Handle<Geometry>(this));
+		} else {
+			auto readResult = GPUToCPUAsync(device, context);
+			PipeToHandle(readResult, cpuGeometryHandle);
+		}
+
+		FunctionPrototype<Future<Handle<Geometry>>, Promise<Geometry>> moveToDevice([device](
+			const TaskParams& e,
+			Future<Handle<Geometry>> in,
+			Promise<Geometry> out) {
+			out = Geometry::CopyToDevice(device, *in.Get());
+		});
+
+		if (device.IsCPU()) {
+			PipeFromHandle(cpuGeometryHandle.GetUniqueFuture(), result);
+			return result;
+		} else {
+			moveToDevice(cpuGeometryHandle, result).OnlyThread(THREAD_MAIN);
+			return result;
+		}
+	}
+
+	UniqueFuture<Geometry> Geometry::GPUToCPUAsync(Device device, Context context) const {
+		throw std::runtime_error("Not implemented!");
 	}
 }

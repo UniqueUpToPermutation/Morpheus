@@ -2,7 +2,6 @@
 
 #include "RenderDevice.h"
 #include "MapHelper.hpp"
-#include "Pool.hpp"
 
 #include <cstring>
 

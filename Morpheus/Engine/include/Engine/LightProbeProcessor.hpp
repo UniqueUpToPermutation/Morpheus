@@ -17,7 +17,7 @@ namespace DG = Diligent;
 namespace Morpheus {
 	class CookTorranceLUT {
 	private:
-		Handle<DG::ITexture> mLut;
+		Texture mLut;
 
 	public:
 		void Compute(DG::IRenderDevice* device,
@@ -27,11 +27,11 @@ namespace Morpheus {
 			uint integrationSamples = DEFAULT_LUT_INTEGRATION_SAMPLES);
 
 		inline DG::ITexture* GetLUT() {
-			return mLut.Ptr();
+			return mLut.GetRasterTexture();
 		}
 
 		inline DG::ITextureView* GetShaderView() {
-			return mLut->GetDefaultView(DG::TEXTURE_VIEW_SHADER_RESOURCE);
+			return mLut.GetShaderView();
 		}
 
 		void SavePng(const std::string& path, DG::IDeviceContext* context, DG::IRenderDevice* device);
@@ -59,7 +59,7 @@ namespace Morpheus {
 		Handle<DG::IShader> mPrefilterEnvPS;
 		Handle<DG::IShader> mSHShaderCS;
 
-		static ResourceTask<LightProbeProcessorShaders> Load(
+		static Future<LightProbeProcessorShaders> Load(
 			DG::IRenderDevice* device,
 			const LightProbeProcessorConfig& config,
 			IVirtualFileSystem* fileSystem = EmbeddedFileLoader::GetGlobalInstance());

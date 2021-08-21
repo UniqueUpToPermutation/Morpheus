@@ -30,5 +30,12 @@ namespace Morpheus {
 	void Transform::ToBullet(btTransform& output) const {
 		output.setFromOpenGLMatrix(ToMatrix().Data());
 	}
+
+	btTransform Transform::ToBullet() const {
+		btTransform output;
+		output.setFromOpenGLMatrix(ToMatrix().Data());
+		return output;
+	}
+
 #endif
 }

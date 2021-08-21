@@ -3,10 +3,9 @@
 #include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ImageCopy.hpp>
 
-#include <cereal/archives/portable_binary.hpp>
+#include <Engine/Entity.hpp>
 
-#include "TextureUtilities.h"
-#include "Image.h"
+#include <cereal/archives/portable_binary.hpp>
 
 #include <gli/gli.hpp>
 #include <lodepng.h>
@@ -15,6 +14,9 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+using namespace entt;
+
 namespace Morpheus {
 
 	DG::TEXTURE_FORMAT GliToDG(gli::format format) {
@@ -328,8 +330,8 @@ namespace Morpheus {
 		DG::Uint32 CoarseMipHeight);
 
 	void Texture::GenerateMips() {
-		if (!IsRaw())
-			throw std::runtime_error("Texture must have raw aspect!");
+		if (!mDevice.IsCPU())
+			throw std::runtime_error("Texture must be on CPU!");
 
 		auto& desc = GetDesc();
 
@@ -341,13 +343,13 @@ namespace Morpheus {
 
 		uint iSubresource = 0;
 		for (size_t arrayIndex = 0; arrayIndex < desc.ArraySize; ++arrayIndex) {
-			auto& baseSubDesc = mRawAspect.mSubDescs[iSubresource];
-			auto last_mip_data = &mRawAspect.mData[baseSubDesc.mSrcOffset];
+			auto& baseSubDesc = mCpuAspect.mSubDescs[iSubresource];
+			auto last_mip_data = &mCpuAspect.mData[baseSubDesc.mSrcOffset];
 			++iSubresource;
 
 			for (size_t i = 1; i < mipCount; ++i) {
-				auto& subDesc = mRawAspect.mSubDescs[iSubresource];
-				auto new_mip_data = &mRawAspect.mData[subDesc.mSrcOffset];
+				auto& subDesc = mCpuAspect.mSubDescs[iSubresource];
+				auto new_mip_data = &mCpuAspect.mData[subDesc.mSrcOffset];
 
 				uint fineWidth = std::max<uint>(1u, desc.Width >> (i - 1));
 				uint fineHeight = std::max<uint>(1u, desc.Height >> (i - 1));
@@ -388,11 +390,10 @@ namespace Morpheus {
 		}
 	}
 
-	void Texture::AllocRaw(const DG::TextureDesc& desc) {
-		mFlags |= RESOURCE_RAW_ASPECT;
-		mFlags |= RESOURCE_CPU_RESIDENT;
+	void Texture::AllocOnCPU(const DG::TextureDesc& desc) {
+		mDevice = Device::CPU();
 
-		mRawAspect.mDesc = desc;
+		mCpuAspect.mDesc = desc;
 		auto pixelSize = GetPixelByteSize();
 
 		if (pixelSize <= 0) {
@@ -402,13 +403,13 @@ namespace Morpheus {
 		size_t mip_count = GetMipCount();
 
 		// Compute subresources and sizes
-		mRawAspect.mSubDescs.reserve(mRawAspect.mDesc.ArraySize * mip_count);
+		mCpuAspect.mSubDescs.reserve(mCpuAspect.mDesc.ArraySize * mip_count);
 		size_t currentOffset = 0;
-		for (size_t iarray = 0; iarray < mRawAspect.mDesc.ArraySize; ++iarray) {
+		for (size_t iarray = 0; iarray < mCpuAspect.mDesc.ArraySize; ++iarray) {
 			for (size_t imip = 0; imip < mip_count; ++imip) {
-				size_t mip_width = mRawAspect.mDesc.Width;
-				size_t mip_height = mRawAspect.mDesc.Height;
-				size_t mip_depth = mRawAspect.mDesc.Depth;
+				size_t mip_width = mCpuAspect.mDesc.Width;
+				size_t mip_height = mCpuAspect.mDesc.Height;
+				size_t mip_depth = mCpuAspect.mDesc.Depth;
 
 				mip_width = std::max<size_t>(mip_width >> imip, 1u);
 				mip_height = std::max<size_t>(mip_height >> imip, 1u);
@@ -418,28 +419,28 @@ namespace Morpheus {
 				subDesc.mSrcOffset = currentOffset;
 				subDesc.mDepthStride = mip_width * mip_height * pixelSize;
 				subDesc.mStride = mip_width * pixelSize;
-				mRawAspect.mSubDescs.emplace_back(subDesc);
+				mCpuAspect.mSubDescs.emplace_back(subDesc);
 
 				currentOffset += mip_width * mip_height * mip_depth * pixelSize;
 			}
 		}
 
-		mRawAspect.mData.resize(currentOffset);
+		mCpuAspect.mData.resize(currentOffset);
 	}
 
 	void* Texture::GetSubresourcePtr(uint mip, uint arrayIndex) {
-		assert(IsRaw());
+		assert(mDevice.IsCPU());
 
-		size_t subresourceIndex = arrayIndex * mRawAspect.mDesc.MipLevels + mip;
-		return &mRawAspect.mData[mRawAspect.mSubDescs[subresourceIndex].mSrcOffset];
+		size_t subresourceIndex = arrayIndex * mCpuAspect.mDesc.MipLevels + mip;
+		return &mCpuAspect.mData[mCpuAspect.mSubDescs[subresourceIndex].mSrcOffset];
 	}
 
 	size_t Texture::GetSubresourceSize(uint mip, uint arrayIndex) {
-		assert(mFlags & RESOURCE_RAW_ASPECT);
+		assert(mDevice.IsCPU());
 
-		size_t subresourceIndex = arrayIndex * mRawAspect.mDesc.MipLevels + mip;
-		size_t depth = std::max<size_t>(1u, mRawAspect.mDesc.Depth >> mip);
-		return mRawAspect.mSubDescs[subresourceIndex].mDepthStride * depth;
+		size_t subresourceIndex = arrayIndex * mCpuAspect.mDesc.MipLevels + mip;
+		size_t depth = std::max<size_t>(1u, mCpuAspect.mDesc.Depth >> mip);
+		return mCpuAspect.mSubDescs[subresourceIndex].mDepthStride * depth;
 	}
 
 	DG::VALUE_TYPE Texture::GetComponentType() const {
@@ -459,29 +460,20 @@ namespace Morpheus {
 	}
 
 	Texture::Texture(const DG::TextureDesc& desc) {
-		AllocRaw(desc);		
+		AllocOnCPU(desc);		
 	}
 
-	Task Texture::SaveTask(const std::string& path) {
-		return Task([this, path](const TaskParams& e) {
-			std::ofstream f(path, std::ios::binary);
+	BarrierOut Texture::SaveGliAsync(const std::string& path) {
+		Barrier barrier;
 
-			if (f.is_open()) {
-				cereal::PortableBinaryOutputArchive ar(f);
-				Morpheus::Save(ar, this);
-				f.close();
-			} else {
-				throw std::runtime_error("Could not open file for writing!");
-			}
-		}, std::string("Save Texture ") + path + " (Archive)", TaskType::FILE_IO);
-	}
+		if (!mDevice.IsCPU())
+			throw std::runtime_error("Texture must be on CPU to save!");
 
-	Task Texture::SaveGliTask(const std::string& path) {
-		if (!(mFlags & RESOURCE_RAW_ASPECT))
-			throw std::runtime_error("Texture must have raw aspect to save!");
+		FunctionPrototype<Promise<Handle<Texture>>, Barrier> prototype(
+			[this, path](const TaskParams& e,
+			Promise<Handle<Texture>> texture,
+			Barrier) {
 
-		return Task([this, path](const TaskParams& e) {
-			
 			auto& desc = GetDesc();
 
 			auto target = DGToGli(desc.Type);
@@ -549,7 +541,7 @@ namespace Morpheus {
 			size_t face_count = target == gli::TARGET_CUBE || target == gli::TARGET_CUBE_ARRAY ? 6 : 1;
 
 			for (size_t subResource = 0; 
-				subResource < mRawAspect.mSubDescs.size(); 
+				subResource < mCpuAspect.mSubDescs.size(); 
 				++subResource) {
 				size_t Level = subResource % mip_count;
 				size_t Slice = subResource / mip_count;
@@ -566,21 +558,28 @@ namespace Morpheus {
 				size_t array_slice = Layer * tex->faces() + Face;
 
 				std::memcpy(tex->data(Layer, Face, Level), 
-					&mRawAspect.mData[mRawAspect.mSubDescs[subResource].mSrcOffset], 
+					&mCpuAspect.mData[mCpuAspect.mSubDescs[subResource].mSrcOffset], 
 					subresource_data_size);
 			}
 
 			gli::save_ktx(*tex, path);
-		}, 
-		std::string("Save Texture ") + path + " (GLI)", 
-		TaskType::FILE_IO);
+		});
+
+		prototype(Handle<Texture>(this), barrier).SetName("Save Texture (GLI)");
+
+		return barrier;
 	}
 
-	Task Texture::SavePngTask(const std::string& path, bool bSaveMips) {
-		if (!IsRaw())
-			throw std::runtime_error("Texture must have raw aspect to save!");
+	BarrierOut Texture::SavePngAsync(const std::string& path, bool bSaveMips) {
+		Barrier barrier;
 
-		return Task([this, path, bSaveMips](const TaskParams& e) {
+		if (!mDevice.IsCPU())
+			throw std::runtime_error("Texture must be on CPU to save!");
+
+		FunctionPrototype<Promise<Handle<Texture>>, Barrier> prototype(
+			[this, path, bSaveMips](const TaskParams& e, 
+			Promise<Handle<Texture>> texture,
+			Barrier) {
 			std::vector<uint8_t> buf;
 
 			auto& desc = GetDesc();
@@ -602,7 +601,7 @@ namespace Morpheus {
 			size_t face_count = desc.Type == DG::RESOURCE_DIM_TEX_CUBE 
 				|| desc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY ? 6 : 1;
 			
-			size_t slices = mRawAspect.mSubDescs.size() / mip_count;
+			size_t slices = mCpuAspect.mSubDescs.size() / mip_count;
 
 			std::string path_base;
 
@@ -614,7 +613,7 @@ namespace Morpheus {
 			}
 
 			for (size_t subResource = 0; 
-				subResource < mRawAspect.mSubDescs.size(); 
+				subResource < mCpuAspect.mSubDescs.size(); 
 				subResource += increment) {
 				size_t Level = subResource % mip_count;
 				size_t Slice = subResource / mip_count;
@@ -628,9 +627,9 @@ namespace Morpheus {
 				std::vector<uint8_t> buf;
 				buf.resize(buf_size);
 
-				auto& sub = mRawAspect.mSubDescs[subResource];
+				auto& sub = mCpuAspect.mSubDescs[subResource];
 
-				ImageCopy<uint8_t, 4>(&buf[0], &mRawAspect.mData[sub.mSrcOffset], 
+				ImageCopy<uint8_t, 4>(&buf[0], &mCpuAspect.mData[sub.mSrcOffset], 
 					subresource_width * subresource_height, channel_count, type);
 
 				std::stringstream ss;
@@ -650,110 +649,39 @@ namespace Morpheus {
 					throw std::runtime_error(lodepng_error_text(err));
 				}
 			}
-		}, 
-		std::string("Save Texture ") + path + " (PNG)", 
-		TaskType::FILE_IO);
-	}
+		});
 
-	void Texture::RetrieveRawData(DG::ITexture* texture, 
-		DG::IRenderDevice* device, DG::IDeviceContext* context) {
-		RetrieveRawData(texture, device, context, texture->GetDesc());
+		prototype(Handle<Texture>(this), barrier).SetName("Save Texture (PNG)");
+
+		return barrier;
 	}
 
 	void Texture::CopyTo(Texture* texture) const {
-		if (mFlags & RESOURCE_RASTERIZER_ASPECT)
-			throw std::runtime_error("Cannot copy raster texture!");
+		if (mDevice.IsGPU())
+			throw std::runtime_error("Cannot copy GPU texture!");
 
-		texture->mRawAspect = mRawAspect;
+		texture->mCpuAspect = mCpuAspect;
 		texture->mIntensity = mIntensity;
-		texture->mFlags = mFlags;
+		texture->mDevice = mDevice;
 	}
 
 	void Texture::CopyFrom(const Texture& texture) {
 		texture.CopyTo(this);
 	}
 
-	void Texture::RetrieveRawData(DG::ITexture* texture, 
-		DG::IRenderDevice* device, 
-		DG::IDeviceContext* context, 
-		const DG::TextureDesc& texDesc) {
-
-		mFlags |= RESOURCE_RAW_ASPECT;
-		mFlags |= RESOURCE_CPU_RESIDENT;
+	GPUTextureRead Texture::BeginGPURead(
+		DG::ITexture* texture, 
+			DG::IRenderDevice* device, 
+			DG::IDeviceContext* context) {
 
 		auto& desc = texture->GetDesc();
 
 		if (desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
-
-			mRawAspect.mDesc = texDesc;
-			mRawAspect.mData.clear();
-			mRawAspect.mSubDescs.clear();
-
-			size_t layers = desc.MipLevels;
-			size_t slices = desc.ArraySize;
-
-			size_t pixel_size = GetPixelByteSize();
-
-			size_t current_source_offset = 0;
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					size_t subresource_width = std::max(1u, desc.Width >> layer);
-					size_t subresource_height = std::max(1u, desc.Width >> layer);
-					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
-
-					TextureSubResDataDesc sub;
-					sub.mDepthStride = subresource_width * subresource_height * pixel_size;
-					sub.mSrcOffset = current_source_offset;
-					sub.mStride = subresource_width * pixel_size;
-
-					mRawAspect.mSubDescs.emplace_back(sub);
-					current_source_offset += subresource_width * subresource_depth * subresource_height * pixel_size;
-				}
-			}
-
-			mRawAspect.mData.resize(current_source_offset);
-
-			std::vector<DG::MappedTextureSubresource> mappedSubs;
-			mappedSubs.reserve(slices * layers);
-
-			// Map subresources and synchronize
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					DG::MappedTextureSubresource texSub;
-					context->MapTextureSubresource(texture, layer, slice, 
-						DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
-					mappedSubs.emplace_back(texSub);
-				}
-			}
-
-			DG::FenceDesc fence_desc;
-			fence_desc.Name = "CPU Retrieval Fence";
-			DG::IFence* fence = nullptr;
-			device->CreateFence(fence_desc, &fence);
-			context->SignalFence(fence, 1);
-			context->WaitForFence(fence, 1, true);
-			fence->Release();
-
-			size_t subresource = 0;
-			for (size_t slice = 0; slice < slices; ++slice) {
-				for (size_t layer = 0; layer < layers; ++layer) {
-					size_t subresource_width = std::max(1u, desc.Width >> layer);
-					size_t subresource_height = std::max(1u, desc.Height >> layer);
-					size_t subresource_depth = std::max(1u, desc.Depth >> layer);
-
-					size_t subresource_data_size = subresource_width * subresource_height * 
-						subresource_depth * pixel_size;
-
-					auto desc = mRawAspect.mSubDescs[subresource];
-					DG::MappedTextureSubresource texSub = mappedSubs[subresource];
-
-					std::memcpy(&mRawAspect.mData[desc.mSrcOffset], 
-						texSub.pData, subresource_data_size);
-					context->UnmapTextureSubresource(texture, layer, slice);
-
-					++subresource;
-				}
-			}
+			GPUTextureRead result;
+			result.mFence = nullptr;
+			result.mStagingTexture = texture;
+			result.mTextureDesc = desc;
+			return result;
 		} else {
 			// Create staging texture
 			auto stage_desc = texture->GetDesc();
@@ -785,9 +713,97 @@ namespace Morpheus {
 			}
 
 			// Retrieve data from staging texture
-			RetrieveRawData(stage_tex, device, context, desc);
+			DG::FenceDesc fence_desc;
+			fence_desc.Name = "CPU Retrieval Fence";
+			DG::IFence* fence = nullptr;
+			device->CreateFence(fence_desc, &fence);
+			context->SignalFence(fence, 1);
 
-			stage_tex->Release();
+			GPUTextureRead result;
+			result.mFence.Adopt(fence);
+			result.mStagingTexture.Adopt(stage_tex);
+			result.mTextureDesc = desc;
+			return result;
+		}
+	}
+
+	void Texture::FinishGPURead(
+		DG::IDeviceContext* context,
+		const GPUTextureRead& read,
+		Texture& textureOut) {
+
+		textureOut.mDevice = Device::CPU();
+
+		auto& desc = read.mStagingTexture->GetDesc();
+
+		if (!desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
+			throw std::runtime_error("Invalid GPU Read!");
+		}
+
+		auto& cpuAspect = textureOut.mCpuAspect;
+
+		cpuAspect.mDesc = read.mTextureDesc;
+		cpuAspect.mData.clear();
+		cpuAspect.mSubDescs.clear();
+
+		size_t layers = desc.MipLevels;
+		size_t slices = desc.ArraySize;
+
+		size_t pixel_size = textureOut.GetPixelByteSize();
+
+		size_t current_source_offset = 0;
+		for (size_t slice = 0; slice < slices; ++slice) {
+			for (size_t layer = 0; layer < layers; ++layer) {
+				size_t subresource_width = std::max(1u, desc.Width >> layer);
+				size_t subresource_height = std::max(1u, desc.Width >> layer);
+				size_t subresource_depth = std::max(1u, desc.Depth >> layer);
+
+				TextureSubResDataDesc sub;
+				sub.mDepthStride = subresource_width * subresource_height * pixel_size;
+				sub.mSrcOffset = current_source_offset;
+				sub.mStride = subresource_width * pixel_size;
+
+				cpuAspect.mSubDescs.emplace_back(sub);
+				current_source_offset += subresource_width * subresource_depth * subresource_height * pixel_size;
+			}
+		}
+
+		cpuAspect.mData.resize(current_source_offset);
+
+		std::vector<DG::MappedTextureSubresource> mappedSubs;
+		mappedSubs.reserve(slices * layers);
+
+		context->WaitForFence(read.mFence, 1, true);
+
+		// Map subresources and synchronize
+		for (size_t slice = 0; slice < slices; ++slice) {
+			for (size_t layer = 0; layer < layers; ++layer) {
+				DG::MappedTextureSubresource texSub;
+				context->MapTextureSubresource(read.mStagingTexture, layer, slice, 
+					DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, nullptr, texSub);
+				mappedSubs.emplace_back(texSub);
+			}
+		}
+
+		size_t subresource = 0;
+		for (size_t slice = 0; slice < slices; ++slice) {
+			for (size_t layer = 0; layer < layers; ++layer) {
+				size_t subresource_width = std::max(1u, desc.Width >> layer);
+				size_t subresource_height = std::max(1u, desc.Height >> layer);
+				size_t subresource_depth = std::max(1u, desc.Depth >> layer);
+
+				size_t subresource_data_size = subresource_width * subresource_height * 
+					subresource_depth * pixel_size;
+
+				auto desc = cpuAspect.mSubDescs[subresource];
+				DG::MappedTextureSubresource texSub = mappedSubs[subresource];
+
+				std::memcpy(&cpuAspect.mData[desc.mSrcOffset], 
+					texSub.pData, subresource_data_size);
+				context->UnmapTextureSubresource(read.mStagingTexture, layer, slice);
+
+				++subresource;
+			}
 		}
 	}
 
@@ -1043,24 +1059,17 @@ namespace Morpheus {
 		desc.CPUAccessFlags = DG::CPU_ACCESS_NONE;
 		desc.ArraySize = 1;
 
-		into->AllocRaw(desc);
+		into->AllocOnCPU(desc);
 		std::memcpy(into->GetSubresourcePtr(), &image[0], into->GetSubresourceSize());
 
 		if (params.bGenerateMips)
 			into->GenerateMips();
 	}
 
-	void Texture::ReadArchive(const uint8_t* rawArchive, const size_t length) {
-		MemoryInputStream stream(rawArchive, length);
-		cereal::PortableBinaryInputArchive ar(stream);
-		Morpheus::Load(ar, this);
-
-		mFlags |= RESOURCE_CPU_RESIDENT;
-		mFlags |= RESOURCE_RAW_ASPECT;
-	}
-
-	void Texture::ReadPng(const LoadParams<Texture>& params,
+	Texture Texture::ReadPng(const LoadParams<Texture>& params,
 		const uint8_t* rawData, const size_t length) {
+
+		Texture texture;
 		std::vector<uint8_t> image;
 		uint32_t width, height;
 		uint32_t error = lodepng::decode(image, width, height, rawData, length);
@@ -1072,80 +1081,51 @@ namespace Morpheus {
 		//the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
 		//State state contains extra information about the PNG such as text chunks, ...
 		else 
-			LoadPngDataRaw(params, image, width, height, this);
+			LoadPngDataRaw(params, image, width, height, &texture);
+
+		return texture;
 	}
 
-	Task Texture::ReadPngTask(const LoadParams<Texture>& params) {
+	UniqueFuture<Texture> Texture::ReadPngAsync(const LoadParams<Texture>& params) {
 
-		Task task([this, params](const TaskParams& e) {
+		Promise<Texture> result;
+
+		FunctionPrototype<Promise<Texture>> prototype(
+			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
-			ReadPng(params, &data[0], data.size());
-		}, 
-		std::string("Load Texture ") + params.mSource + " (PNG)", 
-		TaskType::FILE_IO);
+			result = Texture::ReadPng(params, &data[0], data.size());
+		});
 
-		return task;
+		prototype(result).SetName("Read Texture (PNG)");
+
+		return result;
 	}
 
 	enum class LoadType {
 		PNG,
 		GLI,
 		STB,
-		ARCHIVE
 	};
 
-	Task LoadDeferred(Texture* texture, const LoadParams<Texture>& params, LoadType type) {
+	UniqueFuture<Texture> Texture::ReadStbAsync(const LoadParams<Texture>& params) {
 
-		Task task([texture, type, params](const TaskParams& e) {
-		
+		Promise<Texture> result;
+
+		FunctionPrototype<Promise<Texture>> prototype(
+			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
+			result = ReadStb(params, &data[0], data.size());
+		});
 
-			switch (type) {
-				case LoadType::PNG:
-					texture->ReadPng(params, &data[0], data.size());
-					break;
-				case LoadType::STB:
-					texture->ReadStb(params, &data[0], data.size());
-					break;
-				case LoadType::GLI:
-					texture->ReadGli(params, &data[0], data.size());
-					break;
-				case LoadType::ARCHIVE:
-					texture->ReadArchive(&data[0], data.size());
-					break;
-			}
-		}, std::string("Load Texture ") + params.mSource, TaskType::FILE_IO);
+		prototype(result).SetName("Read Texture (STB)");
 
-		return task;
+		return result;
 	}
 
-	Task Texture::ReadArchiveTask(const std::string& path) {
-		Task task([this, path](const TaskParams& e) {
-			std::vector<uint8_t> data;
-			ReadBinaryFile(path, data);
-			ReadArchive(&data[0], data.size());
-		},
-		std::string("Load Texture ") + path + " (Archive)",
-		TaskType::FILE_IO);
-	
-		return task;
-	}
+	UniqueFuture<Texture> Texture::ReadAsync(const LoadParams<Texture>& params) {
 
-	Task Texture::ReadStbTask(const LoadParams<Texture>& params) {
-		Task task([this, params](const TaskParams& e) {
-			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
-			ReadStb(params, &data[0], data.size());
-		}, 
-		std::string("Load Texture ") + params.mSource + " (STB)",
-		TaskType::FILE_IO);
-
-		return task;
-	}
-
-	Task Texture::ReadTask(const LoadParams<Texture>& params) {
 		auto pos = params.mSource.rfind('.');
 		if (pos == std::string::npos) {
 			throw std::runtime_error("Source does not have file extension!");
@@ -1153,20 +1133,21 @@ namespace Morpheus {
 		auto ext = params.mSource.substr(pos);
 
 		if (ext == ".ktx" || ext == ".dds") {
-			return ReadGliTask(params);
+			return ReadGliAsync(params);
 		} else if (ext == ".hdr") {
-			return ReadStbTask(params);
+			return ReadStbAsync(params);
 		} else if (ext == ".png") {
-			return ReadPngTask(params);
-		} else if (ext == TEXTURE_ARCHIVE_EXTENSION) {
-			return ReadArchiveTask(params.mSource);
+			return ReadPngAsync(params);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");
 		}
 	}
 
-	void Texture::ReadGli(const LoadParams<Texture>& params, 
+	Texture Texture::ReadGli(const LoadParams<Texture>& params, 
 		const uint8_t* rawData, const size_t length) {
+		
+		Texture texture;
+
 		gli::texture tex = gli::load((const char*)rawData, length);
 
 		if (tex.empty()) {
@@ -1174,23 +1155,34 @@ namespace Morpheus {
 			throw std::runtime_error("Failed to load texture!");
 		}
 
-		LoadGliDataRaw(params, &tex, this);
+		LoadGliDataRaw(params, &tex, &texture);
+		
+		texture.mSource = params;
+		texture.mDevice = Device::CPU();
+
+		return texture;
 	}
 
-	Task Texture::ReadGliTask(const LoadParams<Texture>& params) {
-		Task task([this, params](const TaskParams& e) {
+	UniqueFuture<Texture> Texture::ReadGliAsync(const LoadParams<Texture>& params) {
+		Promise<Texture> result;
+
+		FunctionPrototype<Promise<Texture>> prototype(
+			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
 			ReadBinaryFile(params.mSource, data);
-			ReadGli(params, &data[0], data.size());
-		}, 
-		std::string("Load Texture ") + params.mSource + " (GLI)",
-		TaskType::FILE_IO);
+			result = ReadGli(params, &data[0], data.size());
+		});
 
-		return task;
+		prototype(result).SetName("Read Texture (GLI)");
+
+		return result;
 	}
 
-	void Texture::ReadStb(const LoadParams<Texture>& params,
+	Texture Texture::ReadStb(const LoadParams<Texture>& params,
 		const uint8_t* data, size_t length) {
+		
+		Texture result;
+
 		unsigned char* pixel_data = nullptr;
 		std::unique_ptr<unsigned char[]> pixels_uc = nullptr;
 		std::unique_ptr<float[]> pixels_f = nullptr;
@@ -1214,139 +1206,75 @@ namespace Morpheus {
 			} 
 		}
 
-		LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, this);
+		LoadStbDataRaw(params, b_hdr, x, y, comp, pixel_data, &result);
+
+		result.mSource = params;
+		result.mDevice = Device::CPU();
+
+		return result;
 	}
 
-	DG::ITexture* Texture::SpawnOnGPU(DG::IRenderDevice* device) const {
+	DG::ITexture* Texture::ToDiligent(DG::IRenderDevice* device) const {
 
-		if (!(mFlags & RESOURCE_RAW_ASPECT))
+		if (!mDevice.IsCPU())
 			throw std::runtime_error("Spawning on GPU requires raw aspect!");
 
 		DG::ITexture* texture = nullptr;
 		DG::TextureData data;
 
 		std::vector<DG::TextureSubResData> subs;
-		subs.reserve(mRawAspect.mSubDescs.size());
+		subs.reserve(mCpuAspect.mSubDescs.size());
 
-		for (auto& subDesc : mRawAspect.mSubDescs) {
+		for (auto& subDesc : mCpuAspect.mSubDescs) {
 			DG::TextureSubResData subDG;
 			subDG.DepthStride = subDesc.mDepthStride;
 			subDG.Stride = subDesc.mStride;
-			subDG.pData = &mRawAspect.mData[subDesc.mSrcOffset];
+			subDG.pData = &mCpuAspect.mData[subDesc.mSrcOffset];
 			subs.emplace_back(subDG);
 		}
 
-		data.NumSubresources = mRawAspect.mSubDescs.size();
+		data.NumSubresources = mCpuAspect.mSubDescs.size();
 		data.pSubResources = &subs[0];
 
-		device->CreateTexture(mRawAspect.mDesc, &data, &texture);
+		device->CreateTexture(mCpuAspect.mDesc, &data, &texture);
 
 		return texture;
 	}
 
-	template <typename R>
-	ResourceTask<R> LoadTemplated(GraphicsDevice device, const LoadParams<Texture>& params) {
-		Promise<R> promise;
-		Future<R> future(promise);
-
-		struct Data {
-			Texture mRaw;
-		};
-
-		Task task([params, device, promise = std::move(promise), data = Data()](const TaskParams& e) mutable {
-			if (e.mTask->BeginSubTask()) {
-				data.mRaw.Read(params);
-				e.mTask->EndSubTask();
-			}
-
-			if (device.mGpuDevice)
-				if (e.mTask->RequestThreadSwitch(e, ASSIGN_THREAD_MAIN))
-					return TaskResult::REQUEST_THREAD_SWITCH;
-
-			if (e.mTask->BeginSubTask()) {
-				Texture* texture = new Texture();
-				texture->CreateDeviceAspect(device, &data.mRaw);
-
-				promise.Set(texture, e.mQueue);
-
-				if constexpr (std::is_same_v<R, Handle<Texture>>) {
-					texture->Release();
-				}
-
-				e.mTask->EndSubTask();
-			}
-
-			return TaskResult::FINISHED;
-		}, 
-		std::string("Load ") + params.mSource, 
-		TaskType::FILE_IO);
-
-		ResourceTask<R> resourceTask;
-		resourceTask.mTask = std::move(task);
-		resourceTask.mFuture = future;
-
-		return resourceTask;
-	}
-
-	template <typename R>
-	ResourceTask<R> LoadTemplated(const LoadParams<Texture>& params) {
-		Promise<R> promise;
-		Future<R> future(promise);
-
-		Task task([params, promise = std::move(promise)](const TaskParams& e) mutable {
-			Texture* texture = new Texture();
-			texture->Read(params);
-			promise.Set(texture, e.mQueue);
-		}, 
-		std::string("Load ") + params.mSource, 
-		TaskType::FILE_IO);
-
-		ResourceTask<R> resourceTask;
-		resourceTask.mTask = std::move(task);
-		resourceTask.mFuture = future;
-
-		return resourceTask;
-	}
-
-	ResourceTask<Handle<Texture>> Texture::Load(GraphicsDevice device, 
+	UniqueFuture<Texture> Texture::Load(Device device, 
 		const LoadParams<Texture>& params) {
-		return LoadTemplated<Handle<Texture>>(device, params);
+		return Texture(params).ToAsync(device);
 	}
 
-	ResourceTask<Texture*> Texture::LoadPointer(GraphicsDevice device, 
+	UniqueFuture<Texture> Texture::Load(
 		const LoadParams<Texture>& params) {
-		return LoadTemplated<Texture*>(device, params);
-	}
-
-	ResourceTask<Texture*> Texture::LoadPointer(
-		const LoadParams<Texture>& params) {
-		return LoadTemplated<Texture*>(params);
-	}
-
-	ResourceTask<Handle<Texture>> Texture::Load(
-		const LoadParams<Texture>& params) {
-		return LoadTemplated<Handle<Texture>>(params);
+		return Texture(params).ToAsync(Device::CPU());
 	}
 
 	void Texture::CreateRasterAspect(DG::IRenderDevice* device, 
 		const Texture* source) {
-		mFlags |= RESOURCE_RASTERIZER_ASPECT;
-		mFlags |= RESOURCE_GPU_RESIDENT;
-		mRasterAspect.mTexture = source->SpawnOnGPU(device);
+		mDevice = device;
+		mRasterAspect.mTexture = source->ToDiligent(device);
 	}
 
-	void Texture::CreateRasterAspect(DG::ITexture* texture) {
-		mFlags |= RESOURCE_RASTERIZER_ASPECT;
-		mFlags |= RESOURCE_GPU_RESIDENT;
+	void Texture::CreateRasterAspect(DG::IRenderDevice* device, DG::ITexture* texture) {
+		mDevice = device;
 		mRasterAspect.mTexture = texture;
 	}
 
-	void Texture::CreateDeviceAspect(GraphicsDevice device, 
+	void Texture::CreateDeviceAspect(Device device, 
 		const Texture* source) {
-		if (device.mGpuDevice)
-			CreateRasterAspect(device.mGpuDevice, source);
-		else if (device.mExternal)
-			CreateExternalAspect(device.mExternal, source);
+		if (!source->mDevice.IsCPU())
+			throw std::runtime_error("Source is not a CPU texture!");
+
+		if (device.IsGPU())
+			CreateRasterAspect(device, source);
+		else if (device.IsExternal())
+			CreateExternalAspect(device, source);
+		else if (device.IsCPU())
+			CopyFrom(*source);
+		else if (device.IsDisk())
+			throw std::runtime_error("Cannot use CreateDeviceAspect to save to disk!");
 		else 
 			throw std::runtime_error("Device was null!");
 	}
@@ -1359,11 +1287,12 @@ namespace Morpheus {
 
 	void Texture::AdoptData(Texture&& other) {
 		mRasterAspect = std::move(other.mRasterAspect);
-		mRawAspect = std::move(other.mRawAspect);
+		mCpuAspect = std::move(other.mCpuAspect);
 		mExtAspect = std::move(other.mExtAspect);
 
-		mIntensity = other.mIntensity;
-		mFlags = other.mFlags;
+		mIntensity = std::move(other.mIntensity);
+		mSource = std::move(other.mSource);
+		mDevice = std::move(other.mDevice);
 	}
 
 	Texture::Texture(Texture&& other) {
@@ -1375,31 +1304,104 @@ namespace Morpheus {
 		return *this;
 	}
 
-	void Texture::ToRaw(Texture* out) const {
-		if (IsRaw()) {
-			CopyTo(out);
+	BarrierOut Texture::MoveAsync(Device device, Context context) {
+		Barrier result;
+
+		FunctionPrototype<UniqueFuture<Texture>, Barrier> swapPrototype([this](
+			const TaskParams& e, 
+			UniqueFuture<Texture> inTexture, 
+			Barrier) {
+			*this = std::move(inTexture.Get());
+		});
+
+		UniqueFuture<Texture> movedTexture = ToAsync(device, context);
+		swapPrototype(movedTexture, result);
+		return result;
+	}
+
+	UniqueFuture<Texture> Texture::ToAsync(Device device, Context context) {
+		Device currentDevice = mDevice;
+
+		if (device.IsDisk())
+			throw std::runtime_error("Cannot move to disk! Use a save method instead!");
+
+		Promise<Handle<Texture>> cpuTextureHandle;
+		Promise<Texture> result;
+
+		if (currentDevice.IsDisk()) {
+			auto readResult = ReadAsync(mSource);
+			PipeToHandle(readResult, cpuTextureHandle);
+		} else if (currentDevice.IsCPU()) {
+			cpuTextureHandle.Set(Handle<Texture>(this));
 		} else {
-			throw std::runtime_error("Not implemented!");
+			auto readResult = GPUToCPUAsync(device, context);
+			PipeToHandle(readResult, cpuTextureHandle);
+		}
+
+		FunctionPrototype<Future<Handle<Texture>>, Promise<Texture>> moveToDevice([device](
+			const TaskParams& e,
+			Future<Handle<Texture>> in,
+			Promise<Texture> out) {
+			out = Texture::CopyToDevice(device, *in.Get());
+		});
+
+		if (device.IsCPU()) {
+			PipeFromHandle(cpuTextureHandle.GetUniqueFuture(), result);
+			return result;
+		} else {
+			moveToDevice(cpuTextureHandle, result).OnlyThread(THREAD_MAIN);
+			return result;
 		}
 	}
 
-	void Texture::ToRaw(Texture* out,
-		DG::IRenderDevice* device, 
-		DG::IDeviceContext* context) const {
-		if (IsRaw()) {
-			CopyTo(out);
-		} else if (IsRasterResource()) {
-			out->RetrieveRawData(GetRasterTexture(), device, context);
-		} else {
-			throw std::runtime_error("Not implemented!");
-		}
+	Texture Texture::To(Device device, Context context) {
+		return std::move(ToAsync(device, context).Evaluate());
+	}
+
+	entt::meta_any Texture::GetSourceMeta() const {
+		return mSource;
+	}
+
+	entt::meta_type Texture::GetType() const {
+		return entt::resolve<Texture>();
 	}
 
 	void Texture::Clear() {
-		mRawAspect = RawAspect();
+		mCpuAspect = CpuAspect();
 		mRasterAspect = RasterizerAspect();
 		mExtAspect = ExternalAspect<ExtObjectType::TEXTURE>();
 
-		mFlags = 0u;
+		mDevice = Device::None();
+		mIntensity = 1.0;
+	}
+
+	void Texture::RegisterMetaData() {
+		entt::meta<Texture>()
+			.type("Texture"_hs)
+			.base<IResource>();
+	}
+
+	UniqueFuture<Texture> Texture::GPUToCPUAsync(Device device, Context context) const {
+		throw std::runtime_error("Not implemented!");
+	}
+
+	void Texture::BinarySerialize(std::ostream& output) const {
+		throw std::runtime_error("Not implemented!");
+	}
+
+	void Texture::BinaryDeserialize(std::istream& input) {
+		throw std::runtime_error("Not implemented!");
+	}
+
+	void Texture::BinarySerializeSource(
+		const std::filesystem::path& workingPath, 
+		cereal::PortableBinaryOutputArchive& output) const {
+		throw std::runtime_error("Not implemented!");
+	}
+
+	void Texture::BinaryDeserializeSource(
+		const std::filesystem::path& workingPath,
+		cereal::PortableBinaryInputArchive& input) {
+		throw std::runtime_error("Not implemented!");
 	}
 }

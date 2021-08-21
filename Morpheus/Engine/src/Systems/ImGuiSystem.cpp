@@ -17,7 +17,7 @@
 #endif
 
 namespace Morpheus {
-	Task ImGuiSystem::Startup(SystemCollection& systems) {
+	std::unique_ptr<Task> ImGuiSystem::Startup(SystemCollection& systems) {
 
 		const auto& scDesc = mGraphics->SwapChain()->GetDesc();
 
@@ -61,7 +61,7 @@ namespace Morpheus {
 
 
 
-		return Task();
+		return nullptr;
 	}
 
 	bool ImGuiSystem::IsInitialized() const {

@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.6)
 
-project(AsyncTest CXX)
+project(mesh2cpp CXX)
 
 set(SOURCE
     mesh2cpp.cpp

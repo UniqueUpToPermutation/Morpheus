@@ -8,26 +8,32 @@ namespace DG = Diligent;
 typedef unsigned int uint;
 #endif
 
+namespace cereal {
+	class PortableBinaryOutputArchive;
+	class PortableBinaryInputArchive;
+}
+
+namespace Diligent {
+	class IRenderDevice;
+	class IDeviceContext;
+	class IFence;
+}
 namespace Morpheus {
 	class ThreadPool;
 	class TaskSyncPoint;
 	struct TaskParams;
-	class ITaskQueue;
-	class TaskNodeOut;
-	class TaskNodeIn;
-	class ITask;
-	class TaskGroup;
-	struct TaskBarrier;
-	struct Task;
 
 	template <typename T>
 	class Future;
 
 	template <typename T>
+	class UniqueFuture;
+
+	template <typename T>
 	class Promise;
 
-	class ITaskQueue;
-	class ImmediateTaskQueue;
+	class IComputeQueue;
+	class ImmediateComputeQueue;
 	class ThreadPool;
 
 	class Engine;
@@ -61,7 +67,7 @@ namespace Morpheus {
 
 	class IVertexFormatProvider;
 
-	struct GraphicsDevice;
+	struct Device;
 
 	class IRenderer;
 	struct GraphicsParams;
@@ -100,6 +106,15 @@ namespace Morpheus {
 
 	typedef int32_t ExtObjectId;
 	typedef int32_t MaterialId;
+
+	class IInterfaceCollection;
+	class IResourceCacheCollection;
+
+	struct SerializationSet;
+
+	struct ArchiveBlobPointer;
+	struct ResourceTableEntry;
+	class FrameHeader;
 
 	constexpr MaterialId NullMaterialId = -1;
 	constexpr ExtObjectId NullExtObjectId = -1;

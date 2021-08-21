@@ -18,25 +18,109 @@ namespace Morpheus {
 		virtual void DestroyGeometry(ExtObjectId id) = 0;
 	};
 
-	struct GraphicsDevice {
-		IExternalGraphicsDevice* mExternal = nullptr;
+	enum class DeviceType {
+		INVALID,
+		CPU,
+		GPU,
+		EXTERNAL,
+		DISK,
+	};
+
+	enum class ContextType {
+		INVALID,
+		GPU
+	};
+
+	struct Device {
+		DeviceType mType = DeviceType::INVALID;
+		union {
+			IExternalGraphicsDevice* mExternal;
+			DG::IRenderDevice* mGpuDevice;
+		} mUnderlying;
+
+		inline Device() {
+		}
 		
-		inline GraphicsDevice(IExternalGraphicsDevice* rt) :
-			mExternal(rt) {
+		inline Device(IExternalGraphicsDevice* ext) :
+			mType(DeviceType::EXTERNAL) {
+			mUnderlying.mExternal = ext;
+		}
+
+		inline Device(DG::IRenderDevice* gpu) :
+			mType(DeviceType::GPU) {
+			mUnderlying.mGpuDevice = gpu;
 		}
 
 		inline operator IExternalGraphicsDevice*() {
-			return mExternal;
-		}
-
-		DG::IRenderDevice* mGpuDevice = nullptr;
-
-		inline GraphicsDevice(DG::IRenderDevice* gpu) :
-			mGpuDevice(gpu) {
+			if (mType == DeviceType::EXTERNAL)
+				return mUnderlying.mExternal;
+			else
+				return nullptr;
 		}
 
 		inline operator DG::IRenderDevice*() {
-			return mGpuDevice;
+			if (mType == DeviceType::GPU)
+				return mUnderlying.mGpuDevice;
+			else
+				return nullptr;
+		}
+
+		inline static Device CPU() {
+			Device dev;
+			dev.mType = DeviceType::CPU;
+			return dev;
+		}
+
+		inline static Device Disk() {
+			Device dev;
+			dev.mType = DeviceType::DISK;
+			return dev;
+		}
+
+		inline static Device None() {
+			Device dev;
+			dev.mType = DeviceType::INVALID;
+			return dev;
+		}
+
+		inline bool IsCPU() const {
+			return mType == DeviceType::CPU;
+		}
+
+		inline bool IsDisk() const {
+			return mType == DeviceType::DISK;
+		}
+
+		inline bool IsGPU() const {
+			return mType == DeviceType::GPU;
+		}
+
+		inline bool IsExternal() const {
+			return mType == DeviceType::EXTERNAL;
+		}
+	};
+
+	struct Context {
+		ContextType mType = ContextType::INVALID;
+
+		union {
+			DG::IDeviceContext* mGpuContext;
+		} mUnderlying;
+
+
+		inline Context() {
+		}
+
+		inline Context(DG::IDeviceContext* context) :
+			mType(ContextType::GPU) {
+			mUnderlying.mGpuContext = context;
+		}
+
+		inline operator DG::IDeviceContext*() {
+			if (mType == ContextType::GPU)
+				return mUnderlying.mGpuContext;
+			else
+				return nullptr;
 		}
 	};
 

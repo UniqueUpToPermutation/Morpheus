@@ -800,33 +800,33 @@ namespace Morpheus {
 
 	RawSampler::RawSampler(Texture* texture, 
 		const WrapParameters& wrapping) {
-		if (!(texture->mFlags & RESOURCE_RAW_ASPECT))
-			throw std::runtime_error("Texture must have raw aspect!");
+		if (!(texture->GetDevice().IsCPU()))
+			throw std::runtime_error("Texture must be on CPU!");
 
 		mAdapterF.reset(SpawnAdaptor<float, float>(
-			texture->mRawAspect.mDesc.Format,
-			&texture->mRawAspect.mData[0],
-			texture->mRawAspect.mDesc.Width,
-			texture->mRawAspect.mDesc.Height,
-			texture->mRawAspect.mDesc.Depth,
-			texture->mRawAspect.mDesc.ArraySize,
-			texture->mRawAspect.mDesc.MipLevels,
+			texture->mCpuAspect.mDesc.Format,
+			&texture->mCpuAspect.mData[0],
+			texture->mCpuAspect.mDesc.Width,
+			texture->mCpuAspect.mDesc.Height,
+			texture->mCpuAspect.mDesc.Depth,
+			texture->mCpuAspect.mDesc.ArraySize,
+			texture->mCpuAspect.mDesc.MipLevels,
 			wrapping.mWrapTypeX,
 			wrapping.mWrapTypeY,
 			wrapping.mWrapTypeZ,
-			texture->mRawAspect.mDesc.Type));
+			texture->mCpuAspect.mDesc.Type));
 
 		mAdapterD.reset(SpawnAdaptor<double, double>(
-			texture->mRawAspect.mDesc.Format,
-			&texture->mRawAspect.mData[0],
-			texture->mRawAspect.mDesc.Width,
-			texture->mRawAspect.mDesc.Height,
-			texture->mRawAspect.mDesc.Depth,
-			texture->mRawAspect.mDesc.ArraySize,
-			texture->mRawAspect.mDesc.MipLevels,
+			texture->mCpuAspect.mDesc.Format,
+			&texture->mCpuAspect.mData[0],
+			texture->mCpuAspect.mDesc.Width,
+			texture->mCpuAspect.mDesc.Height,
+			texture->mCpuAspect.mDesc.Depth,
+			texture->mCpuAspect.mDesc.ArraySize,
+			texture->mCpuAspect.mDesc.MipLevels,
 			wrapping.mWrapTypeX,
 			wrapping.mWrapTypeY,
 			wrapping.mWrapTypeZ,
-			texture->mRawAspect.mDesc.Type));
+			texture->mCpuAspect.mDesc.Type));
 	}
 }

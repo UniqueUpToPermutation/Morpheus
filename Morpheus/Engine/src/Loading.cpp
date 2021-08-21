@@ -20,7 +20,7 @@ namespace Morpheus {
 	}
 
 	void BasicLoadingScreen(Platform& platform, RealtimeGraphics& graphics,
-		DG::ImGuiImplDiligent* imgui, TaskBarrier* barrier, ITaskQueue* queue) {
+		DG::ImGuiImplDiligent* imgui, BarrierOut barrier, IComputeQueue* queue) {
 		
 		float radius = 64.0f;
 		int divisions = 40;
@@ -32,7 +32,7 @@ namespace Morpheus {
 
 		double time = 0.0;
 
-		while (platform->IsValid() && !barrier->mOut.Lock().IsFinished()) {
+		while (platform->IsValid() && !barrier.IsFinished()) {
 
 			// Do loading stuff
 			platform->MessagePump();

@@ -9,20 +9,20 @@ namespace Morpheus {
 	class GeometryCacheSystem : public ISystem, 
 		public IResourceCache<Geometry> {
 	private:
-		using cache_t = ResourceCache<Geometry*, 
+		using cache_t = ResourceCache<Handle<Geometry>, 
 			Geometry::LoadParameters,
 			Geometry::LoadParameters::Hasher>;
-		using loader_t = DefaultLoader<Geometry*, 
+		using loader_t = DefaultLoader<Handle<Geometry>, 
 			Geometry::LoadParameters,
 			Geometry::LoadParameters::Hasher>;
-		using gc_t = DefaultGarbageCollector<Geometry*, 
+		using gc_t = DefaultGarbageCollector<Handle<Geometry>, 
 			Geometry::LoadParameters,
 			Geometry::LoadParameters::Hasher>;
 
 		loader_t::cache_load_t GetLoaderFunction();
 		loader_t::load_callback_t GetLoadCallback();
 
-		GraphicsDevice mDevice;
+		Device mDevice;
 		IVertexFormatProvider* mFormatProvider;
 
 		cache_t mCache;
@@ -34,7 +34,7 @@ namespace Morpheus {
 			return mFormatProvider;
 		}
 
-		inline GraphicsDevice GetDevice() const {
+		inline Device GetDevice() const {
 			return mDevice;
 		}
 
@@ -42,7 +42,7 @@ namespace Morpheus {
 		inline loader_t& Loader() { return mLoader; }
 		inline gc_t& GarbageCollector() { return mGarbageCollector; } 
 
-		inline GeometryCacheSystem(GraphicsDevice device) : 
+		inline GeometryCacheSystem(Device device) : 
 			mDevice(device), mLoader(GetLoaderFunction(), 
 				GetLoadCallback()), mGarbageCollector(mCache) {	
 		}
@@ -51,9 +51,9 @@ namespace Morpheus {
 			GeometryCacheSystem(graphics.Device()) {
 		}
 
-		Future<Geometry*> Load(const LoadParams<Geometry>& params, ITaskQueue* queue) override;
+		Future<Handle<Geometry>> Load(const LoadParams<Geometry>& params, IComputeQueue* queue) override;
 
-		Task Startup(SystemCollection& systems) override;
+		std::unique_ptr<Task> Startup(SystemCollection& systems) override;
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;

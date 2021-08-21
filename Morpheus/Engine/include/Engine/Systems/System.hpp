@@ -9,6 +9,7 @@
 #include <Engine/Defines.hpp>
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Entity.hpp>
+#include <Engine/Resources/Resource.hpp>
 
 namespace DG = Diligent;
 
@@ -21,9 +22,14 @@ namespace Morpheus {
 	typedef std::function<void(Frame*)> inject_proc_t;
 
 	struct TypeInfoHasher {
-		inline std::size_t operator()(const entt::type_info& k) const
-		{
+		inline std::size_t operator()(const entt::type_info& k) const {
 			return k.hash();
+		}
+	};
+
+	struct MetaTypeHasher {
+		inline std::size_t operator()(const entt::meta_type& k) const {
+			return k.info().hash();
 		}
 	};
 
@@ -58,18 +64,27 @@ namespace Morpheus {
 
 	struct InjectProc {
 		inject_proc_t mProc;
-		entt::type_info mTarget;
+		entt::meta_type mTarget;
 	};
 
-	template <typename T>
-	class IResourceCache {
+	class IInterfaceCollection {
 	public:
-		virtual Future<T*> Load(const LoadParams<T>& params, ITaskQueue* queue) = 0;
+		virtual bool TryQueryInterface(
+			const entt::meta_type& interfaceType,
+			entt::meta_any* interfaceOut) const = 0;
+
+		template <typename T>
+		T* QueryInterface() const {
+			entt::meta_any result;
+			if (TryQueryInterface(entt::resolve<T>(), &result))
+				return result.cast<T*>();
+			return nullptr;
+		}
 	};
 
 	class ISystem {
 	public:
-		virtual Task Startup(SystemCollection& systems) = 0;
+		virtual std::unique_ptr<Task> Startup(SystemCollection& systems) = 0;
 		virtual bool IsInitialized() const = 0;
 		virtual void Shutdown() = 0;
 		virtual void NewFrame(Frame* frame) = 0;
@@ -79,67 +94,14 @@ namespace Morpheus {
 	};
 
 	struct TypeInjector {
+		struct Injection {
+			inject_proc_t mProc;
+			int mPhase;
+		};
+
 		entt::type_info mTarget;
-		std::vector<std::function<void(Frame*)>> mInjections;
-	};
-
-	class FrameProcessor {
-	private:
-		ParameterizedTaskGroup<Frame*> mInject;
-		ParameterizedTaskGroup<UpdateParams> mUpdate;
-		ParameterizedTaskGroup<RenderParams> mRender;
-		TaskBarrier mRenderSwitch;
-		TaskBarrier mUpdateSwitch;
-
-		std::unordered_map<entt::type_info, 
-			TypeInjector, TypeInfoHasher> mInjectByType;
-
-		Frame* mFrame = nullptr;
-		RenderParams mSavedRenderParams;
-		bool bFirstFrame = true;
-
-		void Initialize(SystemCollection* systems, Frame* frame);
-
-	public:
-		void Reset();
-		void Flush(ITaskQueue* queue);
-		void AddInjector(const InjectProc& proc);
-		void AddUpdateTask(ParameterizedTask<UpdateParams>&& task);
-		void AddRenderTask(ParameterizedTask<RenderParams>&& task);
-		void AddRenderGroup(ParameterizedTaskGroup<RenderParams>* group);
-		void AddUpdateGroup(ParameterizedTaskGroup<UpdateParams>* group);
-		void Apply(const FrameTime& time, 
-			ITaskQueue* queue,
-			bool bUpdate = true, 
-			bool bRender = true);
-
-		void SetFrame(Frame* frame);
-
-		inline Frame* GetFrame() const {
-			return mFrame;
-		}
-		inline ParameterizedTaskGroup<Frame*>& GetInjectGroup() {
-			return mInject;
-		}
-		inline ParameterizedTaskGroup<UpdateParams>& GetUpdateGroup() {
-			return mUpdate;
-		}
-		inline ParameterizedTaskGroup<RenderParams>& GetRenderGroup() {
-			return mRender;
-		}
-		inline FrameProcessor(SystemCollection* systems) {
-			Initialize(systems, nullptr);
-		}
-		inline void WaitOnRender(ITaskQueue* queue) {
-			queue->YieldUntilFinished(&mRender);
-		}
-		inline void WaitOnUpdate(ITaskQueue* queue) {
-			queue->YieldUntilFinished(&mUpdate);
-		}
-		inline void WaitUntilFinished(ITaskQueue* queue) {
-			queue->YieldUntilFinished(&mRender);
-			queue->YieldUntilFinished(&mUpdate);
-		}
+		std::vector<Injection> mInjections;
+		bool bDirty = true;
 	};
 
 	struct EnttStringHasher {
@@ -149,16 +111,126 @@ namespace Morpheus {
 		}
 	};
 
-	class SystemCollection {
+	typedef FunctionPrototype<Future<UpdateParams>> update_proto_t;
+	typedef FunctionPrototype<Future<RenderParams>> render_proto_t;
+
+	class FrameProcessor {
 	private:
-		std::unordered_map<entt::hashed_string, TaskBarrier*, EnttStringHasher> mBarriersByName;
+		Promise<Frame*> mInjectPromise;
+		Promise<UpdateParams> mUpdatePromise;
+		Promise<RenderParams> mRenderPromise;
+
+		CustomTask mInject;
+		CustomTask mUpdate;
+		CustomTask mRender;
+
+		std::unordered_map<entt::type_info, 
+			TypeInjector, TypeInfoHasher> mInjectByType;
+
+		Frame* mFrame = nullptr;
+		RenderParams mSavedRenderParams;
+		bool bFirstFrame = true;
+
 		std::unordered_map<entt::hashed_string, 
-			ParameterizedTaskGroup<UpdateParams>*, EnttStringHasher> mUpdateGroupsByName;
-		std::unordered_map<entt::hashed_string,
-			ParameterizedTaskGroup<RenderParams>*, EnttStringHasher> mRenderGroupsByName;
+			Barrier, EnttStringHasher> mBarriersByName;
+
+		void Initialize(SystemCollection* systems, Frame* frame);
+
+	public:
+		FrameProcessor() = default;
+		FrameProcessor(FrameProcessor&&) = default;
+		FrameProcessor(const FrameProcessor&) = delete;
+		FrameProcessor& operator=(FrameProcessor&&) = default;
+		FrameProcessor& operator=(const FrameProcessor&) = delete;
+
+		void Reset();
+		void Flush(IComputeQueue* queue);
+		void AddInjector(entt::type_info target,
+			const inject_proc_t& proc, 
+			int phase = 0);
+		void AddUpdateTask(TaskNode node);
+		void AddRenderTask(TaskNode node);
+		void AddRenderTask(std::shared_ptr<Task> group);
+		void AddUpdateTask(std::shared_ptr<Task> group);
+		void Apply(const FrameTime& time, 
+			IComputeQueue* queue,
+			bool bUpdate = true, 
+			bool bRender = true);
+
+		void SetFrame(Frame* frame);
+
+		inline const Promise<Frame*>& GetInjectorInput() const {
+			return mInjectPromise;
+		}
+		inline const Promise<UpdateParams>& GetUpdateInput() const {
+			return mUpdatePromise;
+		}
+		inline const Promise<RenderParams>& GetRenderInput() const {
+			return mRenderPromise;
+		}
+		inline Frame* GetFrame() const {
+			return mFrame;
+		}
+		inline Task* GetInjectGroup() {
+			return &mInject;
+		}
+		inline Task* GetUpdateGroup() {
+			return &mUpdate;
+		}
+		inline Task* GetRenderGroup() {
+			return &mRender;
+		}
+		inline FrameProcessor(SystemCollection* systems) {
+			Initialize(systems, nullptr);
+		}
+		inline void WaitOnRender(IComputeQueue* queue) {
+			queue->YieldUntilFinished(mRender);
+		}
+		inline void WaitOnUpdate(IComputeQueue* queue) {
+			queue->YieldUntilFinished(mUpdate);
+		}
+		inline void WaitUntilFinished(IComputeQueue* queue) {
+			queue->YieldUntilFinished(mRender);
+			queue->YieldUntilFinished(mUpdate);
+		}
+		inline void RegisterBarrier(const entt::hashed_string& str, 
+			Barrier barrier) {
+			mBarriersByName[str] = barrier;
+		}
+		inline Barrier GetBarrier(const entt::hashed_string& str) const {
+			auto it = mBarriersByName.find(str);
+			if (it == mBarriersByName.end()) 
+				return Barrier();
+			else 
+				return it->second;
+		}
+	};
+
+	class SystemCollection final : 
+		public IInterfaceCollection,
+		public IResourceCacheCollection {
+	private:
+		struct CacheEntry {
+			entt::meta_any mInterface;
+			IAbstractResourceCache* mAbstractInterface;
+		};
+
+		std::unordered_map<
+			entt::meta_type, 
+			entt::meta_any,
+			MetaTypeHasher> mSystemsByType;
+
+		std::unordered_map<
+			entt::meta_type, 
+			entt::meta_any,
+			MetaTypeHasher> mSystemInterfaces;
+
+		std::unordered_map<
+			entt::meta_type,
+			CacheEntry,
+			MetaTypeHasher> mCachesByResourceType;
+	
 		std::set<std::unique_ptr<ISystem>> mSystems;
-		std::unordered_map<entt::type_info, entt::meta_any, TypeInfoHasher> mSystemsByType;
-		std::unordered_map<entt::type_info, entt::meta_any, TypeInfoHasher> mSystemInterfaces;
 		bool bInitialized = false;
 		FrameProcessor mFrameProcessor;
 		
@@ -166,48 +238,40 @@ namespace Morpheus {
 		inline SystemCollection() : mFrameProcessor(this) {
 		}
 
-		inline void RegisterUpdateGroup(const entt::hashed_string& str, ParameterizedTaskGroup<UpdateParams>* group) {
-			mUpdateGroupsByName[str] = group;
+		inline void RegisterBarrier(
+			const entt::hashed_string& str, 
+			Barrier barrier) {
+			mFrameProcessor.RegisterBarrier(str, barrier);
+		}
+		inline void AddRenderTask(TaskNode node) {
+			mFrameProcessor.AddRenderTask(node);
+		}
+		inline void AddUpdateTask(TaskNode node) {
+			mFrameProcessor.AddUpdateTask(node);
+		}
+		inline void AddRenderTask(std::shared_ptr<Task> task) {
+			mFrameProcessor.AddRenderTask(task);
+		}
+		inline void AddUpdateTask(std::shared_ptr<Task> task) {
+			mFrameProcessor.AddUpdateTask(task);
+		}
+		void AddInjector(entt::type_info target,
+			const inject_proc_t& proc, 
+			int phase = 0) {
+			mFrameProcessor.AddInjector(target, proc, phase);
 		}
 
-		inline void RegisterRenderGroup(const entt::hashed_string& str, ParameterizedTaskGroup<RenderParams>* group) {
-			mRenderGroupsByName[str] = group;
+		template <typename T>
+		void AddCacheInterface(IResourceCache<T>* interface) {
+			CacheEntry entry;
+			entry.mInterface = interface;
+			entry.mAbstractInterface = interface;
+			mCachesByResourceType[entt::resolve<T>()] = entry;
 		}
 
-		inline void RegisterBarrier(const entt::hashed_string& str, TaskBarrier* barrier) {
-			mBarriersByName[str] = barrier;
-		}
-
-		inline void AddRenderTask(ParameterizedTask<RenderParams>&& task) {
-			mFrameProcessor.AddRenderTask(std::move(task));
-		}
-
-		inline void AddUpdateTask(ParameterizedTask<UpdateParams>&& task) {
-			mFrameProcessor.AddUpdateTask(std::move(task));
-		}
-
-		inline ParameterizedTaskGroup<UpdateParams>* GetUpdateGroup(const entt::hashed_string& str) const {
-			auto it = mUpdateGroupsByName.find(str);
-			if (it == mUpdateGroupsByName.end())
-				return nullptr;
-			else
-				return it->second;
-		}
-
-		inline ParameterizedTaskGroup<RenderParams>* GetRenderGroup(const entt::hashed_string& str) const {
-			auto it = mRenderGroupsByName.find(str);
-			if (it == mRenderGroupsByName.end()) 
-				return nullptr;
-			else 
-				return it->second;
-		}
-
-		inline TaskBarrier* GetBarrier(const entt::hashed_string& str) const {
-			auto it = mBarriersByName.find(str);
-			if (it == mBarriersByName.end()) 
-				return nullptr;
-			else 
-				return it->second;
+		inline Barrier GetBarrier(
+			const entt::hashed_string& str) const {
+			return mFrameProcessor.GetBarrier(str);
 		}
 
 		inline FrameProcessor& GetFrameProcessor() {
@@ -216,32 +280,35 @@ namespace Morpheus {
 
 		template <typename T>
 		inline void RegisterInterface(T* interface) {
-			mSystemInterfaces[entt::type_id<T>()] = interface;
+			mSystemInterfaces[entt::resolve<T>()] = interface;
 		}
 
-		template <typename T>
-		T* QueryInterface() const {
-			auto it = mSystemInterfaces.find(entt::type_id<T>());
-			if (it != mSystemInterfaces.end()) {
-				return it->second.template cast<T*>();
-			} else {
-				return nullptr;
-			}
-		}
+		bool TryQueryInterface(
+			const entt::meta_type& interfaceType,
+			entt::meta_any* interfaceOut) const override;
 
 		template <typename T>
-		inline void AddCacheInterface(IResourceCache<T>* cache) {
-			RegisterInterface<IResourceCache<T>>(cache);
+		void RegisterCache(IResourceCache<T>* cache) {
+			mCachesByResourceType[entt::type_id<T>] = CacheEntry{
+				cache,
+				cache	
+			};
 		}
 
-		template <typename T>
-		inline IResourceCache<T>* GetCache() const {
-			return QueryInterface<IResourceCache<T>>();
-		}
+		bool TryQueryCache(
+			const entt::meta_type& resourceType,
+			entt::meta_any* cacheInterface) const override;
+
+		bool TryQueryCacheAbstract(
+			const entt::meta_type& resourceType,
+			IAbstractResourceCache** cacheOut) const override;
+
+		std::set<IAbstractResourceCache*> GetAllCaches() const override;
 
 		template <typename T>
-		inline Future<T*> Load(const LoadParams<T>& params, ITaskQueue* queue) const {
-			return GetCache<T>()->Load(params, queue);
+		inline Future<T*> Load(const LoadParams<T>& params, 
+			IComputeQueue* queue) const {
+			return QueryCache<T>()->Load(params, queue);
 		}
 
 		inline bool IsInitialized() const {
@@ -262,7 +329,7 @@ namespace Morpheus {
 			}
 		}
 
-		void Startup(ITaskQueue* queue = nullptr);
+		void Startup(IComputeQueue* queue = nullptr);
 		void SetFrame(Frame* frame);
 		void Shutdown();
 
@@ -270,7 +337,7 @@ namespace Morpheus {
 		Note that this function is asynchronous, you will need to 
 		call WaitOnRender and WaitOnUpdate to wait on its completion. */
 		inline void RunFrame(const FrameTime& time, 
-			ITaskQueue* queue) {
+			IComputeQueue* queue) {
 			mFrameProcessor.Apply(time, queue, true, true);
 		}
 
@@ -278,7 +345,7 @@ namespace Morpheus {
 		Note that this function is asynchronous, you will need to 
 		call WaitOnUpdate to wait on its completion. */
 		inline void UpdateFrame(const FrameTime& time, 
-			ITaskQueue* queue) {
+			IComputeQueue* queue) {
 			mFrameProcessor.Apply(time, queue, true, false);
 		}
 
@@ -286,24 +353,24 @@ namespace Morpheus {
 		Note that this function is asynchronous, you will need to 
 		call WaitOnRender to wait on its completion. */
 		inline void RenderFrame(const FrameTime& time, 
-			ITaskQueue* queue) {
+			IComputeQueue* queue) {
 			mFrameProcessor.Apply(time, queue, false, true);
 		}
 
-		inline void WaitOnRender(ITaskQueue* queue) {
+		inline void WaitOnRender(IComputeQueue* queue) {
 			mFrameProcessor.WaitOnRender(queue);
 		}
-		inline void WaitOnUpdate(ITaskQueue* queue) {
+		inline void WaitOnUpdate(IComputeQueue* queue) {
 			mFrameProcessor.WaitOnUpdate(queue);
 		}
-		inline void WaitUntilFrameFinished(ITaskQueue* queue) {
+		inline void WaitUntilFrameFinished(IComputeQueue* queue) {
 			mFrameProcessor.WaitUntilFinished(queue);
 		}
 
 		template <typename T, typename ... Args>
 		inline T* Add(Args&& ... args) {
 			auto ptr = new T(args...);
-			mSystemsByType[entt::type_id<T>()] = ptr;
+			mSystemsByType[entt::resolve<T>()] = ptr;
 			mSystems.emplace(ptr);
 			ptr->OnAddedTo(*this);
 			return ptr;

@@ -55,16 +55,16 @@ namespace Morpheus {
 		mIterationBegin(subBegin.x, subBegin.y, subBegin.z, sliceBegin),
 		mIterationEnd(subEnd.x, subEnd.y, subEnd.z, sliceEnd) {
 
-		if (!(texture->mFlags & RESOURCE_RAW_ASPECT))
-			throw std::runtime_error("Texture must have raw aspect!");
+		if (!texture->GetDevice().IsCPU())
+			throw std::runtime_error("Texture must be on CPU!");
 
-		mUnderlying = &texture->mRawAspect.mData[0];
+		mUnderlying = &texture->mCpuAspect.mData[0];
 
 		mIndexCoords = mIterationBegin;
 
 		auto mip_levels = texture->GetMipCount();
 
-		mPixelSize = GetPixelByteSize(texture->mRawAspect.mDesc.Format);
+		mPixelSize = GetPixelByteSize(texture->mCpuAspect.mDesc.Format);
 
 		size_t currentOffset = 0;
 		for (uint imip = 0; imip < mip_levels; ++imip) {
@@ -72,18 +72,18 @@ namespace Morpheus {
 				mMipOffset = currentOffset;
 			}
 		
-			size_t mip_width = std::max(texture->mRawAspect.mDesc.Width >> imip, 1u);
-			size_t mip_height = std::max(texture->mRawAspect.mDesc.Height >> imip, 1u);
-			size_t mip_depth = std::max(texture->mRawAspect.mDesc.Depth >> imip, 1u);
+			size_t mip_width = std::max(texture->mCpuAspect.mDesc.Width >> imip, 1u);
+			size_t mip_height = std::max(texture->mCpuAspect.mDesc.Height >> imip, 1u);
+			size_t mip_depth = std::max(texture->mCpuAspect.mDesc.Depth >> imip, 1u);
 
 			currentOffset += mip_width * mip_height * mip_depth * mPixelSize;
 		}
 
 		mSliceStride = currentOffset;
 
-		size_t mip_width = std::max(texture->mRawAspect.mDesc.Width >> mip, 1u);
-		size_t mip_height = std::max(texture->mRawAspect.mDesc.Height >> mip, 1u);
-		size_t mip_depth = std::max(texture->mRawAspect.mDesc.Depth >> mip, 1u);
+		size_t mip_width = std::max(texture->mCpuAspect.mDesc.Width >> mip, 1u);
+		size_t mip_height = std::max(texture->mCpuAspect.mDesc.Height >> mip, 1u);
+		size_t mip_depth = std::max(texture->mCpuAspect.mDesc.Depth >> mip, 1u);
 
 		mYStride = mip_width * mPixelSize;
 		mZStride = mip_height * mip_width * mPixelSize;
@@ -94,16 +94,16 @@ namespace Morpheus {
 
 		UpdateGridValue(mIndexCoords);
 
-		if (texture->mRawAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || 
-			texture->mRawAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
+		if (texture->mCpuAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE || 
+			texture->mCpuAspect.mDesc.Type == DG::RESOURCE_DIM_TEX_CUBE_ARRAY) {
 			mIndexToPosition = &GetPositionCube;
 		} else {
 			mIndexToPosition = &GetPosition;
 		}
 
-		DG::VALUE_TYPE val = GetComponentType(texture->mRawAspect.mDesc.Format);
-		bool bNormed = GetIsNormalized(texture->mRawAspect.mDesc.Format);
-		mValue.mChannelCount = GetComponentCount(texture->mRawAspect.mDesc.Format);
+		DG::VALUE_TYPE val = GetComponentType(texture->mCpuAspect.mDesc.Format);
+		bool bNormed = GetIsNormalized(texture->mCpuAspect.mDesc.Format);
+		mValue.mChannelCount = GetComponentCount(texture->mCpuAspect.mDesc.Format);
 
 		switch (val) {
 			case DG::VT_FLOAT32:

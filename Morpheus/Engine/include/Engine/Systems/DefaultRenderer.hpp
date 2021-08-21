@@ -16,8 +16,10 @@
 namespace Morpheus {
 	VertexLayout DefaultInstancedStaticMeshLayout();
 
-	class DefaultRenderer : public ISystem, 
-		public IRenderer, public IVertexFormatProvider {
+	class DefaultRenderer : 
+		public ISystem, 
+		public IRenderer, 
+		public IVertexFormatProvider {
 	public:
 		struct MaterialApplyParams {
 			LightProbe* mGlobalLightProbe;
@@ -71,6 +73,7 @@ namespace Morpheus {
 		std::vector<MaterialId> mMaterialsToAddRef;
 		std::vector<MaterialId> mMaterialsToRelease;
 
+		std::shared_mutex mMaterialsMutex;
 		std::unordered_map<MaterialId, Material> mMaterials;
 		MaterialId mCurrentMaterialId = 0;
 
@@ -80,7 +83,7 @@ namespace Morpheus {
 		RealtimeGraphics* mGraphics;
 		uint mInstanceBatchSize = 512;
 
-		std::unique_ptr<ParameterizedTaskGroup<RenderParams>> mRenderGroup;
+		std::shared_ptr<Task> mRenderGroup;
 
 		struct Resources {
 			DynamicGlobalsBuffer<HLSL::ViewAttribs> 	mViewData;
@@ -132,46 +135,27 @@ namespace Morpheus {
 		void CreateSkyboxPipeline(Handle<DG::IShader> vs, Handle<DG::IShader> ps);
 		void InitializeDefaultResources();
 
-		ParameterizedTask<RenderParams> BeginRender();
-		ParameterizedTask<RenderParams> DrawBackground();
-		ParameterizedTask<RenderParams> DrawStaticMeshes();
+		TaskNode BeginRender(Future<RenderParams> params);
+		TaskNode DrawBackground(Future<RenderParams> params);
+		TaskNode DrawStaticMeshes(Future<RenderParams> params);
 
 	public:
 		void ApplyMaterial(DG::IDeviceContext* context, MaterialId id, 
 			const MaterialApplyParams& params);
+		std::shared_ptr<Task> Render(Future<RenderParams> params);
 
-		inline auto& Resources() {
-			return mResources;
-		}
-
-		inline TransformCacheUpdater& CacheUpdater() {
-			return mUpdater;
-		}
-
-		ParameterizedTaskGroup<RenderParams>* CreateRenderGroup();
-
-		inline RealtimeGraphics* GetGraphics() {
-			return mGraphics;
-		}
-
-		Task Startup(SystemCollection& collection) override;
+		std::unique_ptr<Task> Startup(SystemCollection& collection) override;
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;
 		void OnAddedTo(SystemCollection& collection) override;
-		
-		inline DefaultRenderer(RealtimeGraphics& graphics) : mGraphics(&graphics) {
-		}
-
-		inline ~DefaultRenderer() {
-			Shutdown();
-		}
 	
 		const VertexLayout& GetStaticMeshLayout() const override;
 		MaterialId CreateUnmanagedMaterial(const MaterialDesc& desc) override;
 
 		void AddMaterialRef(MaterialId id) override;
 		void ReleaseMaterial(MaterialId id) override;
+		MaterialDesc GetMaterialDesc(MaterialId id) override;
 
 		GraphicsCapabilityConfig GetCapabilityConfig() const;
 
@@ -180,5 +164,25 @@ namespace Morpheus {
 
 		DG::TEXTURE_FORMAT GetIntermediateFramebufferFormat() const;
 		DG::TEXTURE_FORMAT GetIntermediateDepthbufferFormat() const;
+
+		inline auto& Resources() {
+			return mResources;
+		}
+
+		inline auto& CacheUpdater() {
+			return mUpdater;
+		}
+
+		inline RealtimeGraphics* GetGraphics() {
+			return mGraphics;
+		}
+
+		inline DefaultRenderer(RealtimeGraphics& graphics) : 
+			mGraphics(&graphics) {
+		}
+
+		inline ~DefaultRenderer() {
+			Shutdown();
+		}
 	};
 }

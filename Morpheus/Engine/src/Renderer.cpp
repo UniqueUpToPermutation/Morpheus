@@ -2,48 +2,52 @@
 #include <Engine/Renderer.hpp>
 
 namespace Morpheus {
-	MaterialDesc MaterialDescFuture::Get() const {
-		MaterialDesc desc;
+	UniqueFuture<MaterialDesc> MaterialDesc::CreateFuture(
+		Future<Handle<Texture>> albedo,
+		Future<Handle<Texture>> normal,
+		Future<Handle<Texture>> roughness,
+		Future<Handle<Texture>> metallic,
+		Future<Handle<Texture>> displacement,
+		const Params& params) {
 
-		desc.mType = mType;
+		Promise<MaterialDesc> output;
+		
+		FunctionPrototype<
+			Future<Handle<Texture>>,
+			Future<Handle<Texture>>,
+			Future<Handle<Texture>>,
+			Future<Handle<Texture>>,
+			Future<Handle<Texture>>,
+			Promise<MaterialDesc>>
+			prototype([params](
+				const TaskParams& e,
+				Future<Handle<Texture>> albedo,
+				Future<Handle<Texture>> normal,
+				Future<Handle<Texture>> roughness,
+				Future<Handle<Texture>> metallic,
+				Future<Handle<Texture>> displacement,
+				Promise<MaterialDesc> output) {
+			
+			MaterialDesc desc;
+			if (albedo)
+				desc.mResources.mAlbedo = albedo.Get();
+			if (normal)
+				desc.mResources.mNormal = normal.Get();
+			if (roughness)
+				desc.mResources.mRoughness = roughness.Get();
+			if (metallic)
+				desc.mResources.mMetallic = metallic.Get();
+			if (displacement)
+				desc.mResources.mDisplacement = displacement.Get();
 
-		if (mAlbedo)
-			desc.mAlbedo = mAlbedo.Get();
-		if (mNormal)
-			desc.mNormal = mNormal.Get();
-		if (mRoughness)
-			desc.mRoughness = mRoughness.Get();
-		if (mMetallic)
-			desc.mMetallic = mMetallic.Get();
-		if (mDisplacement)
-			desc.mDisplacement = mDisplacement.Get();
+			desc.mParams = params;
 
-		desc.mAlbedoFactor = mAlbedoFactor;
-		desc.mRoughnessFactor = mRoughnessFactor;
-		desc.mMetallicFactor = mMetallicFactor;
-		desc.mDisplacementFactor = mDisplacementFactor;
+			output = std::move(desc);
+		});
 
-		return desc;
-	}
+		prototype(albedo, normal, roughness, metallic, displacement, output)
+			.SetName("Create MaterialDesc Future");
 
-	bool MaterialDescFuture::IsAvailable() const {
-		return mAlbedo.IsAvailable() &&
-			mNormal.IsAvailable() &&
-			mRoughness.IsAvailable() &&
-			mMetallic.IsAvailable() &&
-			mDisplacement.IsAvailable();
-	}
-
-	void MaterialDescFuture::Connect(TaskNodeInLock& lock) {
-		if (mAlbedo)
-			lock.Connect(mAlbedo.Out());
-		if (mNormal)
-			lock.Connect(mNormal.Out());
-		if (mRoughness)
-			lock.Connect(mRoughness.Out());
-		if (mMetallic)
-			lock.Connect(mMetallic.Out());
-		if (mDisplacement)
-			lock.Connect(mDisplacement.Out());
+		return output;
 	}
 }

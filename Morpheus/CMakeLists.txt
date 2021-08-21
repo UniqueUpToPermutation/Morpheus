@@ -52,9 +52,10 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 	add_engine_includes(${APP_NAME})
 
 	if (USE_BULLET)
-		LINK_LIBRARIES(
-			${APP_NAME} BulletDynamics BulletCollision LinearMath
-		)
+		list(APPEND ENGINE_APP_EXTRA_LIBS 
+			BulletDynamics 
+			BulletCollision 
+			LinearMath)
 	endif()
 
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
@@ -97,6 +98,7 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
         Diligent-BuildSettings
 		Morpheus-Engine
 		${ASSIMP_LIBRARIES}
+		${ENGINE_APP_EXTRA_LIBS}
     )
     set_common_target_properties(${APP_NAME})
 

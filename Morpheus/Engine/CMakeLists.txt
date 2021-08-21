@@ -143,6 +143,7 @@ list(APPEND SOURCE
 	src/GeometryStructures.cpp
 	src/Im3d.cpp
 	src/Renderer.cpp
+	src/Frame.cpp
 
 	src/Systems/GeometryCache.cpp
 	src/Systems/TextureCache.cpp
@@ -151,6 +152,7 @@ list(APPEND SOURCE
 	src/Systems/System.cpp
 	src/Systems/ImGuiSystem.cpp
 	src/Systems/SimpleFPSCameraSystem.cpp
+	src/Systems/BulletPhysics.cpp
 
 	src/Resources/Shader.cpp
 	src/Resources/Texture.cpp
@@ -195,6 +197,7 @@ list(APPEND INCLUDE
 	include/Engine/Systems/System.hpp
 	include/Engine/Systems/ImGuiSystem.hpp
 	include/Engine/Systems/SimpleFPSCameraSystem.hpp
+	include/Engine/Systems/BulletPhysics.hpp
 
 	include/Engine/Components/Transform.hpp
 

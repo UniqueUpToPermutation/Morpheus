@@ -2,7 +2,7 @@
 #include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/ResourceData.hpp>
 #include <Engine/Renderer.hpp>
-
+#include <Engine/GeometryStructures.hpp>
 #include <cereal/types/vector.hpp>
 
 namespace Diligent {
