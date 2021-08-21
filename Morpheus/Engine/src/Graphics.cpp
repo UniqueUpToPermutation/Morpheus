@@ -310,7 +310,7 @@ namespace Morpheus {
 					EngVkAttribs.EnableValidation = false;
 				}
 
-				GetEngineInitializationAttribs(platformParams.mDeviceType, EngVkAttribs, mParams.mSwapChainInitDesc);
+				//GetEngineInitializationAttribs(platformParams.mDeviceType, EngVkAttribs, mParams.mSwapChainInitDesc);
 				ppContexts.resize(1 + EngVkAttribs.NumDeferredContexts);
 				auto* pFactoryVk = GetEngineFactoryVk();
 				mEngineFactory = pFactoryVk;

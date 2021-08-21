@@ -29,7 +29,9 @@
 				"${workspaceFolder}/DiligentEngine/DiligentTools/Imgui/interface",
 				"${workspaceFolder}/DiligentEngine/DiligentTools/ThirdParty/imgui",
 				"${workspaceFolder}/DiligentEngine/DiligentCore/Platforms/interface",
-				"${workspaceFolder}/DiligentEngine/DiligentTools/NativeApp/include"
+				"${workspaceFolder}/DiligentEngine/DiligentTools/NativeApp/include",
+				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/interface",
+				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineOpenGL/interface"
             ],
             "defines": [
                 "PLATFORM_LINUX",
