@@ -4,10 +4,17 @@ project(Morpheus-Redux VERSION 0.1.0)
 option(USE_PBRT "Compile and integrate the PBRT Backend" OFF)
 option(USE_BOX2D "Compile and integrate Box2D" OFF)
 option(USE_BULLET "Compile and integrate Bullet" OFF)
+option(USE_GLFW "Compile and integrate GLFW" ON)
 option(COMPILE_MESH2CPP "Should CMAKE compile the mesh2cpp utility?" ON)
 option(BUILD_TESTS "Build tests for Morpheus" ON)
 
 include(CTest)
+
+if (USE_GLFW)
+	message("Integrating GLFW...")
+	add_definitions(-DUSE_GLFW)
+	add_subdirectory(glfw)
+endif()
 
 if(USE_BOX2D)
 	message("Integrating Box2D Backend...")
