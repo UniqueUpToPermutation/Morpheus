@@ -1,6 +1,8 @@
 #include <Engine/Core.hpp>
 #include <Engine/Im3d.hpp>
 
+#include <GLFW/glfw3.h>
+
 using namespace Morpheus;
 
 Im3d::Vec3 ToIm3d(const DG::float3& f) {
@@ -21,7 +23,7 @@ Im3d::Mat4 ToIm3d(const DG::float4x4& f) {
 
 MAIN() {
 
-	Platform platform;
+	Platform platform(CreatePlatformGLFW());
 	platform.Startup();
 
 	RealtimeGraphics graphics(platform);
@@ -32,7 +34,7 @@ MAIN() {
 	{
 		// Create the Im3d renderer and state
 		Im3dGlobalsBuffer im3dGlobals(graphics);
-		Im3dShaders im3dShaders = Im3dShaders::LoadDefault(graphics, &fileSystem)();
+		Im3dShaders im3dShaders = Im3dShaders::LoadDefault(graphics, &fileSystem).Evaluate();
 		Im3dPipeline im3dPipeline(graphics, &im3dGlobals, im3dShaders);
 		Im3dRenderer im3dRenderer(graphics);
 	
@@ -74,7 +76,7 @@ MAIN() {
 
 			auto& ad = Im3d::GetAppData();
 
-			auto mouseState = platform.GetInput().GetMouseState();
+			auto window = platform.GetWindowGLFW();
 			auto& scDesc = swapChain->GetDesc();
 
 			DG::float2 viewportSize((float)scDesc.Width, (float)scDesc.Height);
@@ -91,8 +93,11 @@ MAIN() {
 				? 2.0f / proj.m11 :
 				tanf(camera.GetFieldOfView() * 0.5f) * 2.0f; // or vertical fov for a perspective projection
 
+			double mousePosX, mousePosY;
+			glfwGetCursorPos(window, &mousePosX, &mousePosY);
+
 			// World space cursor ray from mouse position; for VR this might be the position/orientation of the HMD or a tracked controller.
-			DG::float2 cursorPos(mouseState.PosX, mouseState.PosY);
+			DG::float2 cursorPos(mousePosX, mousePosY);
 			cursorPos = 2.0f * cursorPos / viewportSize - DG::float2(1.0f, 1.0f);
 			cursorPos.y = -cursorPos.y; // window origin is top-left, ndc is bottom-left
 
@@ -110,7 +115,7 @@ MAIN() {
 
 			// Fill the key state array; using GetAsyncKeyState here but this could equally well be done via the window proc.
 			// All key states have an equivalent (and more descriptive) 'Action_' enum.
-			ad.m_keyDown[Im3d::Mouse_Left] = mouseState.ButtonFlags & mouseState.BUTTON_FLAG_LEFT;
+			ad.m_keyDown[Im3d::Mouse_Left] = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
 
 			// Enable gizmo snapping by setting the translation/rotation/scale increments to be > 0
 			ad.m_snapTranslation = 0.0f;

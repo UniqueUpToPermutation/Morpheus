@@ -75,6 +75,9 @@ namespace Morpheus {
 		inline Platform() : mPlatform(CreatePlatform()) {
 		}
 
+		inline Platform(IPlatform* platform) : mPlatform(platform) {
+		}
+
 #ifdef USE_GLFW
 		inline Platform(GLFWwindow* window) : mPlatform(CreatePlatformGLFW(window)) {
 		}
@@ -126,8 +129,9 @@ namespace Morpheus {
 			mPlatform->MessagePump();
 		}
 
-		inline PlatformGLFW* ToGLFW() {
-			return mPlatform->ToGLFW();
-		}
+#ifdef USE_GLFW
+		PlatformGLFW* ToGLFW();
+		GLFWwindow* GetWindowGLFW();
+#endif
 	};
 }

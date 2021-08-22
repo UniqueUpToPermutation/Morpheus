@@ -96,6 +96,18 @@ namespace Morpheus {
 	PlatformGLFW* PlatformGLFW::ToGLFW() {
 		return this;
 	}
+
+	inline PlatformGLFW* Platform::ToGLFW() {
+		return mPlatform->ToGLFW();
+	}
+
+	GLFWwindow* Platform::GetWindowGLFW() {
+		auto glfwPlat = mPlatform->ToGLFW();
+		if (glfwPlat) {
+			return glfwPlat->GetWindow();
+		}
+		return nullptr;
+	}
 }
 
 #endif
