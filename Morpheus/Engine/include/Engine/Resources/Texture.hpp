@@ -56,6 +56,13 @@ namespace Morpheus {
 				return hash<string>()(k.mSource);
 			}
 		};
+
+		template <class Archive>
+		void serialize(Archive& archive) {
+			archive(mSource);
+			archive(bGenerateMips);
+			archive(bIsSRGB);
+		}
 	};
 
 	inline uint MipCount(
@@ -76,15 +83,23 @@ namespace Morpheus {
 		DG::Uint32 mDepthStride;
 		DG::Uint32 mSrcOffset;
 		DG::Uint32 mStride;
+
+		template <class Archive>
+		void serialize(Archive& archive) {
+			archive(mDepthStride);
+			archive(mSrcOffset);
+			archive(mStride);
+		}
 	};
 
 	struct GPUTextureRead {
 		Handle<DG::IFence> mFence;
 		Handle<DG::ITexture> mStagingTexture;
 		DG::TextureDesc mTextureDesc;
+		DG::Uint64 mFenceCompletedValue;
 
 		inline bool IsReady() const {
-			return mFence->GetCompletedValue() == 1;
+			return mFence->GetCompletedValue() == mFenceCompletedValue;
 		}
 	};
 
@@ -244,7 +259,9 @@ namespace Morpheus {
 			mSource = params;
 		}
 
-		inline Texture(Device device, const LoadParams<Texture>& params, Context context = Context()) : Texture(params) {
+		inline Texture(Device device, 
+			const LoadParams<Texture>& params, 
+			Context context = Context()) : Texture(params) {
 			Move(device, context);
 		}
 
@@ -278,6 +295,9 @@ namespace Morpheus {
 		void BinaryDeserializeSource(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
+
+		void BinarySerialize(const std::filesystem::path& output) const;
+		void BinaryDeserialize(const std::filesystem::path& input);
 
 		void CopyTo(Texture* texture) const;
 		void CopyFrom(const Texture& texture);
@@ -400,5 +420,6 @@ namespace Morpheus {
 
 		friend class TextureIterator;
 		friend class RawSampler;
+		friend class cereal::access;
 	};
 }

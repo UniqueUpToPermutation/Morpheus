@@ -9,6 +9,10 @@ std::atomic<uint64_t> gCurrentTaskId;
 std::mutex gPoolOutput;
 #endif
 
+#include "Fence.h"
+
+namespace DG = Diligent;
+
 namespace Morpheus {
 	struct TaskNodeImpl {
 		std::vector<std::shared_ptr<TaskNodeImpl>> mIn;
@@ -23,6 +27,8 @@ namespace Morpheus {
 		ThreadMask mThreadMask = ~(ThreadMask)0;
 		TaskId mId;
 		const char* mName = nullptr;
+		DG::IFence* mFence = nullptr;
+		DG::Uint64 mFenceCompletedValue;
 
 		std::unique_ptr<IBoundFunction> mBoundFunction;
 	};
@@ -456,7 +462,30 @@ namespace Morpheus {
 		}
 	}
 
+	std::vector<TaskNode> ImmediateComputeQueue::CheckGPUJobs() {
+		std::vector<TaskNode> result;
+
+		for (auto it = mWaitOnGpu.begin(); it != mWaitOnGpu.end();) {
+			auto node = *it;
+			auto impl = node.GetImpl();
+			if (impl->mFence->GetCompletedValue() == impl->mFenceCompletedValue) {
+				result.emplace_back(node);
+				auto last = it++;
+				mWaitOnGpu.erase(last);
+			} 
+		}
+
+		return result;
+	}
+
 	void ImmediateComputeQueue::RunOneJob() {
+		if (mWaitOnGpu.size() > 0) {
+			auto gpuJobsToTrigger = CheckGPUJobs();
+			for (auto& job : gpuJobsToTrigger) {
+				mImmediateQueue.emplace(job);
+			}
+		}
+
 		if (mImmediateQueue.size() == 0)
 			return;
 
@@ -490,25 +519,38 @@ namespace Morpheus {
 			inLock.SetStarted(true);
 		}
 
-		node.Execute(this, THREAD_MAIN);
-		node.Out().Fire(next);
+		bool bExecute = true;
 
-#ifdef THREAD_POOL_DEBUG
-		{
-			std::lock_guard<std::mutex> lock2(gPoolOutput);
-
-			if (node.GetName()) {
-				std::cout << "Leaving at node: " 
-					<< node.GetName() << std::endl;
-			} else {
-				std::cout << "Leaving at node: " 
-					<< "[UNNAMED]" << std::endl;
-			}
+		// Node has a GPU fence!
+		// Make sure that fence has been completed before running
+		auto impl = node.GetImpl();
+		if (impl->mFence && impl->mFence->GetCompletedValue() != impl->mFenceCompletedValue) {
+			bExecute = false;
+			node.In().SetStarted(false);
+			mWaitOnGpu.emplace(node);
 		}
-#endif
 
-		for (auto& n : next)
-			mImmediateQueue.push(n);
+		if (bExecute) {
+			node.Execute(this, THREAD_MAIN);
+			node.Out().Fire(next);
+
+	#ifdef THREAD_POOL_DEBUG
+			{
+				std::lock_guard<std::mutex> lock2(gPoolOutput);
+
+				if (node.GetName()) {
+					std::cout << "Leaving at node: " 
+						<< node.GetName() << std::endl;
+				} else {
+					std::cout << "Leaving at node: " 
+						<< "[UNNAMED]" << std::endl;
+				}
+			}
+	#endif
+
+			for (auto& n : next)
+				mImmediateQueue.push(n);
+		}
 	}
 
 	void ImmediateComputeQueue::YieldUntilCondition(const std::function<bool()>& predicate) {
@@ -626,6 +668,25 @@ namespace Morpheus {
 			}
 
 			TaskNode task;
+
+			// Check GPU fence on main thread.
+			if (threadNumber == THREAD_MAIN) {
+				std::lock_guard<std::mutex> lockWaitGpu(mWaitOnGpuMutex);
+				std::unique_lock<std::mutex> lockQueue;
+
+				for (auto it = mWaitOnGpu.begin(); it != mWaitOnGpu.end();) {
+					auto node = *it;
+					auto impl = node.GetImpl();
+
+					if (impl->mFence->GetCompletedValue() == impl->mFenceCompletedValue) {
+						auto last = it++;
+						mWaitOnGpu.erase(last);
+						lockQueue = std::unique_lock<std::mutex>(mCollectiveQueueMutex);
+						mCollectiveQueue.emplace(node);
+					}
+				}
+			}
+
 			{
 				// Select a task assigned to the collective queue
 				std::lock_guard<std::mutex> lock(mCollectiveQueueMutex);
@@ -670,6 +731,18 @@ namespace Morpheus {
 					inLock.SetStarted(true);
 				}
 
+				// Node has a GPU fence!
+				// Make sure that fence has been completed before running
+				auto impl = task.GetImpl();
+				if (impl->mFence && impl->mFence->GetCompletedValue() != impl->mFenceCompletedValue) {
+					task.In().SetStarted(false);
+					{
+						std::lock_guard<std::mutex> lock(mWaitOnGpuMutex);
+						mWaitOnGpu.emplace(task);
+					}
+					task = TaskNode();
+				}
+
 				if (task) {
 					task.Execute(this, threadNumber);
 					task.Out().Fire(next);
@@ -712,5 +785,11 @@ namespace Morpheus {
 				}
 			}
 		}
+	}
+
+	Promise<void>::Promise(Diligent::IFence* fence, uint64_t fenceCompletedValue) : mNode(TaskNode::Create()) {
+		auto impl = mNode.GetImpl();
+		impl->mFence = fence;
+		impl->mFenceCompletedValue = fenceCompletedValue;
 	}
 }

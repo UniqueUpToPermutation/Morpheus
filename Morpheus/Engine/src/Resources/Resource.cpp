@@ -8,7 +8,9 @@ using namespace entt;
 
 namespace Morpheus {
 	void IResource::Move(Device device, Context context) {
-		MoveAsync(device, context).Evaluate();
+		auto barrier = MoveAsync(device, context);
+		context.Flush();
+		barrier.Evaluate();
 	}
 
 	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out) {

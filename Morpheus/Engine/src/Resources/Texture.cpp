@@ -6,6 +6,8 @@
 #include <Engine/Entity.hpp>
 
 #include <cereal/archives/portable_binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 
 #include <gli/gli.hpp>
 #include <lodepng.h>
@@ -16,6 +18,31 @@
 #include <stb_image.h>
 
 using namespace entt;
+
+namespace Diligent {
+	template <class Archive>
+	void serialize(Archive& archive,
+		DG::TextureDesc& m)
+	{
+		archive(m.ArraySize);
+		archive(m.BindFlags);
+		archive(m.ClearValue.Color);
+		archive(m.ClearValue.DepthStencil.Depth);
+		archive(m.ClearValue.DepthStencil.Stencil);
+		archive(m.ClearValue.Format);
+		archive(m.CPUAccessFlags);
+		archive(m.Depth);
+		archive(m.Format);
+		archive(m.Height);
+		archive(m.ImmediateContextMask);
+		archive(m.MipLevels);
+		archive(m.MiscFlags);
+		archive(m.SampleCount);
+		archive(m.Type);
+		archive(m.Usage);
+		archive(m.Width);
+	}
+}
 
 namespace Morpheus {
 
@@ -715,6 +742,7 @@ namespace Morpheus {
 			// Retrieve data from staging texture
 			DG::FenceDesc fence_desc;
 			fence_desc.Name = "CPU Retrieval Fence";
+			fence_desc.Type = DG::FENCE_TYPE_GENERAL;
 			DG::IFence* fence = nullptr;
 			device->CreateFence(fence_desc, &fence);
 			context->EnqueueSignal(fence, 1);
@@ -723,6 +751,7 @@ namespace Morpheus {
 			result.mFence.Adopt(fence);
 			result.mStagingTexture.Adopt(stage_tex);
 			result.mTextureDesc = desc;
+			result.mFenceCompletedValue = 1;
 			return result;
 		}
 	}
@@ -772,8 +801,6 @@ namespace Morpheus {
 
 		std::vector<DG::MappedTextureSubresource> mappedSubs;
 		mappedSubs.reserve(slices * layers);
-
-		context->DeviceWaitForFence(read.mFence, 1);
 
 		// Map subresources and synchronize
 		for (size_t slice = 0; slice < slices; ++slice) {
@@ -1355,7 +1382,12 @@ namespace Morpheus {
 	}
 
 	Texture Texture::To(Device device, Context context) {
-		return std::move(ToAsync(device, context).Evaluate());
+		auto future = ToAsync(device, context);
+
+		// Make sure to flush the GPU commands
+		context.Flush();
+		
+		return std::move(future.Evaluate());
 	}
 
 	entt::meta_any Texture::GetSourceMeta() const {
@@ -1382,26 +1414,93 @@ namespace Morpheus {
 	}
 
 	UniqueFuture<Texture> Texture::GPUToCPUAsync(Device device, Context context) const {
-		throw std::runtime_error("Not implemented!");
+		
+		if (!mDevice.IsGPU()) {
+			throw std::runtime_error("Texture must be on GPU!");
+		}
+
+		auto readProc = Texture::BeginGPURead(mRasterAspect.mTexture, mDevice, context);
+
+		Promise<Texture> result;
+
+		auto lambda = [readProc, context](const TaskParams& e, BarrierOut, Promise<Texture> output) {
+			Texture texture;
+			Texture::FinishGPURead(context, readProc, texture);
+			output = std::move(texture);
+		};
+
+		if (!readProc.mFence) {
+			lambda(TaskParams(), Barrier(), result);
+			return result;
+		} else {
+			FunctionPrototype<BarrierOut, Promise<Texture>> prototype(std::move(lambda));
+			Barrier gpuBarrier(readProc.mFence, readProc.mFenceCompletedValue);
+			gpuBarrier.Node().OnlyThread(THREAD_MAIN);
+			prototype(gpuBarrier, result)
+				.SetName("Copy Staging Texture to CPU")
+				.OnlyThread(THREAD_MAIN);
+			return result;
+		}
 	}
 
 	void Texture::BinarySerialize(std::ostream& output) const {
-		throw std::runtime_error("Not implemented!");
+		cereal::PortableBinaryOutputArchive arr(output);
+	
+		if (!mDevice.IsCPU())
+			throw std::runtime_error("Texture must be on CPU to serialize!");
+
+		arr(mIntensity);
+		arr(mCpuAspect.mDesc);
+		arr(mCpuAspect.mSubDescs);
+		arr(mCpuAspect.mData);
 	}
 
 	void Texture::BinaryDeserialize(std::istream& input) {
-		throw std::runtime_error("Not implemented!");
+		cereal::PortableBinaryInputArchive arr(input);
+
+		arr(mIntensity);
+		arr(mCpuAspect.mDesc);
+		arr(mCpuAspect.mSubDescs);
+		arr(mCpuAspect.mData);
+
+		mDevice = Device::CPU();
 	}
 
 	void Texture::BinarySerializeSource(
 		const std::filesystem::path& workingPath, 
 		cereal::PortableBinaryOutputArchive& output) const {
-		throw std::runtime_error("Not implemented!");
+		output(mSource);
 	}
 
 	void Texture::BinaryDeserializeSource(
 		const std::filesystem::path& workingPath,
 		cereal::PortableBinaryInputArchive& input) {
-		throw std::runtime_error("Not implemented!");
+		input(mSource);
+
+		mDevice = Device::CPU();
+	}
+
+	void Texture::BinarySerialize(const std::filesystem::path& output) const {
+		std::ofstream f_(output, std::ios::binary);
+
+		if (!f_.is_open()) {
+			throw std::runtime_error(std::string("Failed to open ") + output.string());
+		}
+
+		BinarySerialize(f_);
+
+		f_.close();
+	}
+
+	void Texture::BinaryDeserialize(const std::filesystem::path& input) {
+		std::ifstream f_(input, std::ios::binary);
+
+		if (!f_.is_open()) {
+			throw std::runtime_error(std::string("Failed to open ") + input.string());
+		}
+
+		BinaryDeserialize(f_);
+
+		f_.close();
 	}
 }

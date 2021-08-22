@@ -10,6 +10,7 @@
 #include <set>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #ifndef NDEBUG
 // #define THREAD_POOL_DEBUG
@@ -19,6 +20,10 @@
 
 typedef uint64_t TaskId;
 typedef uint64_t ThreadMask;
+
+namespace Diligent {
+	struct IFence;
+};
 
 namespace Morpheus {
 
@@ -164,6 +169,12 @@ namespace Morpheus {
 			}
 		};
 
+		struct Hasher {
+			inline size_t operator()(const TaskNode& lhs) const {
+				return (size_t)lhs.GetId();
+			}
+		};
+
 		friend class NodeOut;
 	};
 
@@ -173,14 +184,15 @@ namespace Morpheus {
 		TaskNode mNode;
 		
 	public:
-		Promise() : 
+		inline Promise() : 
 			mNode(TaskNode::Create()) {
 		}
 
-		TaskNode Node() {
+		inline TaskNode Node() {
 			return mNode;
 		}
 
+		Promise(Diligent::IFence* fence, uint64_t fenceCompletedValue);
 		Promise(Promise<void>&& other) = default;
 		Promise(const Promise& other) = default;
 		Promise<void>& operator=(Promise<void>&& other) = default;
@@ -281,6 +293,10 @@ namespace Morpheus {
 
 		bool IsFinished() {
 			return mNode.Out().IsFinished();
+		}
+
+		operator bool() const {
+			return mNode;
 		}
 
 		inline void Evaluate() const;
@@ -723,8 +739,10 @@ namespace Morpheus {
 	class ImmediateComputeQueue : public IComputeQueue {
 	private:
 		std::queue<TaskNode> mImmediateQueue;
+		std::unordered_set<TaskNode, typename TaskNode::Hasher> mWaitOnGpu;
 
 	protected:
+		std::vector<TaskNode> CheckGPUJobs();
 		void RunOneJob();
 		void SubmitImpl(TaskNode node) override;
 
@@ -748,6 +766,9 @@ namespace Morpheus {
 		std::vector<std::thread> mThreads;
 		std::atomic<bool> bExit;
 		std::atomic<uint> mTasksPending;
+
+		std::unordered_set<TaskNode, typename TaskNode::Hasher> mWaitOnGpu;
+		std::mutex mWaitOnGpuMutex;
 
 		std::mutex mCollectiveQueueMutex;
 		queue_t mCollectiveQueue;

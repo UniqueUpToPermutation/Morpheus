@@ -11,6 +11,7 @@ typedef unsigned int uint;
 namespace cereal {
 	class PortableBinaryOutputArchive;
 	class PortableBinaryInputArchive;
+	class access;
 }
 
 namespace Diligent {
@@ -18,7 +19,34 @@ namespace Diligent {
 	class IDeviceContext;
 	class IFence;
 }
+
+namespace Diligent {
+	template <class Archive>
+	void serialize(Archive& archive,
+		float2& m) {
+		archive(m.x);
+		archive(m.y);
+	}
+
+	template <class Archive>
+	void serialize(Archive& archive,
+		float3& m) {
+		archive(m.x);
+		archive(m.y);
+		archive(m.z);
+	}
+
+	template <class Archive>
+	void serialize(Archive& archive,
+		float4& m) {
+		archive(m.x);
+		archive(m.y);
+		archive(m.z);
+		archive(m.w);
+	}
+}
 namespace Morpheus {
+
 	class ThreadPool;
 	class TaskSyncPoint;
 	struct TaskParams;

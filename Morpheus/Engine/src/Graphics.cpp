@@ -253,4 +253,12 @@ namespace Morpheus {
 
 		bInitialized = false;
 	}
+
+	void Context::Flush() {
+		switch (mType) {
+			case ContextType::GPU:
+			mUnderlying.mGpuContext->Flush();
+			break;
+		}
+	}
 }

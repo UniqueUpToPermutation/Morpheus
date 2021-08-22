@@ -51,14 +51,14 @@ namespace Morpheus {
 			mUnderlying.mGpuDevice = gpu;
 		}
 
-		inline operator IExternalGraphicsDevice*() {
+		inline operator IExternalGraphicsDevice*() const {
 			if (mType == DeviceType::EXTERNAL)
 				return mUnderlying.mExternal;
 			else
 				return nullptr;
 		}
 
-		inline operator DG::IRenderDevice*() {
+		inline operator DG::IRenderDevice*() const {
 			if (mType == DeviceType::GPU)
 				return mUnderlying.mGpuDevice;
 			else
@@ -116,12 +116,14 @@ namespace Morpheus {
 			mUnderlying.mGpuContext = context;
 		}
 
-		inline operator DG::IDeviceContext*() {
+		inline operator DG::IDeviceContext*() const {
 			if (mType == ContextType::GPU)
 				return mUnderlying.mGpuContext;
 			else
 				return nullptr;
 		}
+
+		void Flush();
 	};
 
 	template <ExtObjectType T>
