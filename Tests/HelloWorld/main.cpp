@@ -1,13 +1,17 @@
 #include <Engine/Platform.hpp>
 #include <Engine/Graphics.hpp>
 #include <Engine/Entity.hpp>
-#include <Engine/Systems/DefaultRenderer.hpp>
+#include <Engine/Frame.hpp>
+#include <Engine/Systems/EmptyRenderer.hpp>
 
 #include "Timer.hpp"
 
 using namespace Morpheus;
 
 MAIN() {
+	ThreadPool pool;
+	pool.Startup();
+
 	Platform platform;
 	platform.Startup();
 
@@ -15,8 +19,8 @@ MAIN() {
 	graphics.Startup();
 
 	SystemCollection systems;
-	systems.Add<DefaultRenderer>(graphics);
-	systems.Startup();
+	systems.Add<EmptyRenderer>(graphics);
+	systems.Startup(&pool);
 
 	auto frame = std::make_unique<Frame>();
 	systems.SetFrame(frame.get());
@@ -24,16 +28,14 @@ MAIN() {
 	DG::Timer timer;
 	FrameTime time(timer);
 
-	ImmediateComputeQueue queue;
-
 	while (platform.IsValid()) {
 		time.UpdateFrom(timer);
 		platform.MessagePump();
 
-		systems.RunFrame(time, &queue);
-		systems.WaitOnRender(&queue);
+		systems.RunFrame(time, &pool);
+		systems.WaitOnRender(&pool);
 		graphics.Present(1);
-		systems.WaitOnUpdate(&queue);
+		systems.WaitOnUpdate(&pool);
 	}
 
 	frame.reset();

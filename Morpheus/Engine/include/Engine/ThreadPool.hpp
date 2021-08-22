@@ -58,6 +58,7 @@ namespace Morpheus {
 
 		bool IsStarted() const;
 		bool IsScheduled() const;
+		bool IsLeaf() const;
 		void Reset();
 		bool Trigger();
 		bool IsReady() const;

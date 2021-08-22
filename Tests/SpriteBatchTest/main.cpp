@@ -24,20 +24,19 @@ MAIN() {
 		auto& scDesc = graphics.SwapChain()->GetDesc();	
 
 		// Actually load everything
-		auto sbPipelineLoadTask = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
+		ImmediateComputeQueue queue;
+		auto sbPipelineFuture = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
 			DG::FILTER_TYPE_LINEAR, &embeddedFileLoader);
-		auto textureLoadTask = Texture::Load(graphics.Device(), "sprite.png");
-
-		ImmediateTaskQueue queue;
-		auto sbPipelineFuture = queue.AdoptAndTrigger(std::move(sbPipelineLoadTask));
-		auto textureFuture = queue.AdoptAndTrigger(std::move(textureLoadTask));
+		auto textureFuture = Texture::Load(graphics.Device(), "sprite.png");
+		queue.Submit(sbPipelineFuture);
+		queue.Submit(textureFuture);
 		queue.YieldUntilEmpty();
 
 		assert(sbPipelineFuture.IsAvailable());
 		assert(textureFuture.IsAvailable());
 
 		auto sbPipeline = sbPipelineFuture.Get();
-		auto spriteTexture = textureFuture.Get();
+		auto spriteTexture = std::move(textureFuture.Get());
 
 		// Actually create the sprite batch!
 		SpriteBatch spriteBatch(graphics, sbPipeline);
@@ -107,7 +106,7 @@ MAIN() {
 			// Draw all sprites
 			spriteBatch.Begin(graphics.ImmediateContext());
 			for (auto& obj : insts) {
-				spriteBatch.Draw(spriteTexture, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
+				spriteBatch.Draw(&spriteTexture, obj.mPositionBase + std::cos(obj.mOscillatorX) * obj.mOscillatorVector,
 					DG::float2(128, 128), DG::float2(64, 64), obj.mRotation, obj.mColor);
 			}
 			spriteBatch.End();
@@ -115,8 +114,6 @@ MAIN() {
 			// Swap front and back buffer
 			graphics.Present(1);
 		}
-
-		spriteTexture->Release();
 	}
 
 	graphics.Shutdown();

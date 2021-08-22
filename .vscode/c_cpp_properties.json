@@ -31,13 +31,16 @@
 				"${workspaceFolder}/DiligentEngine/DiligentCore/Platforms/interface",
 				"${workspaceFolder}/DiligentEngine/DiligentTools/NativeApp/include",
 				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/interface",
-				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineOpenGL/interface"
-            ],
+				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineOpenGL/interface",
+				"${workspaceFolder}/DiligentEngine/DiligentCore",
+				"${workspaceFolder}/DiligentEngine/DiligentSamples/ThirdParty/glfw/include"
+			],
             "defines": [
                 "PLATFORM_LINUX",
                 "VULKAN_SUPPORTED",
                 "GL_SUPPORTED",
                 "DILIGENT_DEVELOPMENT",
+				"USE_GLFW",
 				//"USE_PBRT",
 				//"USE_BULLET",
 				"PBRT_CONSTEXPR=constexpr"

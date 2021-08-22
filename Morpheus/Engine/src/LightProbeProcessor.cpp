@@ -5,6 +5,7 @@
 
 #include "GraphicsUtilities.h"
 #include "MapHelper.hpp"
+#include "DeviceContext.h"
 
 namespace Morpheus {
 
@@ -281,7 +282,7 @@ namespace Morpheus {
 		// clang-format off
 		DG::StateTransitionDesc Barriers[] = 
 		{
-			{outputBufferView->GetBuffer(), DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true}
+			DG::StateTransitionDesc(outputBufferView->GetBuffer(), DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE)
 		};
 		// clang-format on
 		context->TransitionResourceStates(_countof(Barriers), Barriers);
@@ -350,8 +351,9 @@ namespace Morpheus {
 		{
 			for (uint face = 0; face < 6; ++face)
 			{
-				DG::TextureViewDesc RTVDesc(DG::TEXTURE_VIEW_RENDER_TARGET, DG::RESOURCE_DIM_TEX_2D_ARRAY);
-				RTVDesc.Name            = "RTV for prefiltered env map cube texture";
+				DG::TextureViewDesc RTVDesc("RTV for prefiltered env map cube texture", 
+					DG::TEXTURE_VIEW_RENDER_TARGET, 
+					DG::RESOURCE_DIM_TEX_2D_ARRAY);
 				RTVDesc.MostDetailedMip = mip;
 				RTVDesc.FirstArraySlice = face;
 				RTVDesc.NumArraySlices  = 1;

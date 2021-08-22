@@ -53,7 +53,7 @@ namespace Morpheus {
 
 			// Render spinning wheel
 			auto& scDesc = graphics.SwapChain()->GetDesc();
-			imgui->NewFrame(scDesc.Width, scDesc.Height, scDesc.PreTransform);
+			/*imgui->NewFrame(scDesc.Width, scDesc.Height, scDesc.PreTransform);
 
 			auto bkg = ImGui::GetBackgroundDrawList();
 			auto& desc = graphics.SwapChain()->GetDesc();
@@ -75,7 +75,7 @@ namespace Morpheus {
 			}
 			bkg->PathStroke(color, false, thickness);
 
-			imgui->Render(graphics.ImmediateContext());
+			imgui->Render(graphics.ImmediateContext());*/
 
 			graphics.Present(1);
 		}

@@ -152,8 +152,9 @@ namespace Morpheus {
 		{
 			for (uint face = 0; face < 6; ++face)
 			{
-				DG::TextureViewDesc RTVDesc(DG::TEXTURE_VIEW_RENDER_TARGET, DG::RESOURCE_DIM_TEX_2D_ARRAY);
-				RTVDesc.Name            = "RTV for HDRI Cubemap";
+				DG::TextureViewDesc RTVDesc("RTV for HDRI Cubemap", 
+					DG::TEXTURE_VIEW_RENDER_TARGET, 
+					DG::RESOURCE_DIM_TEX_2D_ARRAY);
 				RTVDesc.MostDetailedMip = mip;
 				RTVDesc.FirstArraySlice = face;
 				RTVDesc.NumArraySlices  = 1;

@@ -39,8 +39,7 @@ namespace Morpheus {
 	class Engine;
 	class EngineApp;
 
-	class PlatformLinux;
-	class PlatformWin32;
+	class PlatformGLFW;
 
 	struct PlatformParams;
 

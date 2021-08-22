@@ -63,6 +63,8 @@ namespace Morpheus {
 
 	void SystemCollection::Startup(IComputeQueue* queue) {
 		Barrier barrier;
+		barrier.Node()
+			.SetName("System Startup Barrier");
 
 		for (auto& system : mSystems) {
 			auto task = system->Startup(*this);

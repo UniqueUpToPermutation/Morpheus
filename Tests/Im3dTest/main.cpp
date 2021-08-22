@@ -16,7 +16,7 @@ MAIN() {
 	{
 		// Create the Im3d renderer and state
 		Im3dGlobalsBuffer im3dGlobals(graphics);
-		Im3dShaders im3dShaders = Im3dShaders::LoadDefault(graphics, &fileSystem)();
+		Im3dShaders im3dShaders = Im3dShaders::LoadDefault(graphics, &fileSystem).Evaluate();
 		Im3dPipeline im3dPipeline(graphics, &im3dGlobals, im3dShaders);
 		Im3dRenderer im3dRenderer(graphics);
 

@@ -717,7 +717,7 @@ namespace Morpheus {
 			fence_desc.Name = "CPU Retrieval Fence";
 			DG::IFence* fence = nullptr;
 			device->CreateFence(fence_desc, &fence);
-			context->SignalFence(fence, 1);
+			context->EnqueueSignal(fence, 1);
 
 			GPUTextureRead result;
 			result.mFence.Adopt(fence);
@@ -773,7 +773,7 @@ namespace Morpheus {
 		std::vector<DG::MappedTextureSubresource> mappedSubs;
 		mappedSubs.reserve(slices * layers);
 
-		context->WaitForFence(read.mFence, 1, true);
+		context->DeviceWaitForFence(read.mFence, 1);
 
 		// Map subresources and synchronize
 		for (size_t slice = 0; slice < slices; ++slice) {

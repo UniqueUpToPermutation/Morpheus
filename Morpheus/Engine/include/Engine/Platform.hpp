@@ -3,7 +3,6 @@
 #include "GraphicsTypes.h"
 
 #include <Engine/Defines.hpp>
-#include <Engine/InputController.hpp>
 
 #include <functional>
 
@@ -17,6 +16,10 @@ namespace DG = Diligent;
 	int       nShowCmd) 
 #elif PLATFORM_LINUX
 #define MAIN() int main(int argc, char** argv) 
+#endif
+
+#ifdef USE_GLFW
+typedef struct GLFWwindow GLFWwindow;
 #endif
 
 namespace Morpheus {
@@ -41,30 +44,28 @@ namespace Morpheus {
 
 	class IPlatform {
 	public:
-		virtual ~IPlatform() {
-		}
+		virtual ~IPlatform() = default;
 
-		virtual int Startup(const PlatformParams& params = PlatformParams()) = 0;
+		virtual void Startup(const PlatformParams& params = PlatformParams()) = 0;
 		virtual void Shutdown() = 0;
-		virtual bool IsValid() const = 0;
-		virtual void MessagePump() = 0;
-		virtual void Flush() = 0;
-		virtual void Show() = 0;
-		virtual void Hide() = 0;
-		virtual void SetCursorVisible(bool value) = 0;
-		virtual const PlatformParams& GetParameters() const = 0;
-		virtual const InputController& GetInput() const = 0;
 
 		// Adds a delegate that will be called when the window is resized.
 		virtual void AddUserResizeHandler(user_window_resize_t* handler) = 0;
 		// Removes a delegate that is called when the window is resized.
 		virtual void RemoveUserResizeHandler(user_window_resize_t* handler) = 0;
 
-		virtual PlatformLinux* ToLinux() = 0;
-		virtual PlatformWin32* ToWindows() = 0;
+		virtual bool IsValid() const = 0;
+		virtual void MessagePump() = 0;
+
+		virtual PlatformParams GetParams() const  = 0;
+		virtual PlatformGLFW* ToGLFW() = 0;
 	};
 
 	IPlatform* CreatePlatform();
+#ifdef USE_GLFW
+	IPlatform* CreatePlatformGLFW();
+	IPlatform* CreatePlatformGLFW(GLFWwindow* window);
+#endif
 
 	class Platform {
 	private:
@@ -73,6 +74,11 @@ namespace Morpheus {
 	public:
 		inline Platform() : mPlatform(CreatePlatform()) {
 		}
+
+#ifdef USE_GLFW
+		inline Platform(GLFWwindow* window) : mPlatform(CreatePlatformGLFW(window)) {
+		}
+#endif
 
 		inline ~Platform() {
 			if (mPlatform) {
@@ -92,46 +98,8 @@ namespace Morpheus {
 		Platform(const Platform& plat) = delete;
 		Platform& operator=(const Platform& plat) = delete;
 
-		inline Platform(Platform&& plat) : mPlatform(plat.mPlatform) {
-			plat.mPlatform = nullptr;
-		}
-
-		inline Platform& operator=(Platform&& plat) {
-			mPlatform = plat.mPlatform;
-			plat.mPlatform = nullptr;
-			return *this;
-		}
-
-		inline int Startup(const PlatformParams& params = PlatformParams()) {
-			return mPlatform->Startup(params);
-		}
-		inline void Shutdown() {
-			return mPlatform->Shutdown();
-		}
-		inline bool IsValid() const {
-			return mPlatform->IsValid();
-		}
-		inline void MessagePump() {
-			mPlatform->MessagePump();
-		}
-		inline void Flush() {
-			mPlatform->Flush();
-		}
-		inline void Show() {
-			mPlatform->Show();
-		}
-		inline void Hide() {
-			mPlatform->Hide();
-		}
-		inline void SetCursorVisible(bool value) {
-			mPlatform->SetCursorVisible(value);
-		}
-		inline const PlatformParams& GetParameters() const {
-			return mPlatform->GetParameters();
-		}
-		inline const InputController& GetInput() const {
-			return mPlatform->GetInput();
-		}
+		Platform(Platform&& plat) = default;
+		Platform& operator=(Platform&& plat) = default;
 
 		// Adds a delegate that will be called when the window is resized.
 		inline void AddUserResizeHandler(user_window_resize_t* handler) {
@@ -142,11 +110,24 @@ namespace Morpheus {
 			mPlatform->RemoveUserResizeHandler(handler);
 		}
 
-		inline PlatformLinux* ToLinux() {
-			return mPlatform->ToLinux();
+		inline void Startup(const PlatformParams& params = PlatformParams()) {
+			mPlatform->Startup(params);
 		}
-		inline PlatformWin32* ToWindows() {
-			return mPlatform->ToWindows();
+
+		inline void Shutdown() {
+			mPlatform->Shutdown();
+		}
+
+		inline bool IsValid() const {
+			return mPlatform->IsValid();
+		}
+
+		inline void MessagePump() {
+			mPlatform->MessagePump();
+		}
+
+		inline PlatformGLFW* ToGLFW() {
+			return mPlatform->ToGLFW();
 		}
 	};
 }

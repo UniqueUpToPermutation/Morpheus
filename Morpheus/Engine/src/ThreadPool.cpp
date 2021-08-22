@@ -47,7 +47,7 @@ namespace Morpheus {
 
 			if constexpr (dir == SearchDirection::BACKWARD) {
 				auto inLock = node.In();
-				bLeaf = inLock.IsReady();
+				bLeaf = inLock.IsLeaf();
 				bEmplace = !inLock.IsScheduled();
 			} else if constexpr (dir == SearchDirection::FORWARD) {
 				auto outLock = node.Out();
@@ -152,8 +152,12 @@ namespace Morpheus {
 		return false;
 	}
 
+	bool NodeIn::IsLeaf() const {
+		return mParent->mInLeft == 0 && !mParent->bStarted;
+	}
+
 	bool NodeIn::IsReady() const {
-		return mParent->mInLeft == 0 && !mParent->bStarted && mParent->bScheduled;
+		return IsLeaf() && IsScheduled();
 	}
 	
 	bool NodeIn::IsScheduled() const {
@@ -287,11 +291,13 @@ namespace Morpheus {
 	}
 
 	void NodeOut::Reset() {
-		mParent->bIsFinished = false;
+		if (mParent->bIsFinished) {
+			mParent->bIsFinished = false;
 
-		for (auto& child : mParent->mOut) {
-			auto inLock = TaskNode(child).In();
-			child->mInLeft++;
+			for (auto& child : mParent->mOut) {
+				auto inLock = TaskNode(child).In();
+				child->mInLeft++;
+			}
 		}
 	}
 
@@ -347,9 +353,10 @@ namespace Morpheus {
 
 	Task::Task() : 
 		mTaskStart(TaskNode::Create()),
-		mTaskEnd(TaskNode::Create()) { 
+		mTaskEnd(TaskNode::Create()) {
 		mTaskStart.SetName("[TASK START]");
 		mTaskEnd.SetName("[TASK END]");
+		mTaskEnd.After(mTaskStart);
 	}
 
 	void Task::After(TaskNode node) {

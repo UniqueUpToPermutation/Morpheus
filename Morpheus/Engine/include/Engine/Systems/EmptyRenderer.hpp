@@ -33,6 +33,7 @@ namespace Morpheus {
 
 		void AddMaterialRef(MaterialId id) override;
 		void ReleaseMaterial(MaterialId id) override;
+		MaterialDesc GetMaterialDesc(MaterialId id) override;
 
 		GraphicsCapabilityConfig GetCapabilityConfig() const;
 	};

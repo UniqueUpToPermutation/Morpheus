@@ -45,6 +45,14 @@ function(add_engine_includes LIB_NAME)
 		${DILIGENT_CORE_SOURCE_DIR}/Graphics/GraphicsEngine/interface
 		${ENTT_INCLUDE_DIR}
 	)
+
+	if (USE_GLFW)
+		INCLUDE_DIRECTORIES(
+			${LIB_NAME} 
+			${glfw_INCLUDE_DIRS}
+		)
+	endif()
+
 endfunction()
 
 function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
@@ -56,6 +64,11 @@ function(add_engine_app APP_NAME SOURCE INCLUDE SHADERS ASSETS)
 			BulletDynamics 
 			BulletCollision 
 			LinearMath)
+	endif()
+
+	if (USE_GLFW)
+		list(APPEND ENGINE_APP_EXTRA_LIBS 
+			glfw)
 	endif()
 
     set_source_files_properties(${SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")

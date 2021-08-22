@@ -245,19 +245,19 @@ namespace Morpheus {
 		}
 
 		inline bool IsGL() const {
-			return mDevice->GetDeviceCaps().IsGLDevice();
+			return mDevice->GetDeviceInfo().IsGLDevice();
 		}
 
 		inline bool IsVulkan() const {
-			return mDevice->GetDeviceCaps().IsVulkanDevice();
+			return mDevice->GetDeviceInfo().IsVulkanDevice();
 		}
 
 		inline bool IsD3D() const {
-			return mDevice->GetDeviceCaps().IsD3DDevice();
+			return mDevice->GetDeviceInfo().IsD3DDevice();
 		}
 
 		inline bool IsMetal() const {
-			return mDevice->GetDeviceCaps().IsMetalDevice();
+			return mDevice->GetDeviceInfo().IsMetalDevice();
 		}
 
 		inline IPlatform* GetPlatform() const {

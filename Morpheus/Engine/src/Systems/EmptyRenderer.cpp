@@ -56,6 +56,9 @@ namespace Morpheus {
 	}
 	void EmptyRenderer::ReleaseMaterial(MaterialId id) {
 	}
+	MaterialDesc EmptyRenderer::GetMaterialDesc(MaterialId id) {
+		return MaterialDesc{};
+	}
 
 	GraphicsCapabilityConfig EmptyRenderer::GetCapabilityConfig() const { 
 		return GraphicsCapabilityConfig();
