@@ -773,7 +773,9 @@ namespace Morpheus {
 	}
 
 	Geometry Geometry::To(Device device, Context context) {
-		return std::move(ToAsync(device, context).Evaluate());
+		auto future = ToAsync(device, context);
+		context.Flush();
+		return std::move(future.Evaluate());
 	}
 
 	BarrierOut Geometry::MoveAsync(Device device, Context context) {

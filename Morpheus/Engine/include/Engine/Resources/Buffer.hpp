@@ -1,0 +1,163 @@
+#pragma once
+
+#include <Engine/Defines.hpp>
+#include <Engine/Resources/Resource.hpp>
+
+
+namespace Morpheus {
+
+	template <typename T>
+	class TypedBufferMap {
+	private:
+		Context mContext;
+		Handle<DG::IBuffer> mGpuBuffer;
+		T* mPtr;
+		size_t mSize;
+		DG::MAP_TYPE mType;
+		DG::MAP_FLAGS mFlags;
+
+	public:
+		~TypedBufferMap() {
+			if (mGpuBuffer) {
+				mContext.mUnderlying.mGpuContext->UnmapBuffer(mGpuBuffer, mType);
+			}
+		}
+
+		TypedBufferMap(Context context,
+			Handle<DG::IBuffer> buffer,
+			T* ptr,
+			size_t size,
+			DG::MAP_TYPE type,
+			DG::MAP_FLAGS flags) :
+			mContext(context),
+			mGpuBuffer(buffer),
+			mPtr(ptr),
+			mSize(size),
+			mType(type),
+			mFlags(flags) {
+		}
+
+		TypedBufferMap(TypedBufferMap<uint8_t>&& other) :
+			mContext(std::move(other.mContext)),
+			mGpuBuffer(std::move(other.mGpuBuffer)),
+			mPtr(std::move(other.mPtr)),
+			mSize(std::move(other.mSize)),
+			mType(std::move(other.mType)),
+			mFlags(std::move(other.mFlags)) {
+			mSize /= (sizeof(T) / sizeof(uint8_t));
+		}
+
+		TypedBufferMap(TypedBufferMap<T>&&) = default;
+		TypedBufferMap(const TypedBufferMap<T>&) = delete;
+		
+		TypedBufferMap<T>& operator=(TypedBufferMap<T>&&) = default;
+		TypedBufferMap<T>& operator=(const TypedBufferMap<T>&) = delete;
+
+		inline DG::MAP_TYPE type() const {
+			return mType;
+		}
+
+		inline DG::MAP_FLAGS flags() const {
+			return mFlags;
+		}
+
+		inline T& operator[](size_t i) const {
+			return mPtr[i];
+		}
+
+		inline T* data() const {
+			return mPtr;
+		}
+
+		inline size_t size() const {
+			return mSize;
+		}
+
+		inline size_t byte_size() const {
+			return mSize * sizeof(T);
+		}
+	};
+
+	typedef TypedBufferMap<uint8_t> BufferMap;
+
+	struct GPUBufferRead {
+		Handle<DG::IFence> mFence;
+		Handle<DG::IBuffer> mStagingBuffer;
+		DG::BufferDesc mBufferDesc;
+		DG::Uint64 mFenceCompletedValue;
+
+		inline bool IsReady() const {
+			return mFence->GetCompletedValue() == mFenceCompletedValue;
+		}
+	};
+
+	class Buffer : public IResource {
+	private:
+		struct GpuAspect {
+			Handle<DG::IBuffer> mBuffer;
+		} mGpuAspect;
+
+		struct CpuAspect {
+			std::vector<uint8_t> mData;
+			DG::BufferDesc mDesc;
+		} mCpuAspect;
+
+		void CreateGpuAspect(Device device, Buffer* other);
+	
+	public:
+		Buffer() = default;
+
+		Buffer(Buffer&& other);
+		Buffer(const Buffer& other) = delete;
+
+		Buffer& operator=(Buffer&& other);
+		Buffer& operator=(const Buffer& other) = delete;
+
+		void CopyFrom(const Buffer* buffer);
+		void CopyTo(Buffer* buffer) const;
+
+		Buffer(const DG::BufferDesc& desc);
+		Buffer(const DG::BufferDesc& desc, std::vector<uint8_t>&& data);
+		Buffer(const DG::BufferDesc& desc, const std::vector<uint8_t>& data);
+
+		Buffer(Device device, const DG::BufferDesc& desc);
+		Buffer(Device device, const DG::BufferDesc& desc, std::vector<uint8_t>&& data);
+		Buffer(Device device, const DG::BufferDesc& desc, const std::vector<uint8_t>& data);
+
+		entt::meta_type GetType() const override;
+		entt::meta_any GetSourceMeta() const override;
+		void BinarySerialize(cereal::PortableBinaryOutputArchive& archive) const;
+		void BinaryDeserialize(cereal::PortableBinaryInputArchive& archive);
+		void BinarySerialize(std::ostream& output) const override;
+		void BinaryDeserialize(std::istream& input) override;
+		void BinarySerializeSource(
+			const std::filesystem::path& workingPath, 
+			cereal::PortableBinaryOutputArchive& output) const override;
+		void BinaryDeserializeSource(
+			const std::filesystem::path& workingPath,
+			cereal::PortableBinaryInputArchive& input) override;
+		BarrierOut MoveAsync(Device device, Context context = Context()) override;
+
+		UniqueFuture<Buffer> ToAsync(Device device, Context context = Context());
+		Buffer To(Device device, Context context = Context());
+
+		BufferMap Map(Context context, DG::MAP_TYPE type, DG::MAP_FLAGS flags);
+
+		template <typename T>
+		TypedBufferMap<T> TypedMap(Context context, DG::MAP_TYPE type, DG::MAP_FLAGS flags) {
+			return Map(context, type, flags);
+		}
+
+		static GPUBufferRead BeginGPURead(
+			DG::IBuffer* buffer, 
+			DG::IRenderDevice* device, 
+			DG::IDeviceContext* context);
+
+		static void FinishGPURead(
+			DG::IDeviceContext* context,
+			const GPUBufferRead& read,
+			Buffer& textureOut);
+
+		UniqueFuture<Buffer> GPUToCPUAsync(Device device, Context context) const;
+	};
+}
