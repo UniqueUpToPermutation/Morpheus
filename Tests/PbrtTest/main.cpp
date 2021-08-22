@@ -16,7 +16,7 @@ MAIN() {
 	DG::Timer timer;
 	FrameTime time(timer);
 
-	ImmediateTaskQueue queue;
+	ImmediateComputeQueue queue;
 
 	time.UpdateFrom(timer);
 
