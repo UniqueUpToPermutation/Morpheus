@@ -6,6 +6,8 @@
 
 namespace Morpheus {
 
+	class BufferMap;
+
 	template <typename T>
 	class TypedBufferMap {
 	private:
@@ -28,24 +30,8 @@ namespace Morpheus {
 			T* ptr,
 			size_t size,
 			DG::MAP_TYPE type,
-			DG::MAP_FLAGS flags) :
-			mContext(context),
-			mGpuBuffer(buffer),
-			mPtr(ptr),
-			mSize(size),
-			mType(type),
-			mFlags(flags) {
-		}
-
-		TypedBufferMap(TypedBufferMap<uint8_t>&& other) :
-			mContext(std::move(other.mContext)),
-			mGpuBuffer(std::move(other.mGpuBuffer)),
-			mPtr(std::move(other.mPtr)),
-			mSize(std::move(other.mSize)),
-			mType(std::move(other.mType)),
-			mFlags(std::move(other.mFlags)) {
-			mSize /= (sizeof(T) / sizeof(uint8_t));
-		}
+			DG::MAP_FLAGS flags);
+		TypedBufferMap(BufferMap&& other);
 
 		TypedBufferMap(TypedBufferMap<T>&&) = default;
 		TypedBufferMap(const TypedBufferMap<T>&) = delete;
@@ -78,7 +64,43 @@ namespace Morpheus {
 		}
 	};
 
-	typedef TypedBufferMap<uint8_t> BufferMap;
+	class BufferMap : public TypedBufferMap<uint8_t> {
+	public:
+		inline BufferMap(Context context,
+			Handle<DG::IBuffer> buffer,
+			uint8_t* ptr,
+			size_t size,
+			DG::MAP_TYPE type,
+			DG::MAP_FLAGS flags) :
+			TypedBufferMap<uint8_t>(context, buffer, ptr, size, type, flags) {
+		}
+	};
+
+	template <typename T>
+	TypedBufferMap<T>::TypedBufferMap(Context context,
+		Handle<DG::IBuffer> buffer,
+		T* ptr,
+		size_t size,
+		DG::MAP_TYPE type,
+		DG::MAP_FLAGS flags) :
+		mContext(context),
+		mGpuBuffer(buffer),
+		mPtr(ptr),
+		mSize(size),
+		mType(type),
+		mFlags(flags) {
+	}
+
+	template <typename T>
+	TypedBufferMap<T>::TypedBufferMap(BufferMap&& other) :
+		mContext(std::move(other.mContext)),
+		mGpuBuffer(std::move(other.mGpuBuffer)),
+		mPtr(std::move(other.mPtr)),
+		mSize(std::move(other.mSize)),
+		mType(std::move(other.mType)),
+		mFlags(std::move(other.mFlags)) {
+		mSize /= (sizeof(T) / sizeof(uint8_t));
+	}
 
 	struct GPUBufferRead {
 		Handle<DG::IFence> mFence;

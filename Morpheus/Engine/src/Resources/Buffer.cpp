@@ -35,6 +35,7 @@ namespace Morpheus {
 		mCpuAspect = std::move(other.mCpuAspect);
 		mGpuAspect = std::move(other.mGpuAspect);
 		mDevice = std::move(other.mDevice);
+		return *this;
 	}
 
 	void Buffer::CopyTo(Buffer* buffer) const {
@@ -254,6 +255,8 @@ namespace Morpheus {
 				return Promise<Buffer>(std::move(buffer));
 			}
 		}
+
+		throw std::runtime_error("Improper devices detected!");
 	}
 
 	Buffer Buffer::To(Device device, Context context) {

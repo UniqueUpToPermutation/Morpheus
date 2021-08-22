@@ -79,6 +79,7 @@ list(APPEND SOURCE
 	src/Resources/TextureIterator.cpp
 	src/Resources/Resource.cpp
 	src/Resources/EmbeddedGeometry.cpp
+	src/Resources/Buffer.cpp
 
 	src/Components/Transform.cpp
 
@@ -130,6 +131,7 @@ list(APPEND INCLUDE
 	include/Engine/Resources/ResourceData.hpp
 	include/Engine/Resources/RawSampler.hpp
 	include/Engine/Resources/TextureIterator.hpp
+	include/Engine/Resources/Buffer.hpp
 )
 
 if (USE_GLFW) 
