@@ -237,8 +237,9 @@ namespace Morpheus {
 			CreateRasterAspect(device, texture);
 		}
 
-		// Automatically instances texture and allocates data and raw subresources
+		// Automatically instances texture and allocates data and raw subresources on CPU
 		Texture(const DG::TextureDesc& desc);
+		Texture(Device device, const DG::TextureDesc& desc);
 
 		inline void Set(const DG::TextureDesc& desc, std::vector<uint8_t>&& data,
 			const std::vector<TextureSubResDataDesc>& subDescs) {
@@ -390,6 +391,12 @@ namespace Morpheus {
 			assert(mDevice.IsGPU());
 			return mRasterAspect.mTexture->GetDefaultView(
 				DG::TEXTURE_VIEW_RENDER_TARGET);
+		}
+
+		inline DG::ITextureView* GetUnorderedAccessView() {
+			assert(mDevice.IsGPU());
+			return mRasterAspect.mTexture->GetDefaultView(
+				DG::TEXTURE_VIEW_UNORDERED_ACCESS);
 		}
 
 		void* GetSubresourcePtr(uint mip = 0, uint arrayIndex = 0);

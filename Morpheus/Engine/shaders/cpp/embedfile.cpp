@@ -62,8 +62,14 @@ void do_search(const fs::directory_iterator& it,
 
 int main(int argc, char* argv[])
 {   
-	if (argc != 3) {
+	if (argc < 3) {
 		throw std::runtime_error("Incorrect number of runtime arguments!");
+	}
+
+	std::string function_name = "MakeSourceMap";
+
+	if (argc >= 4) {
+		function_name = argv[3];
 	}
 
 	string path(argv[1]);
@@ -75,7 +81,7 @@ int main(int argc, char* argv[])
 
 	do_search(fs::directory_iterator(path), &map, f_out);
 
-	f_out << "void MakeSourceMap(std::unordered_map<std::string, const char*>* map) {" << endl;
+	f_out << "void " << function_name << "(std::unordered_map<std::string, const char*>* map) {" << endl;
 	for (auto& it : map) {
 		f_out << "\t(*map)[\"/internal/" << it.first << "\"] = " << it.second << ";" << endl;
 		f_out << "\t(*map)[\"internal/" << it.first << "\"] = " << it.second << ";" << endl;

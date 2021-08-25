@@ -32,4 +32,8 @@ namespace Morpheus {
 			return false;
 		}
 	}
+
+	void EmbeddedFileLoader::Add(const embedded_file_loader_t& factory) {
+		factory(&mInternalShaders);
+	}
 }

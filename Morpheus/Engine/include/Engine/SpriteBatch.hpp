@@ -214,7 +214,7 @@ namespace Morpheus {
 		}
 
 		inline SpriteBatch(RealtimeGraphics& graphics,	
-			SpriteBatchPipeline& defaultPipeline,
+			SpriteBatchPipeline defaultPipeline,
 			uint batchSize = DEFAULT_SPRITE_BATCH_SIZE) : 
 			SpriteBatch(graphics.Device(), defaultPipeline.CreateState(), batchSize) {
 		}

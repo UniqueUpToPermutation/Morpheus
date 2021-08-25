@@ -16,6 +16,8 @@ namespace Morpheus {
 		Handle<DG::IBuffer> mBuffer;
 
 	public:
+		DynamicGlobalsBuffer() = default;
+
 		inline void Initialize(DG::IRenderDevice* device, const uint count = 1) {
 			DG::BufferDesc CBDesc;
 			CBDesc.Name           = "Dyanmic Globals Buffer";
@@ -27,11 +29,8 @@ namespace Morpheus {
 			device->CreateBuffer(CBDesc, nullptr, mBuffer.Ref());
 		}
 
-		inline DynamicGlobalsBuffer() {
-		}
-
-		inline DynamicGlobalsBuffer(DG::IRenderDevice* device) {
-			Initialize(device);
+		inline DynamicGlobalsBuffer(DG::IRenderDevice* device, const uint count = 1) {
+			Initialize(device, count);
 		}
 
 		inline DG::IBuffer* Get() {

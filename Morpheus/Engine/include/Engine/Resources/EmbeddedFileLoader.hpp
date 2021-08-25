@@ -9,6 +9,7 @@ void MakeSourceMap(std::unordered_map<std::string, const char*>* map);
 
 namespace Morpheus {
 
+	typedef std::function<void(std::unordered_map<std::string, const char*>*)> embedded_file_loader_t;
 	class IVirtualFileSystem {
 	public:
 		virtual ~IVirtualFileSystem() {
@@ -26,8 +27,10 @@ namespace Morpheus {
 		static EmbeddedFileLoader* mGlobalInstance;
 
 	public:
+		void Add(const embedded_file_loader_t& factory);
+
 		inline EmbeddedFileLoader() {
-			MakeSourceMap(&mInternalShaders);
+			Add(&MakeSourceMap);
 			mGlobalInstance = this;
 		}
 

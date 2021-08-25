@@ -402,9 +402,9 @@ namespace Morpheus {
         // clang-format off
         DG::StateTransitionDesc Barriers[] = 
         {
-            {whiteTex,         DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true},
-            {blackTex,         DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true},
-            {defaultNormalTex, DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE, true} 
+            {whiteTex,         DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE},
+            {blackTex,         DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE},
+            {defaultNormalTex, DG::RESOURCE_STATE_UNKNOWN, DG::RESOURCE_STATE_SHADER_RESOURCE} 
         };
 
         // clang-format on

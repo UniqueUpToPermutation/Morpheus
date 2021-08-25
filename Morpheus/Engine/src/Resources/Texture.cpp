@@ -490,6 +490,20 @@ namespace Morpheus {
 		AllocOnCPU(desc);		
 	}
 
+	Texture::Texture(Device device, const DG::TextureDesc& desc) {
+		if (device.IsCPU()) {
+			AllocOnCPU(desc);
+		} else if (device.IsGPU()) {
+			DG::ITexture* tex = nullptr;
+			device.mUnderlying.mGpuDevice->CreateTexture(desc, nullptr, &tex);
+			mRasterAspect.mTexture.Adopt(tex);
+		} else {
+			throw std::runtime_error("Not supported!");
+		}
+
+		mDevice = device;
+	}
+
 	BarrierOut Texture::SaveGliAsync(const std::string& path) {
 		Barrier barrier;
 

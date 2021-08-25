@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Defines.hpp>
+
 #include <Engine/Resources/Resource.hpp>
 #include <Engine/Resources/Geometry.hpp>
 #include <Engine/Resources/Texture.hpp>

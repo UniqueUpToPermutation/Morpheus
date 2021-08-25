@@ -11,6 +11,7 @@ if(TARGET Morpheus-Engine)
 	add_subdirectory(TextureTest)
 	add_subdirectory(HelloWorld)
 	add_subdirectory(EmbeddedGeoTest)
+	add_subdirectory(ComputeShaderTest)
 
 	if (USE_PBRT)
 		add_subdirectory(PbrtTest)

@@ -147,6 +147,13 @@ namespace Morpheus {
 	constexpr ExtObjectId NullExtObjectId = -1;
 };
 
+using float2 = DG::float2;
+using float3 = DG::float3;
+using float4 = DG::float4;
+using float2x2 = DG::float2x2;
+using float3x3 = DG::float3x3;
+using float4x4 = DG::float4x4;
+
 namespace Assimp {
 	class Importer;
 }
