@@ -1,6 +1,6 @@
-#include "Sampling.hlsl"
-#include "PBRCommon.hlsl"
-#include "FullscreenTriangle.hlsl"
+#include "Utils/Sampling.hlsl"
+#include "Utils/PBRCommon.hlsl"
+#include "Utils/FullscreenTriangle.hlsl"
 
 #ifndef NUM_SAMPLES
 #define NUM_SAMPLES 512

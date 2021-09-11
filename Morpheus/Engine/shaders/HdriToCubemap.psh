@@ -1,4 +1,4 @@
-#include "Gamma.hlsl"
+#include "Utils/Gamma.hlsl"
 
 #ifndef TRANSFORM_SRGB_TO_LINEAR
 #define TRANSFORM_SRGB_TO_LINEAR true

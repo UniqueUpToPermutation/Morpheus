@@ -1,5 +1,5 @@
-#include "SphericalHarmonics.hlsl"
-#include "Sampling.hlsl"
+#include "Utils/SphericalHarmonics.hlsl"
+#include "Utils/Sampling.hlsl"
 
 #ifndef SAMPLE_COUNT
 #	define SAMPLE_COUNT 5000

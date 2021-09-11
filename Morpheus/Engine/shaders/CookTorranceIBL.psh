@@ -1,8 +1,8 @@
-#include "BasicStructures.hlsl"
-#include "Math.hlsl"
-#include "Gamma.hlsl"
-#include "ToneMapping.hlsl"
-#include "SphericalHarmonics.hlsl"
+#include "Utils/BasicStructures.hlsl"
+#include "Utils/Math.hlsl"
+#include "Utils/Gamma.hlsl"
+#include "Utils/ToneMapping.hlsl"
+#include "Utils/SphericalHarmonics.hlsl"
 
 cbuffer ViewData {
     ViewAttribs mViewData;

@@ -1,5 +1,5 @@
-#include "BasicStructures.hlsl"
-#include "Math.hlsl"
+#include "Utils/BasicStructures.hlsl"
+#include "Utils/Math.hlsl"
 
 struct VSInput
 {
