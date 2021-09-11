@@ -1,7 +1,7 @@
 #include <Engine/SpriteBatch.hpp>
-#include <Engine/Renderer.hpp>
 #include <Engine/GeometryStructures.hpp>
 #include <Engine/Resources/Shader.hpp>
+#include <Engine/Frame.hpp>
 
 using namespace DG;
 
@@ -19,7 +19,7 @@ namespace Morpheus {
 			Future<Handle<DG::IShader>> mPS;
 		} data;
 
-				LoadParams<RawShader> vsParams("internal/SpriteBatch.vsh",
+		LoadParams<RawShader> vsParams("internal/SpriteBatch.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Sprite Batch VS");
 

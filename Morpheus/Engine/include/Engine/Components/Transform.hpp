@@ -106,5 +106,15 @@ namespace Morpheus {
 #endif
 
 		static void RegisterMetaData();
+
+		static void Serialize(entt::registry* registry, 
+			std::ostream& stream,
+			const IDependencyResolver* dependencies);
+		static void Deserialize(entt::registry* registry, 
+			std::istream& stream,
+			const FrameHeader& header);
+		static void BuildResourceTable(entt::registry* registry,
+			FrameHeader& header,
+			const SerializationSet& subset);
 	};
 }

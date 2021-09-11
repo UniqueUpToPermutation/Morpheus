@@ -40,24 +40,11 @@ namespace Morpheus {
 	}
 
 	void EmptyRenderer::OnAddedTo(SystemCollection& collection) {
-		collection.RegisterInterface<IRenderer>(this);
 		collection.RegisterInterface<IVertexFormatProvider>(this);
 	}
 
 	const VertexLayout& EmptyRenderer::GetStaticMeshLayout() const {
 		return mDefaultLayout;
-	}
-
-	MaterialId EmptyRenderer::CreateUnmanagedMaterial(const MaterialDesc& desc) {
-		return NullMaterialId;
-	}
-
-	void EmptyRenderer::AddMaterialRef(MaterialId id) {
-	}
-	void EmptyRenderer::ReleaseMaterial(MaterialId id) {
-	}
-	MaterialDesc EmptyRenderer::GetMaterialDesc(MaterialId id) {
-		return MaterialDesc{};
 	}
 
 	GraphicsCapabilityConfig EmptyRenderer::GetCapabilityConfig() const { 

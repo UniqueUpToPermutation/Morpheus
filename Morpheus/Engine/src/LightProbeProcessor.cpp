@@ -2,6 +2,7 @@
 
 #include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/Shader.hpp>
+#include <Engine/Frame.hpp>
 
 #include "GraphicsUtilities.h"
 #include "MapHelper.hpp"

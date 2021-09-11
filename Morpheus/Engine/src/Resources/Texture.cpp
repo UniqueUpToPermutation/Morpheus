@@ -1,7 +1,7 @@
 #include <Engine/Resources/Texture.hpp>
 #include <Engine/Resources/ResourceData.hpp>
-#include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ImageCopy.hpp>
+#include <Engine/Resources/FrameIO.hpp>
 
 #include <Engine/Entity.hpp>
 
@@ -859,7 +859,7 @@ namespace Morpheus {
 		size_t currentIndx = 0;
 
 		if (!pixel_data) {
-			throw std::runtime_error("Failed to load image file: " + params.mSource);
+			throw std::runtime_error("Failed to load image file: " + params.mPath.string());
         }
 
 		DG::TEXTURE_FORMAT format = DG::TEX_FORMAT_UNKNOWN;
@@ -978,7 +978,7 @@ namespace Morpheus {
 		desc.Width = x;
 		desc.Height = y;
 		desc.MipLevels = 0;
-		desc.Name = params.mSource.c_str();
+		desc.Name = params.mPath.c_str();
 		desc.Format = format;
 		desc.Type = DG::RESOURCE_DIM_TEX_2D;
 		desc.Usage = DG::USAGE_IMMUTABLE;
@@ -992,12 +992,12 @@ namespace Morpheus {
 		gli::texture* tex,
 		Texture* into) {
 		if (tex->empty()) {
-			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
+			std::cout << "Failed to load texture " << params.mPath << "!" << std::endl;
 			throw std::runtime_error("Failed to load texture!");
 		}
 
 		DG::TextureDesc desc;
-		desc.Name = params.mSource.c_str();
+		desc.Name = params.mPath.c_str();
 
 		auto Target = tex->target();
 		auto Format = tex->format();
@@ -1093,7 +1093,7 @@ namespace Morpheus {
 		desc.Width = width;
 		desc.Height = height;
 		desc.MipLevels = params.bGenerateMips ? 0 : 1;
-		desc.Name = params.mSource.c_str();
+		desc.Name = params.mPath.c_str();
 		desc.Format = format;
 		desc.Type = DG::RESOURCE_DIM_TEX_2D;
 		desc.Usage = DG::USAGE_IMMUTABLE;
@@ -1134,7 +1134,7 @@ namespace Morpheus {
 		FunctionPrototype<Promise<Texture>> prototype(
 			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
+			ReadBinaryFile(params.mPath, data);
 			result = Texture::ReadPng(params, &data[0], data.size());
 		});
 
@@ -1156,7 +1156,7 @@ namespace Morpheus {
 		FunctionPrototype<Promise<Texture>> prototype(
 			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
+			ReadBinaryFile(params.mPath, data);
 			result = ReadStb(params, &data[0], data.size());
 		});
 
@@ -1165,13 +1165,85 @@ namespace Morpheus {
 		return result;
 	}
 
+	UniqueFuture<Texture> Texture::ReadFrameAsync(const LoadParams<Texture>& params) {
+
+		Promise<Texture> result;
+
+		FunctionPrototype<Promise<Texture>> prototype(
+			[params](const TaskParams& e, Promise<Texture> result) {
+
+			ArchiveBlobPointer blob;
+			std::filesystem::path path;
+
+			switch (params.mArchiveLoad.mType) {
+				case ArchiveLoadType::NONE:
+					path = params.mPath.parent_path();
+				break;
+				case ArchiveLoadType::DIRECT:
+					blob = params.mArchiveLoad.mPosition;
+					path = params.mPath;
+				break;
+				case ArchiveLoadType::USE_FRAME_TABLE:
+					const auto& table = params.mArchiveLoad.mFrame->GetResourceTable();
+					auto it = table.find(params.mArchiveLoad.mEntity);
+
+					if (it == table.end())
+						throw std::runtime_error("Table entry not found!");
+			
+					blob = it->second;
+				break;
+			}
+
+			std::ifstream fstr(path.string(), std::ios::binary);
+
+			// Determine location of the texture by reading the frame header.
+			if (!params.mArchiveLoad.mType == ArchiveLoadType::DIRECT) {
+				FrameTable table(nullptr);
+				table.FindAndThenRead(fstr);
+
+				auto name = params.mPath.filename();
+				auto it = table.NameToEntity().find(name.string());
+
+				if (it != table.NameToEntity().end()) {
+					auto blobIt = table.InternalResourceTable().find(it->second);
+					assert(blobIt != table.InternalResourceTable().end());
+					blob = blobIt->second;
+
+				} else {
+					throw std::runtime_error(params.mPath.string() + " does not exist in frame!");
+				}
+			}
+
+			fstr.seekg(blob.mBegin);
+
+			Texture texture;
+			texture.BinaryDeserialize(fstr);
+
+			result = std::move(texture);
+		});
+
+		prototype(result).SetName("Read Texture (Archive)");
+
+		return result;
+	}
+
 	UniqueFuture<Texture> Texture::ReadAsync(const LoadParams<Texture>& params) {
 
-		auto pos = params.mSource.rfind('.');
-		if (pos == std::string::npos) {
-			throw std::runtime_error("Source does not have file extension!");
+		if (params.mArchiveLoad.mType == ArchiveLoadType::USE_FRAME_TABLE) {
+			return ReadFrameAsync(params);
 		}
-		auto ext = params.mSource.substr(pos);
+
+		auto parent = params.mPath.parent_path();
+
+		// We should load this as an archive
+		if (std::filesystem::is_regular_file(parent)) {
+			auto ext = parent.extension();
+
+			if (ext == ".frame") 
+				return ReadFrameAsync(params);
+		}
+
+		auto ext = params.mPath.extension();
 
 		if (ext == ".ktx" || ext == ".dds") {
 			return ReadGliAsync(params);
@@ -1179,6 +1251,9 @@ namespace Morpheus {
 			return ReadStbAsync(params);
 		} else if (ext == ".png") {
 			return ReadPngAsync(params);
+		} else if (ext == ".frame" && 
+			params.mArchiveLoad.mType == ArchiveLoadType::DIRECT) {
+			return ReadFrameAsync(params);
 		} else {
 			throw std::runtime_error("Texture file format not supported!");
 		}
@@ -1192,7 +1267,7 @@ namespace Morpheus {
 		gli::texture tex = gli::load((const char*)rawData, length);
 
 		if (tex.empty()) {
-			std::cout << "Failed to load texture " << params.mSource << "!" << std::endl;
+			std::cout << "Failed to load texture " << params.mPath << "!" << std::endl;
 			throw std::runtime_error("Failed to load texture!");
 		}
 
@@ -1210,7 +1285,7 @@ namespace Morpheus {
 		FunctionPrototype<Promise<Texture>> prototype(
 			[params](const TaskParams& e, Promise<Texture> result) {
 			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
+			ReadBinaryFile(params.mPath, data);
 			result = ReadGli(params, &data[0], data.size());
 		});
 
@@ -1232,7 +1307,7 @@ namespace Morpheus {
 		int x;
 		int y;
 
-		if (stbi_is_hdr(params.mSource.c_str())) {
+		if (stbi_is_hdr(params.mPath.c_str())) {
 			pixels_f.reset(stbi_loadf_from_memory(data, length, &x, &y, &comp, 0));
 			if (pixels_f) {
 				pixel_data = reinterpret_cast<unsigned char*>(pixels_f.get());
@@ -1412,6 +1487,10 @@ namespace Morpheus {
 		return entt::resolve<Texture>();
 	}
 
+	std::filesystem::path Texture::GetPath() const {
+		return mSource.mPath;
+	}
+
 	void Texture::Clear() {
 		mCpuAspect = CpuAspect();
 		mRasterAspect = RasterizerAspect();
@@ -1425,6 +1504,8 @@ namespace Morpheus {
 		entt::meta<Texture>()
 			.type("Texture"_hs)
 			.base<IResource>();
+
+		MakeSerializableResourceType<Texture>();
 	}
 
 	UniqueFuture<Texture> Texture::GPUToCPUAsync(Device device, Context context) const {
@@ -1480,41 +1561,33 @@ namespace Morpheus {
 		mDevice = Device::CPU();
 	}
 
-	void Texture::BinarySerializeSource(
+	void Texture::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
 		cereal::PortableBinaryOutputArchive& output) const {
-		output(mSource);
+		auto params = mSource;
+		params.mPath = std::filesystem::relative(params.mPath, workingPath);
+		output(params);
 	}
 
-	void Texture::BinaryDeserializeSource(
+	void Texture::BinaryDeserializeReference(
 		const std::filesystem::path& workingPath,
 		cereal::PortableBinaryInputArchive& input) {
 		input(mSource);
-
-		mDevice = Device::CPU();
+		mSource.mPath = workingPath / mSource.mPath; 
+		mDevice = Device::Disk();
 	}
 
-	void Texture::BinarySerialize(const std::filesystem::path& output) const {
-		std::ofstream f_(output, std::ios::binary);
-
-		if (!f_.is_open()) {
-			throw std::runtime_error(std::string("Failed to open ") + output.string());
-		}
-
-		BinarySerialize(f_);
-
-		f_.close();
+	Handle<IResource> Texture::MoveIntoHandle() {
+		return Handle<Texture>(std::move(*this)).DownCast<IResource>();
 	}
 
-	void Texture::BinaryDeserialize(const std::filesystem::path& input) {
-		std::ifstream f_(input, std::ios::binary);
+	Texture::Texture(Handle<Frame> frame, entt::entity entity) {
+		mFrame = frame;
+		mEntity = entity;
+		mDevice = Device::Disk();
 
-		if (!f_.is_open()) {
-			throw std::runtime_error(std::string("Failed to open ") + input.string());
-		}
-
-		BinaryDeserialize(f_);
-
-		f_.close();
+		mSource.mArchiveLoad.mType = ArchiveLoadType::USE_FRAME_TABLE;
+		mSource.mArchiveLoad.mFrame = frame.DownCast<IFrameAbstract>();
+		mSource.mArchiveLoad.mEntity = entity;
 	}
 }

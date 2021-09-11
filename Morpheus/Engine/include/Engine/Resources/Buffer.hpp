@@ -113,6 +113,18 @@ namespace Morpheus {
 		}
 	};
 
+	struct GPUMultiBufferRead {
+		Handle<DG::IFence> mFence;
+		std::vector<Handle<DG::IBuffer>> mStagingBuffers;
+		std::vector<DG::BufferDesc> mBufferDesc;
+		DG::Uint64 mFenceCompletedValue;
+
+		inline bool IsReady() const {
+			return mFence->GetCompletedValue() == mFenceCompletedValue;
+		}
+	};
+
+
 	class Buffer : public IResource {
 	private:
 		struct GpuAspect {
@@ -148,17 +160,19 @@ namespace Morpheus {
 
 		entt::meta_type GetType() const override;
 		entt::meta_any GetSourceMeta() const override;
+		std::filesystem::path GetPath() const override;
 		void BinarySerialize(cereal::PortableBinaryOutputArchive& archive) const;
 		void BinaryDeserialize(cereal::PortableBinaryInputArchive& archive);
 		void BinarySerialize(std::ostream& output) const override;
 		void BinaryDeserialize(std::istream& input) override;
-		void BinarySerializeSource(
+		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
 			cereal::PortableBinaryOutputArchive& output) const override;
-		void BinaryDeserializeSource(
+		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
 		BarrierOut MoveAsync(Device device, Context context = Context()) override;
+		Handle<IResource> MoveIntoHandle() override;
 
 		UniqueFuture<Buffer> ToAsync(Device device, Context context = Context());
 		Buffer To(Device device, Context context = Context());
@@ -179,6 +193,15 @@ namespace Morpheus {
 			DG::IDeviceContext* context,
 			const GPUBufferRead& read,
 			Buffer& textureOut);
+
+		static GPUMultiBufferRead BeginGPUMultiRead(
+			const std::vector<DG::IBuffer*>& buffers,
+			DG::IRenderDevice* device, 
+			DG::IDeviceContext* context);
+
+		static std::vector<std::vector<uint8_t>> FinishGPUMultiRead(
+			DG::IDeviceContext* context,
+			const GPUMultiBufferRead& read);
 
 		UniqueFuture<Buffer> GPUToCPUAsync(Device device, Context context) const;
 	};

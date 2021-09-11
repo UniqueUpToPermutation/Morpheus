@@ -1,5 +1,4 @@
-#include <Engine/Resources/Texture.hpp>
-#include <Engine/Renderer.hpp>
+#include <Engine/Resources/Material.hpp>
 
 namespace Morpheus {
 	UniqueFuture<MaterialDesc> MaterialDesc::CreateFuture(
@@ -49,5 +48,56 @@ namespace Morpheus {
 			.SetName("Create MaterialDesc Future");
 
 		return output;
+	}
+
+	entt::meta_type Material::GetType() const {
+		return entt::resolve<Material>();
+	}
+
+	entt::meta_any Material::GetSourceMeta() const {
+		return nullptr;
+	}
+
+	std::filesystem::path Material::GetPath() const {
+		return "";
+	}
+
+	void Material::BinarySerialize(std::ostream& output) const {
+
+	}
+
+	void Material::BinaryDeserialize(std::istream& input) {
+
+	}
+
+	void Material::BinarySerializeReference(
+		const std::filesystem::path& workingPath, 
+		cereal::PortableBinaryOutputArchive& output) const {
+
+	}
+
+	void Material::BinaryDeserializeReference(
+		const std::filesystem::path& workingPath,
+		cereal::PortableBinaryInputArchive& input) {
+
+	}
+
+	BarrierOut Material::MoveAsync(Device device, Context context = Context()) {
+		return Barrier();
+	}
+
+	Handle<IResource> Material::MoveIntoHandle() {
+		return Handle<Material>(Duplicate()).template DownCast<IResource>();
+	}
+
+	Material::Material(const MaterialDesc& desc) : mDesc(desc) {
+	}
+
+	Material Material::Duplicate() {
+		return Material(mDesc);
+	}
+
+	const MaterialDesc& Material::GetDesc() const {
+		return mDesc;
 	}
 }

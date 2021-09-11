@@ -10,8 +10,34 @@
 #include "RenderDevice.h"
 #include "DeviceContext.h"
 
+namespace std {
+	template <typename Archive>
+	void save(Archive& arr, const std::filesystem::path& path) {
+		std::string str = path;
+		arr(str);
+	}
+
+	template <typename Archive>
+	void load(Archive& arr, std::filesystem::path& path) {
+		std::string str;
+		arr(str);
+		path = str;
+	}
+}
+
 namespace Morpheus {
 	void ReadBinaryFile(const std::string& source, std::vector<uint8_t>& out);
+
+	struct ArchiveBlobPointer {
+		std::streamsize mBegin;
+		std::streamsize mSize;
+	};
+
+	enum ArchiveLoadType {
+		NONE,
+		DIRECT,
+		USE_FRAME_TABLE
+	};
 
 	template <typename T>
 	struct LoadParams {
@@ -21,69 +47,7 @@ namespace Morpheus {
 
 	constexpr FrameId InvalidFrameId = -1;
 
-	class IResource {
-	private:
-		std::atomic<uint> mRefCount;
-
-	protected:
-		FrameId mFrameId;
-		Device mDevice;
-
-	public:
-		inline FrameId GetFrameId() const {
-			return mFrameId;
-		}
-
-		inline void SetFrameId(FrameId value) {
-			mFrameId = value;
-		}
-
-		inline Device GetDevice() const {
-			return mDevice;
-		}
-
-		inline IResource() {
-			mRefCount = 1;
-		}
-
-		inline uint AddRef() {
-			return mRefCount.fetch_add(1) + 1;
-		}
-
-		inline uint GetRefCount() {
-			return mRefCount;
-		}
-
-		virtual ~IResource() = default;
-
-		inline uint Release() {
-			auto val = mRefCount.fetch_sub(1);
-			assert(val >= 1);
-
-			if (val == 1)
-				delete this;
-
-			return val - 1;
-		}
-
-		virtual entt::meta_type GetType() const = 0;
-		virtual entt::meta_any GetSourceMeta() const = 0;
-		virtual void BinarySerialize(std::ostream& output) const = 0;
-		virtual void BinaryDeserialize(std::istream& input) = 0;
-		virtual void BinarySerializeSource(
-			const std::filesystem::path& workingPath, 
-			cereal::PortableBinaryOutputArchive& output) const = 0;
-		virtual void BinaryDeserializeSource(
-			const std::filesystem::path& workingPath,
-			cereal::PortableBinaryInputArchive& input) = 0;
-		virtual BarrierOut MoveAsync(Device device, Context context = Context()) = 0;
-		
-		void Move(Device device, Context context = Context());
-
-		static void RegisterMetaData();
-
-		friend class Frame;
-	};
+	class IFrameAbstract;
 
 	template <typename T>
 	class Handle {
@@ -134,7 +98,7 @@ namespace Morpheus {
 			if (mResource)
 				mResource->Release();
 
-			mResource = h.mResource;
+			mResource = h;
 			h.mResource = nullptr;
 			return *this;
 		}
@@ -168,6 +132,16 @@ namespace Morpheus {
 			return other.mResource == mResource;
 		}
 
+		template <typename T2>
+		inline Handle<T2> TryCast() const {
+			return Handle<T2>(dynamic_cast<T2*>(mResource));
+		}
+
+		template <typename T2>
+		inline Handle<T2> DownCast() const {
+			return Handle<T2>(mResource);
+		}
+
 		inline T* Release() {
 			T* result = mResource;
 			if (mResource) {
@@ -184,6 +158,124 @@ namespace Morpheus {
 				return hash<T*>()(h.mResource);
 			}
 		};
+	};
+	struct ArchiveLoad {
+		ArchiveLoadType mType = ArchiveLoadType::NONE;
+
+		// Used if ArchiveLoadType is DIRECT
+		ArchiveBlobPointer mPosition;
+
+		// Use if ArchiveLoadType is USE_FRAME_TABLE
+		Handle<IFrameAbstract> mFrame;
+		entt::entity mEntity = entt::null;
+	};
+
+	struct UniversalIdentifier {
+		std::filesystem::path mPath;
+		entt::entity mEntity = entt::null;
+
+		struct Hasher {
+			std::size_t operator() (const UniversalIdentifier &pair) const {
+				return std::filesystem::hash_value(pair.mPath) ^ 
+					std::hash<entt::entity>()(pair.mEntity);
+			}
+		};
+
+		template <typename Archive>
+		void serialize(Archive& arr) {
+			arr(mPath);
+			arr(mEntity);
+		}
+
+		inline bool operator==(const UniversalIdentifier& other) const {
+			bool pathEq = mPath.compare(other.mPath) == 0;
+			return pathEq && mEntity == other.mEntity;
+		}
+	};
+
+	class IResource {
+	private:
+		std::atomic<uint> mRefCount;
+
+	protected:
+		entt::entity mEntity = entt::null;
+		IFrameAbstract* mFrame;
+		Device mDevice;
+
+	public:
+		// Used for resource caching
+		UniversalIdentifier GetUniversalId() const;
+
+		inline IFrameAbstract* GetFrame() const;
+
+		inline entt::entity GetEntity() const {
+			return mEntity;
+		}
+
+		inline Device GetDevice() const {
+			return mDevice;
+		}
+
+		inline IResource() {
+			mRefCount = 1;
+		}
+
+		inline uint AddRef() {
+			return mRefCount.fetch_add(1) + 1;
+		}
+
+		inline uint GetRefCount() {
+			return mRefCount;
+		}
+
+		virtual ~IResource() = default;
+
+		inline uint Release() {
+			auto val = mRefCount.fetch_sub(1);
+			assert(val >= 1);
+
+			if (val == 1)
+				delete this;
+
+			return val - 1;
+		}
+
+		virtual entt::meta_type GetType() const = 0;
+		virtual entt::meta_any GetSourceMeta() const = 0;
+		virtual std::filesystem::path GetPath() const = 0;
+		virtual void BinarySerialize(std::ostream& output) const = 0;
+		virtual void BinaryDeserialize(std::istream& input) = 0;
+		virtual void BinarySerializeReference(
+			const std::filesystem::path& workingPath, 
+			cereal::PortableBinaryOutputArchive& output) const = 0;
+		virtual void BinaryDeserializeReference(
+			const std::filesystem::path& workingPath,
+			cereal::PortableBinaryInputArchive& input) = 0;
+		virtual BarrierOut MoveAsync(Device device, Context context = Context()) = 0;
+		virtual Handle<IResource> MoveIntoHandle() = 0;
+
+		void BinarySerializeReference(
+			const std::filesystem::path& workingPath, 
+			std::ostream& output) const;
+		void BinaryDeserializeReference(
+			const std::filesystem::path& workingPath,
+			std::istream& input);
+		void BinarySerialize(const std::filesystem::path& output) const;
+		void BinaryDeserialize(const std::filesystem::path& input);
+
+		void Move(Device device, Context context = Context());
+
+		static void RegisterMetaData();
+
+		friend class Frame;
+	};
+
+	class IFrameAbstract : public IResource {
+	public:
+		virtual Handle<IResource> GetResourceAbstract(entt::entity e) const = 0;
+		virtual entt::entity GetEntity(const std::string& name) const = 0;
+		virtual const std::unordered_map<entt::entity, ArchiveBlobPointer>&
+			GetResourceTable() const = 0;
 	};
 
 	template <typename T>
@@ -207,43 +299,7 @@ namespace Morpheus {
 		std::vector<entt::entity> mSubFrames;
 	};
 
-	class IAbstractResourceCache {
-	public:
-		virtual entt::meta_type GetResourceType() const = 0;
-	};
-
-	template <typename T>
-	class IResourceCache : public IAbstractResourceCache {
-	public:
-		virtual Future<Handle<T>> Load(const LoadParams<T>& params, IComputeQueue* queue) = 0;
-
-		entt::meta_type GetResourceType() const override {
-			return entt::resolve<T>();
-		}
-	};
-
-	class IResourceCacheCollection {
-	public:
-		virtual bool TryQueryCache(
-			const entt::meta_type& resourceType,
-			entt::meta_any* cacheInterface) const = 0;
-
-		virtual bool TryQueryCacheAbstract(
-			const entt::meta_type& resourceType,
-			IAbstractResourceCache** cacheOut) const = 0;
-
-		virtual std::set<IAbstractResourceCache*> GetAllCaches() const = 0;
-
-		std::set<IAbstractResourceCache*> GetSerializableCaches() const;
-		
-		template <typename T>
-		IResourceCache<T>* QueryCache() const {
-			entt::meta_any result;
-			if (TryQueryCache(entt::resolve<T>(), &result))
-				return result.cast<IResourceCache<T>*>();
-			return nullptr;
-		}
-
-		IAbstractResourceCache* QueryCacheAbstract(const entt::meta_type& resourceType);
-	};
+	IFrameAbstract* IResource::GetFrame() const {
+		return mFrame;
+	}
 }

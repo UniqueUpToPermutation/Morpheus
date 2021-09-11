@@ -5,6 +5,21 @@
 
 namespace DG = Diligent;
 
+namespace Diligent {
+	template <class Archive> 
+	void serialize(Archive& archive, DG::LayoutElement& element) {
+		archive(element.BufferSlot);
+		archive(element.Frequency);
+		archive(element.InputIndex);
+		archive(element.InstanceDataStepRate);
+		archive(element.IsNormalized);
+		archive(element.NumComponents);
+		archive(element.RelativeOffset);
+		archive(element.Stride);
+		archive(element.ValueType);
+	}
+}
+
 namespace Morpheus {
 	struct BoundingBox {
 		DG::float3 mLower;
@@ -44,14 +59,29 @@ namespace Morpheus {
 		std::vector<DG::LayoutElement> mElements;
 
 		int mPosition	= -1;
-		int mUV			= -1;
 		int mNormal 	= -1;
 		int mTangent 	= -1;
 		int mBitangent	= -1;
+
+		std::vector<int> mUVs;
+		std::vector<int> mColors;
 		
 		static VertexLayout PositionUVNormalTangent();
 		static VertexLayout PositionUVNormal();
 		static VertexLayout PositionUVNormalTangentBitangent();
+
+		template <class Archive>
+		void serialize(Archive& archive) {
+			archive(mElements);
+
+			archive(mPosition);
+			archive(mNormal);
+			archive(mTangent);
+			archive(mBitangent);
+
+			archive(mUVs);
+			archive(mColors);
+		}
 	};
 
 	enum class GeometryType {

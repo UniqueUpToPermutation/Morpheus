@@ -2,13 +2,6 @@
 
 namespace Morpheus {
 
-	IAbstractResourceCache* IResourceCacheCollection::QueryCacheAbstract(const entt::meta_type& resourceType) {
-		IAbstractResourceCache* cache;
-		if (TryQueryCacheAbstract(resourceType, &cache))
-			return cache;
-		return nullptr;
-	}
-
 	bool SystemCollection::TryQueryInterface(
 		const entt::meta_type& interfaceType,
 		entt::meta_any* interfaceOut) const {
@@ -21,44 +14,6 @@ namespace Morpheus {
 		} 
 
 		return false;
-	}
-
-	bool SystemCollection::TryQueryCache(
-		const entt::meta_type& resourceType,
-		entt::meta_any* cacheInterface) const {
-
-		auto it = mCachesByResourceType.find(resourceType);
-
-		if (it != mCachesByResourceType.end()) {
-			*cacheInterface = it->second.mInterface;
-			return true;
-		}
-
-		return false;
-	}
-
-	bool SystemCollection::TryQueryCacheAbstract(
-		const entt::meta_type& resourceType,
-		IAbstractResourceCache** cacheOut) const {
-
-		auto it = mCachesByResourceType.find(resourceType);
-
-		if (it != mCachesByResourceType.end()) {
-			*cacheOut = it->second.mAbstractInterface;
-			return true;
-		}
-
-		return false;
-	}
-
-	std::set<IAbstractResourceCache*> SystemCollection::GetAllCaches() const {
-		std::set<IAbstractResourceCache*> result;
-
-		for (auto it : mCachesByResourceType) {
-			result.emplace(it.second.mAbstractInterface);
-		}
-
-		return result;
 	}
 
 	void SystemCollection::Startup(IComputeQueue* queue) {

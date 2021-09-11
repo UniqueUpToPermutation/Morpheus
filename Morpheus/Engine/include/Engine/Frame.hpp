@@ -2,6 +2,7 @@
 
 #include <Engine/Entity.hpp>
 #include <Engine/Camera.hpp>
+#include <Engine/Components/ResourceComponent.hpp>
 #include <Engine/Resources/Resource.hpp>
 
 #include <stack>
@@ -103,20 +104,76 @@ namespace Morpheus {
 		Handle<Frame> mFrame;
 	};
 
-	class Frame : public IResource {
+	struct ResourceTable;
+
+	class Frame : public IFrameAbstract {
 	private:
+		std::filesystem::path mPath;
+
 		entt::registry mRegistry;
 		entt::entity mRoot;
 		entt::entity mCamera = entt::null;
-		std::filesystem::path mPath;
 
-		std::unordered_set<Handle<IResource>, 
-			Handle<IResource>::Hasher> mInternalResources;
+		std::unordered_map<entt::entity, ArchiveBlobPointer> mInternalResourceTable;
+		std::unordered_map<entt::entity, Handle<IResource>> mEntityToResource;
+		std::unordered_map<std::string, entt::entity> mNameToEntity;
 
 	public:
-		inline std::filesystem::path GetPath() const {
-			return mPath;
+		Frame(Frame&&);
+		Frame& operator=(Frame&&);
+
+		Frame(const Frame&) = delete;
+		Frame& operator=(const Frame&) = delete;
+
+		const std::unordered_map<entt::entity, ArchiveBlobPointer>&
+			GetResourceTable() const override;
+
+		inline auto GetNamesBegin() const {
+			return mNameToEntity.cbegin();
 		}
+
+		inline auto GetNamesEnd() const {
+			return mNameToEntity.cend();
+		}
+
+		inline const auto& GetEntityToResources() const {
+			return mEntityToResource;
+		}
+
+		inline auto GetEntityToResourcesBegin() const {
+			return mEntityToResource.cbegin();
+		}
+
+		inline auto GetEntityToResourcesEnd() const {
+			return mEntityToResource.cend();
+		}
+
+		Handle<IResource> GetResourceAbstract(entt::entity e) const override;
+		entt::entity GetEntity(const std::string& name) const override;
+
+		template <typename T>
+		Handle<T> GetResource(entt::entity e) {
+			return mRegistry.try_get<ResourceComponent<T>>(e);
+		}
+
+		template <typename T>
+		Handle<T> GetResource(const std::string& name) {
+			auto entity = GetEntity(name);
+			if (entity != entt::null) {
+				return GetResource<T>(entity);
+			} else {
+				return Handle<T>();
+			}
+		}
+
+		inline void AssignName(const std::string& name, entt::entity e) {
+			mNameToEntity[name] = e;
+		}
+
+		inline void UnassignName(const std::string& name) {
+			mNameToEntity.erase(name);
+		}
+
 		inline entt::registry& Registry() {
 			return mRegistry;
 		}
@@ -130,8 +187,27 @@ namespace Morpheus {
 			mCamera = e;
 		}
 
-		void AttachResource(Handle<IResource> resource);
-		void RemoveResource(Handle<IResource> resource);
+		template <typename T>
+		entt::entity AttachResource(Handle<T> resource) {
+			auto e = mRegistry.create();
+			mRegistry.emplace<ResourceComponent<T>>(e, resource);
+
+			mEntityToResource[e] = resource;
+
+			resource->mEntity = e;
+			resource->mFrame = this;
+
+			return e;
+		}
+
+		template <typename T>
+		void RemoveResource(Handle<T> resource) {
+			mRegistry.remove<ResourceComponent<T>>(resource->mEntity);
+			mEntityToResource.erase(resource->mEntity);
+
+			resource->mEntity = entt::null;
+			resource->mFrame = nullptr;
+		}
 
 		entt::entity SpawnDefaultCamera(Camera** cameraOut = nullptr);
 		entt::entity CreateEntity(entt::entity parent);
@@ -213,14 +289,18 @@ namespace Morpheus {
 
 		entt::meta_type GetType() const override;
 		entt::meta_any GetSourceMeta() const override;
+		std::filesystem::path GetPath() const override;
 		void BinarySerialize(std::ostream& output) const override;
 		void BinaryDeserialize(std::istream& input) override;
-		void BinarySerializeSource(
+		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
 			cereal::PortableBinaryOutputArchive& output) const override;
-		void BinaryDeserializeSource(
+		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
 		BarrierOut MoveAsync(Device device, Context context = Context()) override;
+		Handle<IResource> MoveIntoHandle() override;
+
+		void DuplicateSubframe(Frame& subframe, entt::entity e);
 	};
 }

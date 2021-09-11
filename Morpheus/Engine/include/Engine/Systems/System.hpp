@@ -10,6 +10,7 @@
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Entity.hpp>
 #include <Engine/Resources/Resource.hpp>
+#include <Engine/Resources/Cache.hpp>
 
 namespace DG = Diligent;
 
@@ -207,14 +208,8 @@ namespace Morpheus {
 	};
 
 	class SystemCollection final : 
-		public IInterfaceCollection,
-		public IResourceCacheCollection {
+		public IInterfaceCollection {
 	private:
-		struct CacheEntry {
-			entt::meta_any mInterface;
-			IAbstractResourceCache* mAbstractInterface;
-		};
-
 		std::unordered_map<
 			entt::meta_type, 
 			entt::meta_any,
@@ -224,11 +219,6 @@ namespace Morpheus {
 			entt::meta_type, 
 			entt::meta_any,
 			MetaTypeHasher> mSystemInterfaces;
-
-		std::unordered_map<
-			entt::meta_type,
-			CacheEntry,
-			MetaTypeHasher> mCachesByResourceType;
 	
 		std::set<std::unique_ptr<ISystem>> mSystems;
 		bool bInitialized = false;
@@ -261,14 +251,6 @@ namespace Morpheus {
 			mFrameProcessor.AddInjector(target, proc, phase);
 		}
 
-		template <typename T>
-		void AddCacheInterface(IResourceCache<T>* interface) {
-			CacheEntry entry;
-			entry.mInterface = interface;
-			entry.mAbstractInterface = interface;
-			mCachesByResourceType[entt::resolve<T>()] = entry;
-		}
-
 		inline Barrier GetBarrier(
 			const entt::hashed_string& str) const {
 			return mFrameProcessor.GetBarrier(str);
@@ -286,30 +268,6 @@ namespace Morpheus {
 		bool TryQueryInterface(
 			const entt::meta_type& interfaceType,
 			entt::meta_any* interfaceOut) const override;
-
-		template <typename T>
-		void RegisterCache(IResourceCache<T>* cache) {
-			mCachesByResourceType[entt::type_id<T>] = CacheEntry{
-				cache,
-				cache	
-			};
-		}
-
-		bool TryQueryCache(
-			const entt::meta_type& resourceType,
-			entt::meta_any* cacheInterface) const override;
-
-		bool TryQueryCacheAbstract(
-			const entt::meta_type& resourceType,
-			IAbstractResourceCache** cacheOut) const override;
-
-		std::set<IAbstractResourceCache*> GetAllCaches() const override;
-
-		template <typename T>
-		inline Future<T*> Load(const LoadParams<T>& params, 
-			IComputeQueue* queue) const {
-			return QueryCache<T>()->Load(params, queue);
-		}
 
 		inline bool IsInitialized() const {
 			return bInitialized;

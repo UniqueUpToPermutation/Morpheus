@@ -36,97 +36,105 @@ namespace Morpheus {
 
 	Geometry Geometry::Prefabs::MaterialBall(const VertexLayout& layout) {
 		return Geometry(layout, 
-			matball::mVertexCount,
-			matball::mIndexCount,
-			matball::mIndices,
-			matball::mPositions,
-			matball::mUVs,
-			matball::mNormals,
-			matball::mTangents,
-			matball::mBitangents);
+			GeometryDataSourceFloat(
+				matball::mVertexCount,
+				matball::mIndexCount,
+				matball::mIndices,
+				matball::mPositions,
+				matball::mUVs,
+				matball::mNormals,
+				matball::mTangents,
+				matball::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::Box(const VertexLayout& layout) {
 		return Geometry(layout, 
-			box::mVertexCount,
-			box::mIndexCount,
-			box::mIndices,
-			box::mPositions,
-			box::mUVs,
-			box::mNormals,
-			box::mTangents,
-			box::mBitangents);
+			GeometryDataSourceFloat(
+				box::mVertexCount,
+				box::mIndexCount,
+				box::mIndices,
+				box::mPositions,
+				box::mUVs,
+				box::mNormals,
+				box::mTangents,
+				box::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::Sphere(const VertexLayout& layout) {
 		return Geometry(layout, 
-			sphere::mVertexCount,
-			sphere::mIndexCount,
-			sphere::mIndices,
-			sphere::mPositions,
-			sphere::mUVs,
-			sphere::mNormals,
-			sphere::mTangents,
-			sphere::mBitangents);
+			GeometryDataSourceFloat(
+				sphere::mVertexCount,
+				sphere::mIndexCount,
+				sphere::mIndices,
+				sphere::mPositions,
+				sphere::mUVs,
+				sphere::mNormals,
+				sphere::mTangents,
+				sphere::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::BlenderMonkey(const VertexLayout& layout) {
 		return Geometry(layout, 
-			monkey::mVertexCount,
-			monkey::mIndexCount,
-			monkey::mIndices,
-			monkey::mPositions,
-			monkey::mUVs,
-			monkey::mNormals,
-			monkey::mTangents,
-			monkey::mBitangents);
+			GeometryDataSourceFloat(
+				monkey::mVertexCount,
+				monkey::mIndexCount,
+				monkey::mIndices,
+				monkey::mPositions,
+				monkey::mUVs,
+				monkey::mNormals,
+				monkey::mTangents,
+				monkey::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::Torus(const VertexLayout& layout) {
 		return Geometry (layout, 
-			torus::mVertexCount,
-			torus::mIndexCount,
-			torus::mIndices,
-			torus::mPositions,
-			torus::mUVs,
-			torus::mNormals,
-			torus::mTangents,
-			torus::mBitangents);
+			GeometryDataSourceFloat(
+				torus::mVertexCount,
+				torus::mIndexCount,
+				torus::mIndices,
+				torus::mPositions,
+				torus::mUVs,
+				torus::mNormals,
+				torus::mTangents,
+				torus::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::Plane(const VertexLayout& layout) {
 		return Geometry(layout, 
-			plane::mVertexCount,
-			plane::mIndexCount,
-			plane::mIndices,
-			plane::mPositions,
-			plane::mUVs,
-			plane::mNormals,
-			plane::mTangents,
-			plane::mBitangents);
+			GeometryDataSourceFloat(
+				plane::mVertexCount,
+				plane::mIndexCount,
+				plane::mIndices,
+				plane::mPositions,
+				plane::mUVs,
+				plane::mNormals,
+				plane::mTangents,
+				plane::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::StanfordBunny(const VertexLayout& layout) {
 		return Geometry(layout, 
-			bunny::mVertexCount,
-			bunny::mIndexCount,
-			bunny::mIndices,
-			bunny::mPositions,
-			bunny::mUVs,
-			bunny::mNormals,
-			bunny::mTangents,
-			bunny::mBitangents);
+			GeometryDataSourceFloat(
+				bunny::mVertexCount,
+				bunny::mIndexCount,
+				bunny::mIndices,
+				bunny::mPositions,
+				bunny::mUVs,
+				bunny::mNormals,
+				bunny::mTangents,
+				bunny::mBitangents));
 	}
 
 	Geometry Geometry::Prefabs::UtahTeapot(const VertexLayout& layout) {
 		return Geometry(layout, 
-			teapot::mVertexCount,
-			teapot::mIndexCount,
-			teapot::mIndices,
-			teapot::mPositions,
-			teapot::mUVs,
-			teapot::mNormals,
-			teapot::mTangents,
-			teapot::mBitangents);
+			GeometryDataSourceFloat(
+				teapot::mVertexCount,
+				teapot::mIndexCount,
+				teapot::mIndices,
+				teapot::mPositions,
+				teapot::mUVs,
+				teapot::mNormals,
+				teapot::mTangents,
+				teapot::mBitangents));
 	}
 }

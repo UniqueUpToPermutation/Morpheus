@@ -4,6 +4,8 @@
 
 #include <fstream>
 
+#include <cereal/archives/portable_binary.hpp>
+
 using namespace entt;
 
 namespace Morpheus {
@@ -36,6 +38,58 @@ namespace Morpheus {
 	}
 
 	void IResource::RegisterMetaData() {
-		meta<IResource>().type("IResource"_hs);
+		meta<IResource>()
+			.type("IResource"_hs);
+	}
+
+	void IResource::BinarySerializeReference(
+		const std::filesystem::path& workingPath, 
+		std::ostream& output) const {
+		cereal::PortableBinaryOutputArchive arr(output);
+		BinarySerializeReference(workingPath, arr);
+	}
+
+	void IResource::BinaryDeserializeReference(
+		const std::filesystem::path& workingPath,
+		std::istream& input) {
+		cereal::PortableBinaryInputArchive arr(input);
+		BinaryDeserializeReference(workingPath, arr);
+	}
+
+	void IResource::BinarySerialize(const std::filesystem::path& output) const {
+		std::ofstream f_(output, std::ios::binary);
+
+		if (!f_.is_open()) {
+			throw std::runtime_error(std::string("Failed to open ") + output.string());
+		}
+
+		BinarySerialize(f_);
+
+		f_.close();
+	}
+
+	void IResource::BinaryDeserialize(const std::filesystem::path& input) {
+		std::ifstream f_(input, std::ios::binary);
+
+		if (!f_.is_open()) {
+			throw std::runtime_error(std::string("Failed to open ") + input.string());
+		}
+
+		BinaryDeserialize(f_);
+
+		f_.close();
+	}
+
+	UniversalIdentifier IResource::GetUniversalId() const {
+		if (mFrame) {
+			UniversalIdentifier id;
+			id.mPath = mFrame->GetPath();
+			id.mEntity = mEntity;
+			return id;
+		} else {
+			UniversalIdentifier id;
+			id.mPath = GetPath();
+			return id;
+		}
 	}
 }

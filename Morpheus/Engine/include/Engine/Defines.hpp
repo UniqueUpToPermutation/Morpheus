@@ -47,6 +47,8 @@ namespace Diligent {
 }
 namespace Morpheus {
 
+	class IDependencyResolver;
+
 	class ThreadPool;
 	class TaskSyncPoint;
 	struct TaskParams;
@@ -76,6 +78,9 @@ namespace Morpheus {
 
 	template <typename T>
 	class DynamicGlobalsBuffer;
+
+	template <typename T>
+	struct ResourceComponent;
 
 	class Camera;
 
@@ -111,11 +116,13 @@ namespace Morpheus {
 
 	class Texture;
 	class Geometry;
+	class Material;
 
 	template <typename T>
 	struct LoadParams;
 
 	class IResource;
+	class ResourceCache;
 
 	template <typename T>
 	class Handle;
@@ -135,7 +142,6 @@ namespace Morpheus {
 	typedef int32_t MaterialId;
 
 	class IInterfaceCollection;
-	class IResourceCacheCollection;
 
 	struct SerializationSet;
 

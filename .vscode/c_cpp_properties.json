@@ -33,7 +33,10 @@
 				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/interface",
 				"${workspaceFolder}/DiligentEngine/DiligentCore/Graphics/GraphicsEngineOpenGL/interface",
 				"${workspaceFolder}/DiligentEngine/DiligentCore",
-				"${workspaceFolder}/DiligentEngine/DiligentSamples/ThirdParty/glfw/include"
+				"${workspaceFolder}/DiligentEngine/DiligentSamples/ThirdParty/glfw/include",
+				"${workspaceFolder}/DiligentEngine/DiligentSamples/SampleBase/include",
+				"${workspaceFolder}/DiligentEngine/DiligentFX/GLTF_PBR_Renderer/interface",
+				"${workspaceFolder}/DiligentEngine/DiligentFX"
 			],
             "defines": [
                 "PLATFORM_LINUX",

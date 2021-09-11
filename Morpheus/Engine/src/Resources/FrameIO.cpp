@@ -1,4 +1,6 @@
 #include <Engine/Resources/FrameIO.hpp>
+#include <Engine/Resources/Cache.hpp>
+#include <Engine/Systems/System.hpp>
 
 #include <cereal/types/unordered_map.hpp>
 #include <cereal/types/string.hpp>
@@ -9,189 +11,392 @@ using namespace entt;
 
 namespace Morpheus {
 
+	template <typename Archive>
+	void FrameDependency::serialize(Archive& ar) {
+		ar(mType);
+		ar(mFramePath);
+		ar(mEntity);
+		ar(mTypeName);
+		ar(mBlob);
+	}
+
 	template <class Archive>
 	void serialize(Archive& archive, ArchiveBlobPointer& m) {
-		archive(m.mBegin);
-		archive(m.mSize);
+		archive(CEREAL_NVP(m.mBegin));
+		archive(CEREAL_NVP(m.mSize));
 	}
 
 	template <class Archive>
-	void serialize(Archive& archive, SubFrameResourceTableEntry& m) {
-		archive(m.mFrameId);
-		archive(CEREAL_NVP(m.mPathString));	
+	void serialize(Archive& archive, ResourceTableEntry& m) {
+		archive(CEREAL_NVP(m.mId));
+		archive(CEREAL_NVP(m.mInternalPointer));
+		archive(CEREAL_NVP(m.mPath));
+		archive(CEREAL_NVP(m.mType));
+		archive(CEREAL_NVP(m.mTypeName));
 	}
 
-	void FrameHeader::Write(std::ostream& stream) {
+	template <class Archive>
+	void serialize(Archive& archive, ResourceTable& m) {
+		archive(CEREAL_NVP(m.mEntries));
+		archive(CEREAL_NVP(m.mInternalIds));	
+	}
+
+	void FrameTable::Write(std::ostream& stream) {
 		cereal::PortableBinaryOutputArchive out(stream);
-		out(mVersion);
-		out(CEREAL_NVP(mComponentDirectory));
-		out(CEREAL_NVP(mResourceEntries));
-		out(CEREAL_NVP(mSubFrames));
-		out(CEREAL_NVP(mMaterialsById));
-
-		
+	
+		out(mInternalResourceTable);
+		out(mTypeDirectory);
+		out(mNameToEntity);
+		out(mDependencies);
+		out(mCurrentId);
 	}
 
-	FrameHeader FrameHeader::Read(std::istream& stream) {
-		FrameHeader header;
-		
+	void FrameTable::Read(std::istream& stream) {
 		cereal::PortableBinaryInputArchive in(stream);
-		in(header.mVersion);
-		in(CEREAL_NVP(header.mComponentDirectory));
-		in(CEREAL_NVP(header.mResourceEntries));
-		in(CEREAL_NVP(header.mSubFrames));
-		in(CEREAL_NVP(header.mMaterialsById));
 
-		return header;
+		in(mInternalResourceTable);
+		in(mTypeDirectory);
+		in(mNameToEntity);
+		in(mDependencies);
+		in(mCurrentId);
 	}
 
-	void BuildSerializationSetRecursive(Frame* frame, entt::entity e, SerializationSet* out) {
-		for (auto child = frame->GetFirstChild(e); 
-			child != entt::null; 
-			child = frame->GetNext(child)) {
+	template <>
+	SerializableType MakeSerializableComponentType<Material>() {
+		return SerializableType(new MaterialType());
+	}
 
-			if (frame->Has<SubFrameComponent>(e)) {
-				out->mSubFrames.emplace_back(child);
+	void FrameTable::FindAndThenRead(std::istream& stream) {
+		ArchiveBlobPointer tableBlob;
+
+		{
+			cereal::PortableBinaryInputArchive archive(stream);
+			archive(tableBlob);
+		}
+
+		// Read the frame table
+		stream.seekg(tableBlob.mBegin);
+		Read(stream);
+	}
+
+	void BuildSerializationSetRecursive(Frame& frame, entt::entity e, SerializationSet& out) {
+		for (auto child = frame.GetFirstChild(e); 
+			child != entt::null; 
+			child = frame.GetNext(child)) {
+
+			if (frame.Has<SubFrameComponent>(e)) {
+				out.mSubFrames.emplace_back(child);
 			} else {
-				out->mToSerialize.emplace_back(child);
+				out.mToSerialize.emplace_back(child);
 				BuildSerializationSetRecursive(frame, child, out);
 			}
 		}
 	}
 
-	SerializationSet BuildSerializationSet(Frame* frame) {
+	SerializationSet BuildSerializationSet(Frame& frame) {
 		SerializationSet set;
-		BuildSerializationSetRecursive(frame, frame->GetRoot(), &set);
-		set.mToSerialize.emplace_back(frame->GetRoot());
+		BuildSerializationSetRecursive(frame, frame.GetRoot(), set);
+		set.mToSerialize.emplace_back(frame.GetRoot());
 		return set;
 	}
 
-	void FrameHeader::AddSubFrame(Handle<Frame> frame) {
-		auto it = mSubFrames.find(frame->GetFrameId());
-
-		if (it != mSubFrames.end())
-			return;
-
-		auto parentPath = mPath.parent_path();
-
-		SubFrameResourceTableEntry entry;
-		entry.mFrameId = frame->GetFrameId();
-		entry.mPathString = std::filesystem::relative(
-			frame->GetPath(), 
-			parentPath);
-
-		mSubFrames.emplace(entry);
-	}
-
-	void FrameHeader::AddMaterial(Material mat) {
-		auto it = mMaterialsById.find(mat.Id());
-
-		if (it == mMaterialsById.end())
-			return;
-
-		mMaterialsById[mat.Id()] = mat.GetDesc();
-	}
-
-	void FrameHeader::Add(Handle<IResource> resource) {
-		auto it = mResourceHandles.find(resource);
-
-		if (it != mResourceHandles.end())
-			return;
-
-		auto resourceId = mResourceEntries.size();
-
-		mResourceHandles.emplace_hint(it, resource);
-		ResourceTableEntry entry;
-		entry.mId = resourceId;
-		entry.mResource = resource;
-
-		if (resource->GetFrameId() == mFrameId) {
-			entry.mType = ResourceTableEntryType::INTERNAL;
-		} else {
-			entry.mType = ResourceTableEntryType::EXTERNAL;
+	bool FrameTable::FindComponent(const std::string& component, 
+		ArchiveBlobPointer* out) {
+		
+		auto it = mTypeDirectory.find(component);
+	
+		if (it != mTypeDirectory.end()) {
+			*out = it->second;
+			return true;	
 		}
 
-		mResourceEntries.emplace_back(entry);
-
-		mIdsByResource[resource] = resourceId;
+		return false;
 	}
 
-	ResourceId FrameHeader::GetResourceId(Handle<IResource> resource) {
-		return mIdsByResource[resource];
+	bool FrameTable::FindComponent(const SerializableType& type, 
+		ArchiveBlobPointer* out) {
+		std::string str(type->GetType().info().name());
+		return FindComponent(str, out);
 	}
 
-	void FrameHeader::WriteResourceContent(const std::filesystem::path& workingPath, 
-		std::ostream& stream) {
+	void FrameTable::WriteResourceData(std::ostream& stream) {
+		for (auto& dependency : mDependencies) {
+			auto resourceStart = stream.tellp();
+			if (dependency.second.mType == DependencyEntryType::INTERNAL) {
+				dependency.second.mResource->BinarySerialize(stream);
+			}
+			auto resourceEnd = stream.tellp();
 
-		for (auto& resource : mResourceEntries) {
+			dependency.second.mBlob.mBegin = resourceStart;
+			dependency.second.mBlob.mSize = resourceEnd - resourceStart;
+		}
+	}
 
-			if (resource.mType == ResourceTableEntryType::INTERNAL) {
-				resource.mResource->BinarySerialize(stream);
+	ResourceId FrameTable::AddDependency(Handle<IResource> resource) {
+		auto it = mPointerToId.find(resource);
+
+		if (it != mPointerToId.end()) {
+			return it->second;
+		}
+
+		std::string typeName(resource->GetType().info().name());
+
+		FrameDependency dependency;
+		dependency.mIdentifier.mEntity = resource->GetEntity();
+		dependency.mResource = resource;
+		dependency.mTypeName = typeName;
+
+		auto parentFrame = resource->GetFrame();
+
+		if (parentFrame == mFrame) {
+			dependency.mIdentifier.mEntity = resource->GetEntity();
+		} else {
+			dependency.mIdentifier = resource->GetUniversalId();
+		}
+		
+		if (parentFrame) {
+			if (parentFrame == mFrame) {
+				dependency.mType = DependencyEntryType::INTERNAL;
+			} else {
+				dependency.mType = DependencyEntryType::EXTERNAL_FRAME_RESOURCE;
+			}
+		} else {
+			if (resource->GetType() == entt::resolve<Frame>()) {
+				dependency.mType == DependencyEntryType::EXTERNAL_FRAME;
+			} else {
+				dependency.mType = DependencyEntryType::EXTERNAL;
 			}
 		}
 
+		auto id = mCurrentId++;
+		mDependencies[id] = dependency;
+		mPointerToId[resource] = id;
+		return id;
 	}
 
-	void FrameIO::Save(Frame* frame,
+	Handle<IResource> FrameTable::GetDependency(ResourceId id) const {
+		auto it = mDependencies.find(id);
+
+		if (it != mDependencies.end()) {
+			return it->second.mResource;
+		} else {
+			throw std::runtime_error("Could not find dependency!");
+		}
+	}
+
+	void FrameTable::ReadFramesRecursive(
+		ResourceCache& cache,
+		const std::vector<SerializableType>& types) {
+
+		auto subframeView = mFrame->Registry().view<SubFrameComponent>();
+
+		for (auto e : subframeView) {
+			auto& subframe = subframeView.get<SubFrameComponent>(e);
+
+			// Load all subframes
+			if (subframe.mFrame->GetDevice().IsDisk()) {
+				*subframe.mFrame = std::move(FrameIO::Load(
+					subframe.mFrame->GetPath(), cache, types));
+			}
+		}
+	}
+
+	void FrameTable::ReadComponents(std::istream& stream,
+		const std::filesystem::path& workingPath,
+		const std::vector<SerializableType>& types) {
+
+		for (auto type : types) {
+			if (type->IsComponent()) {
+				std::string type_name(type->GetType().info().name());
+				auto blob = mTypeDirectory.find(type_name);
+
+				if (blob != mTypeDirectory.end()) {
+					stream.seekg(blob->second.mBegin);
+					type->Deserialize(nullptr, workingPath, 
+						mFrame->Registry(), stream, this, nullptr);
+				}
+			}
+		}
+	}
+
+	void FrameTable::ReadResourceComponents(ResourceCache& cache,
+		std::istream& stream,
+		const std::filesystem::path& workingPath,
+		const std::vector<SerializableType>& types) {
+
+		std::unordered_map<entt::entity, Handle<IResource>> resources;
+
+		std::vector<SerializableType> resourceTypes;
+
+		for (auto type : types) {
+			if (type->IsResource()) {
+				resourceTypes.emplace_back(type);
+			}
+		}
+
+		// Make sure we save resources in order of priority
+		std::sort(resourceTypes.begin(), resourceTypes.end(),
+			[](const SerializableType& t1, const SerializableType& t2) {
+			return t1->GetLoadPriority() > t2->GetLoadPriority();
+		});
+
+		for (auto type : resourceTypes) {
+			std::string type_name(type->GetType().info().name());
+			auto blob = mTypeDirectory.find(type_name);
+
+			if (blob != mTypeDirectory.end()) {
+				stream.seekg(blob->second.mBegin);
+
+				// Deserialize internal resource components
+				type->Deserialize(&cache, workingPath, mFrame->Registry(), stream, this, &resources);
+				
+				// Deserialize external resource components
+				type->Deserialize(&cache, workingPath, mExternalResourceRegistry, stream, this, &resources);
+			}
+		}
+
+		// Link up internal + external dependencies
+		for (auto it : mDependencies) {
+			auto& dep = it.second;
+
+			if (dep.mType == DependencyEntryType::INTERNAL 
+				|| dep.mType == DependencyEntryType::EXTERNAL) {
+				auto resIt = resources.find(dep.mIdentifier.mEntity);
+
+				if (resIt == resources.end()) {
+					throw std::runtime_error("Could not find resource!");
+				}
+
+				dep.mResource = resIt->second;
+			}
+		}
+	}
+
+	void FrameTable::WriteComponents(
 		const std::filesystem::path& workingPath,
 		std::ostream& stream, 
-		const std::vector<SerializableComponentType>& componentTypes) {
+		const std::vector<SerializableType>& types) {
+		// Write components, compute resource tables
+		for (auto type : types) {
+			if (type->IsComponent()) {
+				// Serialize
+				ArchiveBlobPointer blob;
+				blob.mBegin = stream.tellp();
+				type->Serialize(workingPath, mFrame->Registry(), stream, this);
+				blob.mSize = stream.tellp() - blob.mBegin;
+
+				// Write entry into frame table
+				std::string type_name(type->GetType().info().name());
+				mTypeDirectory[type_name] = blob;
+			}
+		}
+	}
+
+	void FrameTable::WriteResourceComponents(
+		const std::filesystem::path& workingPath,
+		std::ostream& stream, 
+		const std::vector<SerializableType>& types) {
+
+		std::vector<SerializableType> resourceTypes;
+
+		for (auto type : types) {
+			if (type->IsResource()) {
+				resourceTypes.emplace_back(type);
+			}
+		}
+
+		// Make sure we save resources in order of priority
+		std::sort(resourceTypes.begin(), resourceTypes.end(),
+			[](const SerializableType& t1, const SerializableType& t2) {
+			return t1->GetLoadPriority() < t2->GetLoadPriority();
+		});
+
+		// Write components, compute resource tables
+		for (auto type : resourceTypes) {
+			if (type->IsResource()) {
+				// Serialize
+				ArchiveBlobPointer blob;
+				blob.mBegin = stream.tellp();
+
+				// Serialize internal resources
+				type->Serialize(workingPath, mFrame->Registry(), stream, this);
+				// Serialize external resources
+				type->Serialize(workingPath, mExternalResourceRegistry, stream, this);
+
+				blob.mSize = stream.tellp() - blob.mBegin;
+
+				// Write entry into frame table
+				std::string type_name(type->GetType().info().name());
+				mTypeDirectory[type_name] = blob;
+			}
+		}
+	}
+
+	void FrameIO::Save(Frame& frame,
+			std::ostream& stream, 
+			const std::vector<SerializableType>& types) {
 
 		SerializationSet set = BuildSerializationSet(frame);
 
+		ArchiveBlobPointer tableBlob;
+
 		// Build the resource table
 		// First, add subframes to resource table
-		FrameHeader header;
+		FrameTable table(&frame);
 		for (auto& subFrame : set.mSubFrames) {
-			auto& subFrameComponent = frame->Registry().get<SubFrameComponent>(subFrame);
-			header.AddSubFrame(subFrameComponent.mFrame);
+			auto& subFrameComponent = frame.Registry().get<SubFrameComponent>(subFrame);
+			table.AddDependency(subFrameComponent.mFrame.DownCast<IResource>());
 		}
 
-		// Then let all component types build the resource table
-		for (auto& type : componentTypes) {
-			type->BuildResourceTable(&frame->Registry(), header, set);
+		auto streamBeginPos = stream.tellp();
+		{
+			cereal::PortableBinaryOutputArchive archive(stream);
+			archive(tableBlob);
 		}
 
-		auto headerStartPos = stream.tellp();
+		// Write components and resources
+		table.WriteComponents(frame.GetPath(), stream, types);
+		table.WriteResourceComponents(frame.GetPath(), stream, types);		
 
-		// Write incorrect cache header, come back and fix later
-		header.Write(stream);
+		// Write internal resource data
+		table.WriteResourceData(stream);
 
-		auto headerEndPos = stream.tellp();
+		// Write the table itself
+		tableBlob.mBegin = stream.tellp();
+		table.Write(stream);
+		tableBlob.mSize = stream.tellp() - tableBlob.mBegin;
 
-		// Write internal resource content
-		header.WriteResourceContent(workingPath, stream);
-
-		// Serialize components
-		for (auto& type : componentTypes) {
-
-			auto componentStart = stream.tellp();
-			type->Serialize(&frame->Registry(), stream, header, set);
-			auto componentEnd = stream.tellp();
-
-			std::string _name(type->GetType().info().name());
-			header.mComponentDirectory[_name] =
-				ArchiveBlobPointer{componentStart, componentEnd - componentStart};
-		}
-
-		// Reserialize the header
-		stream.seekp(headerStartPos);
-		header.Write(stream);
-
-		// Make sure that header size has not changed!
-		if (stream.tellp() != headerEndPos) {
-			std::cerr << "Writes to frame header are inconsistent!" << std::endl;
-			throw std::runtime_error("Writes to frame header are inconsistent!");
+		// Overwrite the table blob
+		{
+			stream.seekp(streamBeginPos);
+			cereal::PortableBinaryOutputArchive archive(stream);
+			archive(tableBlob);
 		}
 	}
 	
-	Task FrameIO::Load(Frame* frame, 
-		std::istream& stream, 
-		const IResourceCacheCollection* caches,
-		const std::vector<SerializableComponentType>& componentTypes) {
+	void FrameIO::Save(Frame& frame,
+		const std::filesystem::path& path,
+		const std::vector<SerializableType>& componentTypes) {
 
-		FrameHeader header = FrameHeader::Read(stream);
+	}
 
-		auto cacheSet = caches->GetAllCaches();
+	Frame FrameIO::Load(
+		std::istream& stream,
+		const std::filesystem::path& workingPath,
+		ResourceCache& cache,
+		const std::vector<SerializableType>& componentTypes) {
+
+		ArchiveBlobPointer tableBlob;
+		Frame frame;
+
+		// Build the resource table
+		FrameTable table(&frame);
+
+		table.FindAndThenRead(stream);
+		table.ReadResourceComponents(cache, stream, workingPath, componentTypes);
+		table.ReadComponents(stream, workingPath, componentTypes);
+		table.ReadFramesRecursive(cache, componentTypes);
+
+		return frame;
 	}
 }

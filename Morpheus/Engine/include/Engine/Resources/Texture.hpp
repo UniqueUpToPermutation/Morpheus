@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Resources/Resource.hpp>
-#include <Engine/Resources/ResourceCache.hpp>
 #include <Engine/Graphics.hpp>
 
 #include "EngineFactory.h"
@@ -17,49 +16,44 @@ namespace Morpheus {
 
 	template <>
 	struct LoadParams<Texture> {
-		std::string mSource;
+		std::filesystem::path mPath;
 		bool bIsSRGB = false;
 		bool bGenerateMips = true;
-
+		
+		// Not necessary - but loading will be faster if
+		// this is provided.
+		ArchiveLoad mArchiveLoad;
+		
 		inline LoadParams() {
 		}
 
-		inline LoadParams(const std::string& source, 
+		inline LoadParams(const std::filesystem::path& path, 
 			bool isSRGB = false, 
 			bool generateMips = true) :
-			mSource(source),
+			mPath(path),
 			bIsSRGB(isSRGB),
 			bGenerateMips(generateMips) {
 		}
 
-		inline LoadParams(const char* source,
-			bool isSRGB = false,
-			bool generateMips = true) :
-			mSource(source),
-			bIsSRGB(isSRGB),
-			bGenerateMips(generateMips) {	
+		inline LoadParams(const std::filesystem::path& path,
+			const ArchiveBlobPointer& archivePosition) :
+			mPath(path) {
 		}
 
 		bool operator==(const LoadParams<Texture>& t) const {
-			return mSource == t.mSource && 
-				bIsSRGB == t.bIsSRGB && 
-				bGenerateMips == t.bGenerateMips;
+			return mPath == t.mPath;
 		}
 
-		struct Hasher {
-			std::size_t operator()(const LoadParams<Texture>& k) const
-			{
-				using std::size_t;
-				using std::hash;
-				using std::string;
-
-				return hash<string>()(k.mSource);
-			}
-		};
+		template <class Archive>
+		void save(Archive& archive) const {
+			std::save<Archive>(archive, mPath);
+			archive(bGenerateMips);
+			archive(bIsSRGB);
+		}
 
 		template <class Archive>
-		void serialize(Archive& archive) {
-			archive(mSource);
+		void load(Archive& archive) {
+			std::load<Archive>(archive, mPath);
 			archive(bGenerateMips);
 			archive(bIsSRGB);
 		}
@@ -129,10 +123,6 @@ namespace Morpheus {
 		Task ReadPngAsyncDeferred(const LoadParams<Texture>& params);
 		Task ReadGliAsyncDeferred(const LoadParams<Texture>& params);
 
-		ResourceCache<Texture, 
-			LoadParams<Texture>, 
-			LoadParams<Texture>::Hasher>::iterator_t mCacheIterator;
-
 		// -------------------------------------------------------------
 		// Texture Aspects
 		// -------------------------------------------------------------
@@ -170,6 +160,7 @@ namespace Morpheus {
 		static UniqueFuture<Texture> ReadPngAsync(const LoadParams<Texture>& params);
 		static UniqueFuture<Texture> ReadGliAsync(const LoadParams<Texture>& params);
 		static UniqueFuture<Texture> ReadStbAsync(const LoadParams<Texture>& params);
+		static UniqueFuture<Texture> ReadFrameAsync(const LoadParams<Texture>& params);
 
 		static Texture ReadPng(const LoadParams<Texture>& params, 
 			const uint8_t* rawData, 
@@ -237,6 +228,10 @@ namespace Morpheus {
 			CreateRasterAspect(device, texture);
 		}
 
+		// Create an internal resource texture that is stored on disk in an archive
+		Texture(Handle<Frame> frame, 
+			entt::entity entity);
+
 		// Automatically instances texture and allocates data and raw subresources on CPU
 		Texture(const DG::TextureDesc& desc);
 		Texture(Device device, const DG::TextureDesc& desc);
@@ -281,6 +276,7 @@ namespace Morpheus {
 		UniqueFuture<Texture> ToAsync(Device device, Context context = Context());
 		UniqueFuture<Texture> GPUToCPUAsync(Device device, Context context) const;
 
+		std::filesystem::path GetPath() const override;
 		entt::meta_type GetType() const override;
 		entt::meta_any GetSourceMeta() const override;
 
@@ -290,15 +286,12 @@ namespace Morpheus {
 
 		void BinarySerialize(std::ostream& output) const override;
 		void BinaryDeserialize(std::istream& input) override;
-		void BinarySerializeSource(
+		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
 			cereal::PortableBinaryOutputArchive& output) const override;
-		void BinaryDeserializeSource(
+		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
-
-		void BinarySerialize(const std::filesystem::path& output) const;
-		void BinaryDeserialize(const std::filesystem::path& input);
 
 		void CopyTo(Texture* texture) const;
 		void CopyFrom(const Texture& texture);
@@ -311,6 +304,7 @@ namespace Morpheus {
 		void Clear();
 
 		void AdoptData(Texture&& other);
+		Handle<IResource> MoveIntoHandle() override;
 
 		DG::ITexture* ToDiligent(DG::IRenderDevice* device) const;
 

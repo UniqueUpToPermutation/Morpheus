@@ -1,10 +1,16 @@
 #include <Engine/Resources/Geometry.hpp>
-#include <Engine/Resources/ResourceSerialization.hpp>
 #include <Engine/Resources/ResourceData.hpp>
+#include <Engine/Resources/Buffer.hpp>
+
+#include <Engine/Resources/FrameIO.hpp>
 
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
+
+#include <cereal/archives/portable_binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 
 using namespace Assimp;
 using namespace std;
@@ -178,7 +184,7 @@ namespace Morpheus {
 		const DG::BufferDesc& indexBufferDesc,
 		std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 		std::vector<uint8_t>&& indexBufferData,
-		DG::DrawIndexedAttribs& indexedDrawAttribs,
+		const DG::DrawIndexedAttribs& indexedDrawAttribs,
 		const BoundingBox& aabb) {
 
 		mDevice = Device::CPU();
@@ -225,11 +231,11 @@ namespace Morpheus {
 		}
 	}
 
-	UniqueFuture<Geometry> Geometry::ReadAssimpRawAsync(const LoadParams<Geometry>& params) {
+	UniqueFuture<Geometry> Geometry::ReadAssimpAsync(const LoadParams<Geometry>& params) {
 
 		FunctionPrototype<Promise<Geometry>> prototype([params](const TaskParams& e, Promise<Geometry> result) {
 			std::vector<uint8_t> data;
-			ReadBinaryFile(params.mSource, data);
+			ReadBinaryFile(params.mPath, data);
 
 			Assimp::Importer importer;
 
@@ -240,7 +246,7 @@ namespace Morpheus {
 
 			const aiScene* pScene = importer.ReadFileFromMemory(&data[0], data.size(), 
 				flags,
-				params.mSource.c_str());
+				params.mPath.c_str());
 			
 			if (!pScene) {
 				std::cout << importer.GetErrorString() << std::endl;
@@ -337,19 +343,57 @@ namespace Morpheus {
 	}
 
 	template <typename T>
-	struct V3Unpacker;
+	struct V4Packer;
 
 	template <typename T>
-	struct V2Unpacker;
+	struct V3Packer;
 
 	template <typename T>
-	struct I3Unpacker;
+	struct V2Packer;
+
+	template <typename T>
+	struct I3Packer;
 
 	template <>
-	struct V3Unpacker<float> {
+	struct V4Packer<DG::float4> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Pack(float* dest, const DG::float4* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+			dest[2] = src->z;
+			dest[3] = src->w;
+		}
+	};
+
+	template <>
+	struct V4Packer<float> {
+		static constexpr size_t Stride = 4;
+
+		inline static void Pack(float* dest, const float* src) {
+			dest[0] = src[0];
+			dest[1] = src[1];
+			dest[2] = src[2];
+			dest[3] = src[3];
+		}
+	};
+
+	template <>
+	struct V3Packer<DG::float3> {
+		static constexpr size_t Stride = 1;
+
+		inline static void Pack(float* dest, const DG::float3* src) {
+			dest[0] = src->x;
+			dest[1] = src->y;
+			dest[2] = src->z;
+		}
+	};
+
+	template <>
+	struct V3Packer<float> {
 		static constexpr size_t Stride = 3;
 
-		inline static void Unpack(float* dest, const float* src) {
+		inline static void Pack(float* dest, const float* src) {
 			dest[0] = src[0];
 			dest[1] = src[1];
 			dest[2] = src[2];
@@ -357,41 +401,30 @@ namespace Morpheus {
 	};
 
 	template <>
-	struct V3Unpacker<DG::float3> {
-		static constexpr size_t Stride = 1;
-
-		inline static void Unpack(float* dest, const DG::float3* src) {
-			dest[0] = src->x;
-			dest[1] = src->y;
-			dest[2] = src->z;
-		}
-	};
-
-	template <>
-	struct V2Unpacker<float> {
+	struct V2Packer<float> {
 		static constexpr size_t Stride = 2;
 
-		inline static void Unpack(float* dest, const float* src) {
+		inline static void Pack(float* dest, const float* src) {
 			dest[0] = src[0];
 			dest[1] = src[1];
 		}
 	};
 
 	template <>
-	struct V2Unpacker<DG::float2> {
+	struct V2Packer<DG::float2> {
 		static constexpr size_t Stride = 1;
 
-		inline static void Unpack(float* dest, const DG::float2* src) {
+		inline static void Pack(float* dest, const DG::float2* src) {
 			dest[0] = src->x;
 			dest[1] = src->y;
 		}
 	};
 
 	template <>
-	struct V3Unpacker<aiVector3D> {
+	struct V3Packer<aiVector3D> {
 		static constexpr size_t Stride = 1;
 
-		inline static void Unpack(float* dest, const aiVector3D* src) {
+		inline static void Pack(float* dest, const aiVector3D* src) {
 			dest[0] = src->x;
 			dest[1] = src->y;
 			dest[2] = src->z;
@@ -399,20 +432,20 @@ namespace Morpheus {
 	};
 
 	template <>
-	struct V2Unpacker<aiVector3D> {
+	struct V2Packer<aiVector3D> {
 		static constexpr size_t Stride = 1;
 
-		inline static void Unpack(float* dest, const aiVector3D* src) {
+		inline static void Pack(float* dest, const aiVector3D* src) {
 			dest[0] = src->x;
 			dest[1] = src->y;
 		}
 	};
 
 	template <>
-	struct I3Unpacker<aiFace> {
+	struct I3Packer<aiFace> {
 		static constexpr size_t Stride = 1;
 
-		inline static void Unpack(uint32_t* dest, const aiFace* src) {
+		inline static void Pack(uint32_t* dest, const aiFace* src) {
 			dest[0] = src->mIndices[0];
 			dest[1] = src->mIndices[1];
 			dest[2] = src->mIndices[2];
@@ -420,106 +453,195 @@ namespace Morpheus {
 	};
 
 	template <>
-	struct I3Unpacker<uint32_t> {
+	struct I3Packer<uint32_t> {
 		static constexpr size_t Stride = 3;
 
-		inline static void Unpack(uint32_t* dest, const uint32_t* src) {
+		inline static void Pack(uint32_t* dest, const uint32_t* src) {
 			dest[0] = src[0];
 			dest[1] = src[1];
 			dest[2] = src[2];
 		}
 	};
 
-	template <typename I3T, typename V3T, typename V2T>
-	void Geometry::Unpack(const VertexLayout& layout,
-		size_t vertex_count,
-		size_t index_count,
-		const I3T indices[],
-		const V3T positions[],
-		const V2T uvs[],
-		const V3T normals[],
-		const V3T tangents[],
-		const V3T bitangents[]) {
+	template <
+		typename destT, 
+		typename srcT, 
+		void(*MoveFunc)(destT*, const srcT*)>
+	void ArraySliceCopy(destT* dest, const srcT* source, 
+		size_t destStride, size_t srcStride, size_t count) {
+		size_t destIndex = 0;
+		size_t srcIndex = 0;
+		
+		for (size_t i = 0; i < count; ++i, destIndex += destStride, srcIndex += srcStride) {
+			(*MoveFunc)(&dest[destIndex], &source[srcIndex]);
+		}
+	}
+
+	template <typename T, size_t dim>
+	void ArraySliceCopy(T* dest, const T* source,
+		size_t destStride, size_t srcStride, size_t count) {
+		size_t destIndex = 0;
+		size_t srcIndex = 0;
+		for (size_t i = 0; i < count; ++i, destIndex += destStride, srcIndex += srcStride) {
+			for (size_t component = 0; component < dim; ++component) {
+				dest[destIndex + component] = source[srcIndex + component];
+			}
+		}
+	}
+
+	template <typename T, size_t dim>
+	void ArraySliceBoundingBox(T* arr, 
+		size_t stride, size_t count, 
+		std::array<T, dim>& lower, std::array<T, dim>& upper) {
+		std::fill(upper.begin(), upper.end(), -std::numeric_limits<T>::infinity());
+		std::fill(lower.begin(), lower.end(), std::numeric_limits<T>::infinity());
+
+		size_t srcIndex = 0;
+		for (size_t i = 0; i < count; ++i, srcIndex += stride) {
+			for (size_t component = 0; component < dim; ++component) {
+				upper[component] = std::max<T>(upper[component], arr[srcIndex]);
+				lower[component] = std::min<T>(lower[component], arr[srcIndex]);
+			}
+		}
+	}
+
+	BoundingBox ArraySliceBoundingBox(float* arr,
+		size_t stride, size_t count) {
+		std::array<float, 3> upper;
+		std::array<float, 3> lower;
+
+		ArraySliceBoundingBox<float, 3>(arr, stride, count, lower, upper);
+
+		BoundingBox result;
+		result.mLower = DG::float3(lower[0], lower[1], lower[2]);
+		result.mUpper = DG::float3(upper[0], upper[1], upper[2]);
+		return result;
+	}
+
+	template <typename destT, size_t componentCount>
+	void ArraySliceFill(destT* dest,
+		const destT& value,
+		size_t stride,
+		size_t vertex_count) {
+
+		for (size_t i = 0; i < vertex_count; i += stride) {
+			for (size_t component = 0; component < componentCount; ++component) {
+				dest[i + component] = value;
+			}
+		}
+	}
+
+	struct PackIndexing {
+		int mPositionOffset = -1;
+		int mPositionChannel = -1;
+		int mPositionStride = -1;
+
+		std::vector<int> mUVOffsets = {};
+		std::vector<int> mUVChannels = {};
+		std::vector<int> mUVStrides = {};
+
+		int mNormalOffset = -1;
+		int mNormalChannel = -1;
+		int mNormalStride = -1;
+
+		int mTangentOffset = -1;
+		int mTangentChannel = -1;
+		int mTangentStride = -1;
+
+		int mBitangentOffset = -1;
+		int mBitangentChannel = -1;
+		int mBitangentStride = -1;
+
+		std::vector<int> mColorOffsets = {};
+		std::vector<int> mColorChannels = {};
+		std::vector<int> mColorStrides = {};
+
+		std::vector<size_t> mChannelSizes;
+
+		static PackIndexing From(const VertexLayout& layout,
+			size_t vertex_count) {
+
+			std::vector<size_t> offsets;
+			std::vector<size_t> strides;
+
+			PackIndexing indexing;
+
+			auto& layoutElements = layout.mElements;	
+			ComputeLayoutProperties(vertex_count, layout, offsets, strides, indexing.mChannelSizes);
+
+			auto verifyAttrib = [](const DG::LayoutElement& element) {
+				if (element.ValueType != DG::VT_FLOAT32) {
+					throw std::runtime_error("Attribute type must be VT_FLOAT32!");
+				}
+			};
+
+			if (layout.mPosition >= 0) {
+				auto& posAttrib = layoutElements[layout.mPosition];
+				verifyAttrib(posAttrib);
+				indexing.mPositionOffset = offsets[layout.mPosition];
+				indexing.mPositionChannel = posAttrib.BufferSlot;
+				indexing.mPositionStride = strides[layout.mPosition];
+			}
+
+			for (auto& uv : layout.mUVs) {
+				auto& uvAttrib = layoutElements[uv];
+				verifyAttrib(uvAttrib);
+				indexing.mUVOffsets.emplace_back(offsets[uv]);
+				indexing.mUVChannels.emplace_back(uvAttrib.BufferSlot);
+				indexing.mUVStrides.emplace_back(strides[uv]);
+			}
+
+			if (layout.mNormal >= 0) {
+				auto& normalAttrib = layoutElements[layout.mNormal];
+				verifyAttrib(normalAttrib);
+				indexing.mNormalOffset = offsets[layout.mNormal];
+				indexing.mNormalChannel = normalAttrib.BufferSlot;
+				indexing.mNormalStride = strides[layout.mNormal];
+			}
+
+			if (layout.mTangent >= 0) {
+				auto& tangentAttrib = layoutElements[layout.mTangent];
+				verifyAttrib(tangentAttrib);
+				indexing.mTangentOffset = offsets[layout.mTangent];
+				indexing.mTangentChannel = tangentAttrib.BufferSlot;
+				indexing.mTangentStride = strides[layout.mTangent];
+			}
+
+			if (layout.mBitangent >= 0) {
+				auto& bitangentAttrib = layoutElements[layout.mBitangent];
+				verifyAttrib(bitangentAttrib);
+				indexing.mBitangentOffset = offsets[layout.mBitangent];
+				indexing.mBitangentChannel = bitangentAttrib.BufferSlot;
+				indexing.mBitangentStride = strides[layout.mBitangent];
+			}
+
+			for (auto& color : layout.mColors) {
+				auto& colorAttrib = layoutElements[color];
+				verifyAttrib(colorAttrib);
+				indexing.mColorOffsets.emplace_back(offsets[color]);
+				indexing.mColorChannels.emplace_back(colorAttrib.BufferSlot);
+				indexing.mColorStrides.emplace_back(strides[color]);
+			}
+
+			return indexing;
+		}
+	};
+	
+	template <typename I3T, typename V2T, typename V3T, typename V4T>
+	void Geometry::Pack(const VertexLayout& layout,
+		const GeometryDataSource<I3T, V2T, V3T, V4T>& data) {
 
 		mDevice = Device::CPU();
 
-		auto& layoutElements = layout.mElements;
-		std::vector<size_t> offsets;
-		std::vector<size_t> strides;
-		std::vector<size_t> channel_sizes;
-		
-		ComputeLayoutProperties(vertex_count, layout, offsets, strides, channel_sizes);
+		size_t vertex_count = data.mVertexCount;
+		size_t index_count = data.mIndexCount;
 
+		auto indexing = PackIndexing::From(layout, vertex_count);
+
+		auto& channel_sizes = indexing.mChannelSizes;
 		uint channelCount = channel_sizes.size();
-
-		int positionOffset = -1;
-		int positionChannel = -1;
-		int positionStride = -1;
-
-		int uvOffset = -1;
-		int uvChannel = -1;
-		int uvStride = -1;
-
-		int normalOffset = -1;
-		int normalChannel = -1;
-		int normalStride = -1;
-
-		int tangentOffset = -1;
-		int tangentChannel = -1;
-		int tangentStride = -1;
-
-		int bitangentOffset = -1;
-		int bitangentChannel = -1;
-		int bitangentStride = -1;
-
-		auto verifyAttrib = [](const DG::LayoutElement& element) {
-			if (element.ValueType != DG::VT_FLOAT32) {
-				throw std::runtime_error("Attribute type must be VT_FLOAT32!");
-			}
-		};
-
-		if (layout.mPosition >= 0) {
-			auto& posAttrib = layoutElements[layout.mPosition];
-			verifyAttrib(posAttrib);
-			positionOffset = offsets[layout.mPosition];
-			positionChannel = posAttrib.BufferSlot;
-			positionStride = strides[layout.mPosition];
-		}
-
-		if (layout.mUV >= 0) {
-			auto& uvAttrib = layoutElements[layout.mUV];
-			verifyAttrib(uvAttrib);
-			uvOffset = offsets[layout.mUV];
-			uvChannel = uvAttrib.BufferSlot;
-			uvStride = strides[layout.mUV];
-		}
-
-		if (layout.mNormal >= 0) {
-			auto& normalAttrib = layoutElements[layout.mNormal];
-			verifyAttrib(normalAttrib);
-			normalOffset = offsets[layout.mNormal];
-			normalChannel = normalAttrib.BufferSlot;
-			normalStride = strides[layout.mNormal];
-		}
-
-		if (layout.mTangent >= 0) {
-			auto& tangentAttrib = layoutElements[layout.mTangent];
-			verifyAttrib(tangentAttrib);
-			tangentOffset = offsets[layout.mTangent];
-			tangentChannel = tangentAttrib.BufferSlot;
-			tangentStride = strides[layout.mTangent];
-		}
-
-		if (layout.mBitangent >= 0) {
-			auto& bitangentAttrib = layoutElements[layout.mBitangent];
-			verifyAttrib(bitangentAttrib);
-			bitangentOffset = offsets[layout.mBitangent];
-			bitangentChannel = bitangentAttrib.BufferSlot;
-			bitangentStride = strides[layout.mBitangent];
-		}
-
+	
 		std::vector<std::vector<uint8_t>> vert_buffers(channelCount);
-
 		for (int i = 0; i < channelCount; ++i)
 			vert_buffers[i] = std::vector<uint8_t>(channel_sizes[i]);
 
@@ -527,149 +649,93 @@ namespace Morpheus {
 		DG::Uint32* indx_buffer = (DG::Uint32*)(&indx_buffer_raw[0]);
 
 		BoundingBox aabb;
-		aabb.mLower = DG::float3(
-			std::numeric_limits<float>::infinity(),
-			std::numeric_limits<float>::infinity(),
-			std::numeric_limits<float>::infinity());
-		aabb.mUpper = DG::float3(
-			-std::numeric_limits<float>::infinity(),
-			-std::numeric_limits<float>::infinity(),
-			-std::numeric_limits<float>::infinity());
 
-		bool bHasUVs = uvs != nullptr;
-		bool bHasNormals = normals != nullptr;
-		bool bHasPositions = positions != nullptr;
-		bool bHasBitangents = bitangents != nullptr;
-		bool bHasTangents = tangents != nullptr;
+		bool bHasNormals = data.mNormals != nullptr;
+		bool bHasPositions = data.mPositions != nullptr;
+		bool bHasBitangents = data.mBitangents != nullptr;
+		bool bHasTangents = data.mTangents != nullptr;
 
-		if (positionOffset >= 0) {
-			auto& channel = vert_buffers[positionChannel];
-			auto stride = positionStride;
+		if (indexing.mPositionOffset >= 0) {
+			auto& channel = vert_buffers[indexing.mPositionChannel];
+			auto arr = reinterpret_cast<float*>(&channel[indexing.mPositionOffset]);
 			if (bHasPositions) {
-				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
-				for (size_t i = 0, bufindx = positionOffset; i < end; 
-					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
-
-					float* position_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					V3Unpacker<V3T>::Unpack(position_ptr, &positions[i]);
-
-					aabb.mLower = DG::min(aabb.mLower, DG::float3(position_ptr[0], position_ptr[1], position_ptr[2]));
-					aabb.mUpper = DG::max(aabb.mUpper, DG::float3(position_ptr[0], position_ptr[1], position_ptr[2]));
-				}
+				ArraySliceCopy<float, V3T, &V3Packer<V3T>::Pack>(
+					arr, &data.mPositions[0], indexing.mPositionStride, V3Packer<V3T>::Stride, vertex_count);
+				aabb = ArraySliceBoundingBox(arr, indexing.mPositionStride,  vertex_count);
 			} else {
 				std::cout << "Warning: Pipeline expects positions, but model has none!" << std::endl;
-				for (size_t i = 0, bufindx = positionOffset; i < vertex_count; ++i, bufindx += stride) {
-					float* position_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					position_ptr[0] = 0.0f;
-					position_ptr[1] = 0.0f;
-					position_ptr[2] = 0.0f;
-				}
-
+				ArraySliceFill<float, 3>(arr, 0.0f, indexing.mPositionStride, vertex_count);
 				aabb.mLower = DG::float3(0.0f, 0.0f, 0.0f);
 				aabb.mUpper = DG::float3(0.0f, 0.0f, 0.0f);
 			}
 		}
 
-		if (uvOffset >= 0) {
-			auto& channel = vert_buffers[uvChannel];
-			auto stride = uvStride;
-			if (bHasUVs) {
-				size_t end = vertex_count * V2Unpacker<V3T>::Stride;
-				for (size_t i = 0, bufindx = uvOffset; i < end; 
-					i += V2Unpacker<V2T>::Stride, bufindx += stride) {
-					float* uv_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					V2Unpacker<V2T>::Unpack(uv_ptr, &uvs[i]);
-				}
+		for (int iuv = 0; iuv < indexing.mUVChannels.size(); ++iuv) {
+			auto& vertexChannel = vert_buffers[indexing.mUVChannels[iuv]];
+			auto arr = reinterpret_cast<float*>(&vertexChannel[indexing.mUVOffsets[iuv]]);
+			if (iuv <= data.mUVs.size()) {
+				ArraySliceCopy<float, V2T, &V2Packer<V2T>::Pack>(
+					arr, &data.mUVs[iuv][0], indexing.mUVStrides[iuv], V2Packer<V2T>::Stride, vertex_count);
 			} else {
 				std::cout << "Warning: Pipeline expects UVs, but model has none!" << std::endl;
-				for (size_t i = 0, bufindx = uvOffset; i < vertex_count; ++i, bufindx += stride) {
-					float* uv_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					uv_ptr[0] = 0.0f;
-					uv_ptr[1] = 0.0f;
-				}
+				ArraySliceFill<float, 2>(arr, 0.0f, indexing.mUVStrides[iuv], vertex_count);
 			}
 		}
 
-		if (normalOffset >= 0) {
-			auto& channel = vert_buffers[normalChannel];
-			auto stride = normalStride;
+		if (indexing.mNormalOffset >= 0) {
+			auto& channel = vert_buffers[indexing.mNormalChannel];
+			auto arr = reinterpret_cast<float*>(&channel[indexing.mNormalOffset]);
 			if (bHasNormals) {
-				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
-				for (size_t i = 0, bufindx = normalOffset; i < end;
-					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
-					float* normal_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					V3Unpacker<V3T>::Unpack(normal_ptr, &normals[i]);
-				}
+				ArraySliceCopy<float, V3T, &V3Packer<V3T>::Pack>(
+					arr, &data.mNormals[0], indexing.mNormalStride, V3Packer<V3T>::Stride, vertex_count);
 			} else {
 				std::cout << "Warning: Pipeline expects normals, but model has none!" << std::endl;
-				for (size_t i = 0, bufindx = normalOffset; i < vertex_count; ++i, bufindx += stride) {
-					float* normal_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					normal_ptr[0] = 0.0f;
-					normal_ptr[1] = 0.0f;
-					normal_ptr[2] = 0.0f;
-				}
+				ArraySliceFill<float, 3>(arr, 0.0f, indexing.mNormalStride, vertex_count);
 			}
 		}
 
-		if (tangentOffset >= 0) {
-			auto& channel = vert_buffers[tangentChannel];
-			auto stride = tangentStride;
+		if (indexing.mTangentOffset >= 0) {
+			auto& channel = vert_buffers[indexing.mTangentChannel];
+			auto arr = reinterpret_cast<float*>(&channel[indexing.mTangentOffset]);
 			if (bHasTangents) {
-				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
-				for (size_t i = 0, bufindx = tangentOffset; i < end;
-					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
-
-					float* tangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					V3Unpacker<V3T>::Unpack(tangent_ptr, &tangents[i]);
-				}
+				ArraySliceCopy<float, V3T, &V3Packer<V3T>::Pack>(
+					arr, &data.mTangents[0], indexing.mTangentStride, 
+						V3Packer<V3T>::Stride, vertex_count);
 			} else {
 				std::cout << "Warning: Pipeline expects tangents, but model has none!" << std::endl;
-				for (size_t i = 0, bufindx = tangentOffset; i < vertex_count; ++i, bufindx += stride) {
-					float* tangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					tangent_ptr[0] = 0.0f;
-					tangent_ptr[1] = 0.0f;
-					tangent_ptr[2] = 0.0f;
-				}
+				ArraySliceFill<float, 3>(arr, 0.0f, indexing.mTangentStride, vertex_count);
 			}
 		}
 
-		if (bitangentOffset >= 0) {
-			auto& channel = vert_buffers[bitangentChannel];
-			auto stride = bitangentStride;
+		if (indexing.mBitangentOffset >= 0) {
+			auto& channel = vert_buffers[indexing.mBitangentChannel];
+			auto arr = reinterpret_cast<float*>(&channel[indexing.mBitangentOffset]);
 			if (bHasBitangents) {
-				size_t end = vertex_count * V3Unpacker<V3T>::Stride;
-				for (size_t i = 0, bufindx = tangentOffset; i < end;
-					i += V3Unpacker<V3T>::Stride, bufindx += stride) {
-					float* bitangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					V3Unpacker<V3T>::Unpack(bitangent_ptr, &bitangents[i]);
-				}
+				ArraySliceCopy<float, V3T, &V3Packer<V3T>::Pack>(
+					arr, &data.mBitangents[0], indexing.mBitangentStride, 
+						V3Packer<V3T>::Stride, vertex_count);
 			} else {
 				std::cout << "Warning: Pipeline expects bitangents, but model has none!" << std::endl;
-				for (size_t i = 0, bufindx = tangentOffset; i < vertex_count; ++i, bufindx += stride) {
-					float* bitangent_ptr = reinterpret_cast<float*>(&channel[bufindx]);
-
-					bitangent_ptr[0] = 0.0f;
-					bitangent_ptr[1] = 0.0f;
-					bitangent_ptr[2] = 0.0f;
-				}
+				ArraySliceFill<float, 3>(arr, 0.0f, indexing.mBitangentStride, vertex_count);
 			}
 		}
 
-		for (size_t read_idx = 0, write_idx = 0; 
-			write_idx < index_count;
-			read_idx += I3Unpacker<I3T>::Stride,
-			write_idx += 3) {
+		for (int icolor = 0; icolor < indexing.mColorChannels.size(); ++icolor) {
+			auto& vertexChannel = vert_buffers[indexing.mColorChannels[icolor]];
+			auto arr = reinterpret_cast<float*>(&vertexChannel[indexing.mColorOffsets[icolor]]);
+			if (icolor <= data.mColors.size()) {
+				ArraySliceCopy<float, V4T, &V4Packer<V4T>::Pack>(
+					arr, &data.mColors[icolor][0], indexing.mColorStrides[icolor], 
+						V4Packer<V4T>::Stride, vertex_count);
+			} else {
+				std::cout << "Warning: Pipeline expects colors, but model has none!" << std::endl;
+				ArraySliceFill<float, 4>(arr, 1.0f, indexing.mColorStrides[icolor], vertex_count);
+			}
+		}
 
-			I3Unpacker<I3T>::Unpack(&indx_buffer[write_idx], &indices[read_idx]);
+		if (data.mIndices != nullptr) {
+			ArraySliceCopy<uint32_t, I3T, &I3Packer<I3T>::Pack>(
+				&indx_buffer[0], &data.mIndices[0], 3, I3Packer<I3T>::Stride, index_count);
 		}
 
 		std::vector<DG::BufferDesc> bufferDescs;
@@ -700,30 +766,91 @@ namespace Morpheus {
 			indexedAttribs, aabb);
 	}
 
-	void Geometry::FromMemory(const VertexLayout& layout,
-		size_t vertex_count,
-		size_t index_count,
-		const uint32_t indices[],
-		const float positions[],
-		const float uvs[],
-		const float normals[],
-		const float tangents[],
-		const float bitangents[]) {
+	GeometryDataFloat Geometry::Unpack() const {
+		GeometryDataFloat result;
 
-		Unpack<uint32_t, float, float>(layout,
-			vertex_count, index_count,
-			indices,
-			positions,
-			uvs,
-			normals,
-			tangents,
-			bitangents);
+		if (!mDevice.IsCPU()) {
+			throw std::runtime_error("Resource must be on the CPU!");
+		}
+
+		size_t vertex_count = 0;
+		if (mCpuAspect.bHasIndexBuffer) {
+			if (mShared.mIndexedAttribs.IndexType != DG::VT_UINT32) {
+				throw std::runtime_error("Index type must be VT_UINT32!");
+			}
+
+			result.mIndices.resize(mShared.mIndexedAttribs.NumIndices);
+			std::memcpy(&result.mIndices[0], &mCpuAspect.mIndexBufferData[0],
+				sizeof(uint32_t) * mShared.mIndexedAttribs.NumIndices);
+			vertex_count = mShared.mIndexedAttribs.NumIndices;
+		} else {
+			vertex_count = mShared.mUnindexedAttribs.NumVertices;
+		}
+
+		auto& layout = mShared.mLayout;
+		auto indexing = PackIndexing::From(layout, vertex_count);
+
+		if (layout.mPosition >= 0) {
+			result.mPositions.resize(3 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mPositionChannel][indexing.mPositionOffset]);
+			ArraySliceCopy<float, 3>(&result.mPositions[0], arr, 3, indexing.mPositionStride, vertex_count);
+		}
+
+		result.mUVs.resize(indexing.mUVChannels.size());
+		for (int iuv = 0; iuv < indexing.mUVChannels.size(); ++iuv) {
+			result.mUVs[iuv].resize(2 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mUVChannels[iuv]][indexing.mUVOffsets[iuv]]);
+			ArraySliceCopy<float, 2>(&result.mUVs[iuv][0], arr, 2, indexing.mUVStrides[iuv], vertex_count);
+		}
+
+		if (layout.mNormal >= 0) {
+			result.mNormals.resize(3 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mNormalChannel][indexing.mNormalOffset]);
+			ArraySliceCopy<float, 3>(&result.mNormals[0], arr, 3, indexing.mNormalStride, vertex_count);
+		}
+
+		if (layout.mTangent >= 0) {
+			result.mTangents.resize(3 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mTangentChannel][indexing.mTangentOffset]);
+			ArraySliceCopy<float, 3>(&result.mTangents[0], arr, 3, indexing.mTangentStride, vertex_count);
+		}
+
+		if (layout.mBitangent >= 0) {
+			result.mBitangents.resize(3 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mBitangentChannel][indexing.mBitangentOffset]);
+			ArraySliceCopy<float, 3>(&result.mBitangents[0], arr, 3, indexing.mBitangentStride, vertex_count);
+		}
+
+		result.mColors.resize(indexing.mUVChannels.size());
+		for (int icolor = 0; icolor < indexing.mUVChannels.size(); ++icolor) {
+			result.mColors[icolor].resize(4 * vertex_count);
+			auto arr = reinterpret_cast<const float*>(
+				&mCpuAspect.mVertexBufferDatas[indexing.mColorChannels[icolor]][indexing.mColorOffsets[icolor]]);
+			ArraySliceCopy<float, 4>(&result.mColors[icolor][0], arr, 4, indexing.mColorStrides[icolor], vertex_count);
+		}
+
+		return result;
+	}
+
+	void Geometry::FromMemory(const VertexLayout& layout,
+		const GeometryDataSourceFloat& data) {
+		Pack(layout, data);
+	}
+
+	void Geometry::FromMemory(const VertexLayout& layout,
+		const GeometryDataSourceVectorFloat& data) {
+		Pack(layout, data);
 	}
 
 	Geometry Geometry::ReadAssimpRaw(const aiScene* scene, const VertexLayout& layout) {
 
-		uint nVerts;
-		uint nIndices;
+		size_t nVerts;
+		size_t nIndices;
 
 		if (!scene->HasMeshes()) {
 			throw std::runtime_error("Assimp scene has no meshes!");
@@ -736,7 +863,7 @@ namespace Morpheus {
 
 		Geometry result;
 
-		result.Unpack<aiFace, aiVector3D, aiVector3D>(layout,
+		GeometryDataSource<aiFace, aiVector3D, aiVector3D> data(
 			nVerts, nIndices,
 			mesh->mFaces,
 			mesh->mVertices,
@@ -745,17 +872,13 @@ namespace Morpheus {
 			mesh->mTangents,
 			mesh->mBitangents);
 
+		result.Pack<aiFace, aiVector3D, aiVector3D>(layout, data);
+
 		return result;
 	}
 
 	UniqueFuture<Geometry> Geometry::ReadAsync(const LoadParams<Geometry>& params) {
-		auto pos = params.mSource.rfind('.');
-		if (pos == std::string::npos) {
-			throw std::runtime_error("Source does not have file extension!");
-		}
-		auto ext = params.mSource.substr(pos);
-
-		return ReadAssimpRawAsync(params);
+		return ReadAssimpAsync(params);
 	}
 
 	void Geometry::Clear() {
@@ -768,8 +891,11 @@ namespace Morpheus {
 	}
 
 	void Geometry::RegisterMetaData() {
-		meta<Geometry>().type("Geometry"_hs)
+		entt::meta<Geometry>()
+			.type("Geometry"_hs)
 			.base<IResource>();
+		
+		MakeSerializableResourceType<Geometry>();
 	}
 
 	Geometry Geometry::To(Device device, Context context) {
@@ -828,7 +954,112 @@ namespace Morpheus {
 		}
 	}
 
-	UniqueFuture<Geometry> Geometry::GPUToCPUAsync(Device device, Context context) const {
-		throw std::runtime_error("Not implemented!");
+	UniqueFuture<Geometry> Geometry::GPUToCPUAsync(Device device, Context context) {
+		if (!mDevice.IsGPU()) {
+			throw std::runtime_error("Texture must be on GPU!");
+		}
+
+		std::vector<DG::IBuffer*> buffers = { mRasterAspect.mVertexBuffer };
+
+		if (mRasterAspect.mIndexBuffer) {
+			buffers.emplace_back(mRasterAspect.mIndexBuffer);
+		}
+
+		auto readProc = Buffer::BeginGPUMultiRead(buffers, mDevice, context);
+
+		Promise<Geometry> result;
+
+		auto lambda = [readProc, device, context, 
+			geoHandle = Handle<Geometry>(this)](const TaskParams& e, BarrierOut, Promise<Geometry> output) {
+			auto data = Buffer::FinishGPUMultiRead(context, readProc);
+
+			bool bHasIndices = data.size() > 1;
+
+			auto& vert = data[0];
+			auto& vertDesc = readProc.mBufferDesc[0];
+			
+			std::vector<DG::BufferDesc> vertDescs = { vertDesc };
+			std::vector<std::vector<uint8_t>> vertData = { std::move(vert) };
+			auto& layout = geoHandle->GetLayout();
+
+			Geometry geo;
+			if (!bHasIndices) {
+				geo.Set(layout,
+					std::move(vertDescs), 
+					std::move(vertData),
+					geoHandle->GetDrawAttribs(),
+					geoHandle->GetBoundingBox());
+			} else {
+				auto& indx = data[1];
+				auto& indxDesc = readProc.mBufferDesc[1];
+
+				geo.Set(layout,
+					std::move(vertDescs),
+					indxDesc,
+					std::move(vertData),
+					std::move(indx),
+					geoHandle->GetIndexedDrawAttribs(),
+					geoHandle->GetBoundingBox());
+			}
+			output = std::move(geo);
+		};
+
+		if (!readProc.mFence) {
+			lambda(TaskParams(), Barrier(), result);
+			return result;
+		} else {
+			FunctionPrototype<BarrierOut, Promise<Geometry>> prototype(std::move(lambda));
+			Barrier gpuBarrier(readProc.mFence, readProc.mFenceCompletedValue);
+			gpuBarrier.Node().OnlyThread(THREAD_MAIN);
+			prototype(gpuBarrier, result)
+				.SetName("Copy Staging Buffer to CPU")
+				.OnlyThread(THREAD_MAIN);
+			return result;
+		}
+	}
+
+	std::filesystem::path Geometry::GetPath() const {
+		return mSource.mPath;
+	}
+
+	Handle<IResource> Geometry::MoveIntoHandle() {
+		return Handle<Geometry>(std::move(*this)).DownCast<IResource>();
+	}
+
+	void Geometry::BinarySerialize(std::ostream& output) const {
+		cereal::PortableBinaryOutputArchive arr(output);
+
+		GeometryDataFloat data = Unpack();
+
+		arr(mShared.mLayout);
+		arr(data);
+	}
+
+	void Geometry::BinaryDeserialize(std::istream& input) {
+		cereal::PortableBinaryInputArchive arr(input);
+
+		VertexLayout layout;
+		GeometryDataFloat data;
+
+		arr(layout);
+		arr(data);
+
+		Pack<uint32_t, float, float, float>(layout, data);
+	}
+
+	void Geometry::BinarySerializeReference(
+		const std::filesystem::path& workingPath, 
+		cereal::PortableBinaryOutputArchive& output) const {
+		auto params = mSource;
+		params.mPath = std::filesystem::relative(params.mPath, workingPath);
+		output(params);
+	}
+
+	void Geometry::BinaryDeserializeReference(
+		const std::filesystem::path& workingPath,
+		cereal::PortableBinaryInputArchive& input) {
+		input(mSource);
+		mSource.mPath = workingPath / mSource.mPath;
+		mDevice = Device::Disk();
 	}
 }

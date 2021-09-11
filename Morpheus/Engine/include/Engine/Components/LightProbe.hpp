@@ -49,5 +49,16 @@ namespace Morpheus {
 			mPrefilteredEnvMapView = mPrefilteredEnvMap ? 
 				mPrefilteredEnvMap->GetShaderView() : nullptr;
 		}
+
+		static void Serialize(entt::registry* registry, 
+			std::ostream& stream,
+			const FrameHeader& header,
+			const SerializationSet& subset);
+		static void Deserialize(entt::registry* registry, 
+			std::istream& stream,
+			const FrameHeader& header);
+		static void BuildResourceTable(entt::registry* registry,
+			FrameHeader& header,
+			const SerializationSet& subset);
 	};
 }

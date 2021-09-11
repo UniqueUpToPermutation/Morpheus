@@ -8,8 +8,6 @@
 
 #include <Engine/Systems/System.hpp>
 #include <Engine/Systems/DefaultRenderer.hpp>
-#include <Engine/Systems/TextureCache.hpp>
-#include <Engine/Systems/GeometryCache.hpp>
 
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Entity.hpp>

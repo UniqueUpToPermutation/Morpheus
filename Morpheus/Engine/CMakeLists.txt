@@ -54,21 +54,15 @@ list(APPEND SOURCE
 	src/Graphics.cpp
 	src/RendererTransformCache.cpp
 	src/SpriteBatch.cpp
-	#src/Loading.cpp
 	src/GeometryStructures.cpp
 	src/Im3d.cpp
-	src/Renderer.cpp
 	src/Frame.cpp
+	src/Reflection.cpp
 
-	src/Systems/GeometryCache.cpp
-	src/Systems/TextureCache.cpp
-	src/Systems/DefaultRenderer.cpp
 	src/Systems/EmptyRenderer.cpp
 	src/Systems/System.cpp
-	#src/Systems/ImGuiSystem.cpp
-	#src/Systems/SimpleFPSCameraSystem.cpp
-	src/Systems/BulletPhysics.cpp
-
+	
+	src/Resources/Cache.cpp
 	src/Resources/Shader.cpp
 	src/Resources/Texture.cpp
 	src/Resources/Geometry.cpp
@@ -80,6 +74,7 @@ list(APPEND SOURCE
 	src/Resources/Resource.cpp
 	src/Resources/EmbeddedGeometry.cpp
 	src/Resources/Buffer.cpp
+	src/Resources/Cache.cpp
 
 	src/Components/Transform.cpp
 
@@ -103,24 +98,18 @@ list(APPEND INCLUDE
     include/Engine/Platform.hpp
     include/Engine/ThreadPool.hpp
 	include/Engine/SpriteBatch.hpp
-	#include/Engine/Loading.hpp
 	include/Engine/Im3d.hpp
-	include/Engine/Renderer.hpp
 	include/Engine/Graphics.hpp
 	include/Engine/Frame.hpp
 	include/Engine/RendererTransformCache.hpp
+	include/Engine/Reflection.hpp
 
-	include/Engine/Systems/GeometryCache.hpp
-	include/Engine/Systems/TextureCache.hpp
 	include/Engine/Systems/EmptyRenderer.hpp
-	include/Engine/Systems/DefaultRenderer.hpp
 	include/Engine/Systems/System.hpp
-	#include/Engine/Systems/ImGuiSystem.hpp
-	#include/Engine/Systems/SimpleFPSCameraSystem.hpp
-	include/Engine/Systems/BulletPhysics.hpp
 
 	include/Engine/Components/Transform.hpp
 
+	include/Engine/Resources/Cache.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp
     include/Engine/Resources/Geometry.hpp
     include/Engine/Resources/Resource.hpp

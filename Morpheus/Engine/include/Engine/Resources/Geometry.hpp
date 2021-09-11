@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Resources/Resource.hpp>
-#include <Engine/Resources/ResourceCache.hpp>
 #include <Engine/Graphics.hpp>
 #include <Engine/GeometryStructures.hpp>
 
@@ -11,48 +10,213 @@ namespace Morpheus {
 		// Geometry resource will be loaded with this layout
 		VertexLayout mVertexLayout;
 		// Geometry resource will be loaded from this file
-		std::string mSource;
+		std::filesystem::path mPath;
 		// Only need to set this if we are loading from a geometry cache
 		GeometryType mType = GeometryType::UNSPECIFIED;
+
+		ArchiveLoadType mArchiveLoad;
 
 		inline LoadParams() {
 		}
 
 		inline LoadParams(
-			const std::string& source, 
+			const std::filesystem::path& path, 
 			const VertexLayout& layout) : 
-			mSource(source), mVertexLayout(layout) {
+			mPath(path), mVertexLayout(layout) {
 		}
 
 		inline LoadParams(
-			const char* source, 
-			const VertexLayout& layout) : 
-			mSource(source), mVertexLayout(layout) {
-		}
-
-		inline LoadParams(
-			const std::string& source, 
+			const std::filesystem::path& path, 
 			GeometryType type) :
-			mSource(source), mType(type) {
+			mPath(path), mType(type) {
 		}
 
-		inline LoadParams(
-			const char* source, 
-			GeometryType type) :
-			mSource(source), mType(type) {
+		inline bool operator==(const LoadParams<Geometry>& t) const {
+			return mPath == t.mPath;
 		}
 
-		bool operator==(const LoadParams<Geometry>& t) const {
-			return mSource == t.mSource;
+		inline const std::filesystem::path& GetPath() const {
+			return mPath;
 		}
 
-		struct Hasher {
-			inline std::size_t operator()(const LoadParams<Geometry>& k) const
-			{
-				return std::hash<std::string>()(k.mSource);
-			}
-		};
+		template <class Archive>
+		void save(Archive& archive) const {
+			std::save<Archive>(archive, mPath);
+			archive(mType);
+
+			if (mType == GeometryType::UNSPECIFIED)
+				archive(mVertexLayout);
+		}
+
+		template <class Archive>
+		void load(Archive& archive) {
+			std::load<Archive>(archive, mPath);
+			archive(mType);
+
+			if (mType == GeometryType::UNSPECIFIED)
+				archive(mVertexLayout);
+		}
 	};
+
+	template <typename IndexType = uint32_t,
+		typename Vec2Type = DG::float2,
+		typename Vec3Type = DG::float3,
+		typename Vec4Type = DG::float4>
+	struct GeometryData {
+		std::vector<IndexType> mIndices;
+		std::vector<Vec3Type> mPositions;
+		std::vector<std::vector<Vec2Type>> mUVs;
+		std::vector<Vec3Type> mNormals;
+		std::vector<Vec3Type> mTangents;
+		std::vector<Vec3Type> mBitangents;
+		std::vector<std::vector<Vec4Type>> mColors;
+
+		template <typename Archive>
+		void serialize(Archive& arr) {
+			arr(mIndices);
+			arr(mPositions);
+			arr(mUVs);
+			arr(mNormals);
+			arr(mTangents);
+			arr(mBitangents);
+			arr(mColors);
+		}
+	};
+
+	template <typename IndexType = uint32_t,
+		typename Vec2Type = DG::float2,
+		typename Vec3Type = DG::float3,
+		typename Vec4Type = DG::float4>
+	struct GeometryDataSource {
+		size_t mVertexCount;
+		size_t mIndexCount;
+
+		const IndexType* mIndices;
+		const Vec3Type* mPositions;
+		std::vector<const Vec2Type*> mUVs;
+		const Vec3Type* mNormals;
+		const Vec3Type* mTangents;
+		const Vec3Type* mBitangents;
+		std::vector<const Vec4Type*> mColors;
+
+		GeometryDataSource(
+			const GeometryData<IndexType, Vec2Type, Vec3Type, Vec4Type>& data) :
+			mVertexCount(data.mPositions.size()),
+			mIndexCount(data.mIndices.size()),
+			mPositions(data.mPositions.size() > 0 ? &data.mPositions[0] : nullptr),
+			mNormals(data.mNormals.size() > 0 ? &data.mNormals[0] : nullptr),
+			mTangents(data.mTangents.size() > 0 ? &data.mTangents[0] : nullptr),
+			mBitangents(data.mBitangents.size() > 0 ? &data.mBitangents[0] : nullptr) {
+
+			for (auto& uv : data.mUVs) 
+				mUVs.emplace_back(&uv[0]);
+			
+			for (auto& colors : data.mColors) 
+				mColors.emplace_back(&colors[0]);
+		}
+
+		GeometryDataSource(
+			size_t vertexCount,
+			size_t indexCount,
+			const IndexType indices[],
+			const Vec3Type positions[],
+			const std::vector<const Vec2Type*>& uvs = {},
+			const Vec3Type normals[] = nullptr,
+			const Vec3Type tangents[] = nullptr,
+			const Vec3Type bitangents[] = nullptr,
+			const std::vector<const Vec4Type*>& colors = {}) : 
+			mVertexCount(vertexCount),
+			mIndexCount(indexCount),
+			mIndices(indices),
+			mPositions(positions),
+			mUVs(uvs),
+			mNormals(normals),
+			mTangents(tangents),
+			mBitangents(bitangents),
+			mColors(colors) {
+		}
+
+		GeometryDataSource(
+			size_t vertexCount,
+			size_t indexCount,
+			const IndexType indices[],
+			const Vec3Type positions[],
+			const Vec2Type uvs[] = nullptr,
+			const Vec3Type normals[] = nullptr,
+			const Vec3Type tangents[] = nullptr,
+			const Vec3Type bitangents[] = nullptr,
+			const Vec4Type colors[] = nullptr) :
+			GeometryDataSource(vertexCount,
+				indexCount,
+				indices,
+				positions,
+				std::vector<const Vec2Type*>{uvs},
+				normals,
+				tangents,
+				bitangents,
+				std::vector<const Vec4Type*>{colors}) {
+		}
+		
+		GeometryDataSource(size_t vertexCount,
+			const Vec3Type positions[],
+			const std::vector<const Vec2Type*>& uvs = {},
+			const Vec3Type normals[] = nullptr,
+			const Vec3Type tangents[] = nullptr,
+			const Vec3Type bitangents[] = nullptr,
+			const std::vector<const Vec4Type*>& colors = {}) :
+			GeometryDataSource(vertexCount,
+				0,
+				nullptr,
+				positions,
+				uvs,
+				normals,
+				tangents,
+				bitangents,
+				colors) {
+		}
+
+		GeometryDataSource(size_t vertexCount,
+			const Vec3Type positions[],
+			const Vec2Type uvs[] = nullptr,
+			const Vec3Type normals[] = nullptr,
+			const Vec3Type tangents[] = nullptr,
+			const Vec3Type bitangents[] = nullptr,
+			const Vec4Type colors[] = nullptr) : 
+			GeometryDataSource(vertexCount,
+				0,
+				nullptr,
+				positions,
+				{uvs},
+				normals,
+				tangents,
+				bitangents,
+				{colors}) {
+		}
+
+		bool HasIndices() const {
+			return mIndices != nullptr;
+		}
+
+		bool HasPositions() const {
+			return mPositions != nullptr;
+		}
+
+		bool HasNormals() const {
+			return mNormals != nullptr;
+		}
+
+		bool HasTangents() const {
+			return mTangents != nullptr;
+		}
+
+		bool HasBitangents() const {
+			return mBitangents != nullptr;
+		}
+	};
+
+	typedef GeometryDataSource<> GeometryDataSourceVectorFloat;
+	typedef GeometryDataSource<uint32_t, float, float, float> GeometryDataSourceFloat;
+	typedef GeometryData<uint32_t, float, float, float> GeometryDataFloat;
 
 	class Geometry : public IResource {
 	private:
@@ -87,10 +251,6 @@ namespace Morpheus {
 			BoundingBox mBoundingBox;
 		} mShared;
 
-		ResourceCache<Geometry, 
-				LoadParams<Geometry>, 
-				LoadParams<Geometry>::Hasher>::iterator_t mCacheIterator;
-
 		void Set(DG::IRenderDevice* device,
 			DG::IBuffer* vertexBuffer, 
 			DG::IBuffer* indexBuffer,
@@ -109,16 +269,11 @@ namespace Morpheus {
 		static Geometry ReadAssimpRaw(const aiScene* scene,
 			const VertexLayout& vertexLayout);
 
-		template <typename I3T, typename V3T, typename V2T>
-		void Unpack(const VertexLayout& layout,
-			size_t vertex_count,
-			size_t index_count,
-			const I3T indices[],
-			const V3T positions[],
-			const V2T uvs[],
-			const V3T normals[],
-			const V3T tangents[],
-			const V3T bitangents[]);
+		template <typename I3T, typename V2T, typename V3T, typename V4T>
+		void Pack(const VertexLayout& layout,
+			const GeometryDataSource<I3T, V2T, V3T, V4T>& data);
+
+		GeometryDataFloat Unpack() const;
 
 		// -------------------------------------------------------------
 		// Geometry Aspects
@@ -160,9 +315,10 @@ namespace Morpheus {
 		// Geometry IO
 		// -------------------------------------------------------------
 
-		static UniqueFuture<Geometry> ReadAssimpRawAsync(const LoadParams<Geometry>& params);
+		static UniqueFuture<Geometry> ReadAssimpAsync(
+			const LoadParams<Geometry>& params);
 		inline static Geometry ReadAssimpRaw(const LoadParams<Geometry>& params) {
-			return std::move(ReadAssimpRawAsync(params).Evaluate());
+			return std::move(ReadAssimpAsync(params).Evaluate());
 		}
 
 		static UniqueFuture<Geometry> ReadAsync(const LoadParams<Geometry>& params);
@@ -170,9 +326,9 @@ namespace Morpheus {
 			return std::move(ReadAsync(params).Evaluate());
 		}
 
-		inline static Geometry Read(const std::string& source) {
+		inline static Geometry Read(const std::filesystem::path& path) {
 			LoadParams<Geometry> params;
-			params.mSource = source;
+			params.mPath = path;
 			params.mVertexLayout = VertexLayout::PositionUVNormalTangentBitangent();
 			return Read(params);
 		}
@@ -191,25 +347,9 @@ namespace Morpheus {
 			const LoadParams<Geometry>& params);
 
 		void FromMemory(const VertexLayout& layout,
-			size_t vertex_count,
-			size_t index_count,
-			const uint32_t indices[],
-			const float positions[],
-			const float uvs[],
-			const float normals[],
-			const float tangents[],
-			const float bitangents[]);
-
-		inline void FromMemory(const VertexLayout& layout,
-			size_t vertex_count,
-			const float positions[],
-			const float uvs[],
-			const float normals[],
-			const float tangents[],
-			const float bitangents[]) {
-			FromMemory(layout, vertex_count, 0, nullptr, 
-				positions, uvs, normals, tangents, bitangents);
-		}
+			const GeometryDataSourceFloat& data);
+		void FromMemory(const VertexLayout& layout,
+			const GeometryDataSourceVectorFloat& data);
 
 		// -------------------------------------------------------------
 		// Geometry Constructors and Destructors
@@ -253,6 +393,16 @@ namespace Morpheus {
 				layout, aabb);
 		}
 
+		inline Geometry(const LoadParams<Geometry>& params) {
+			mDevice = Device::Disk();
+			mSource = params;
+		}
+
+		inline Geometry(Device device, const LoadParams<Geometry>& params) : 
+			Geometry(params) {
+			Move(device);
+		}
+
 		void Set(const VertexLayout& layout,
 			std::vector<DG::BufferDesc>&& vertexBufferDescs, 
 			std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
@@ -264,7 +414,7 @@ namespace Morpheus {
 			const DG::BufferDesc& indexBufferDesc,
 			std::vector<std::vector<uint8_t>>&& vertexBufferDatas,
 			std::vector<uint8_t>&& indexBufferData,
-			DG::DrawIndexedAttribs& indexedDrawAttribs,
+			const DG::DrawIndexedAttribs& indexedDrawAttribs,
 			const BoundingBox& aabb);
 
 		inline Geometry(const VertexLayout& layout,
@@ -287,27 +437,13 @@ namespace Morpheus {
 			const BoundingBox& aabb);
 
 		inline Geometry(const VertexLayout& layout,
-			size_t vertex_count,
-			size_t index_count,
-			uint32_t indices[],
-			float positions[],
-			float uvs[],
-			float normals[],
-			float tangents[],
-			float bitangents[]) {
-			FromMemory(layout, vertex_count, index_count, indices, 
-				positions, uvs, normals, tangents, bitangents);
+			const GeometryDataSourceFloat& data) {
+			FromMemory(layout, data);	
 		}
 
 		inline Geometry(const VertexLayout& layout,
-			size_t vertex_count,
-			float positions[],
-			float uvs[],
-			float normals[],
-			float tangents[],
-			float bitangents[]) {
-			FromMemory(layout, vertex_count, positions, uvs, 
-				normals, tangents, bitangents);	
+			const GeometryDataSourceVectorFloat& data) {
+			FromMemory(layout, data);	
 		}
 
 		void Clear();
@@ -333,10 +469,6 @@ namespace Morpheus {
 
 		inline Geometry(const std::string& source, const VertexLayout& layout) {
 			LoadParams<Geometry> params(source, layout);
-			Read(params);
-		}
-
-		inline Geometry(const LoadParams<Geometry>& params) {
 			Read(params);
 		}
 
@@ -418,21 +550,24 @@ namespace Morpheus {
 		Geometry To(Device device, Context context = Context());
 		BarrierOut MoveAsync(Device device, Context context = Context()) override;
 		UniqueFuture<Geometry> ToAsync(Device device, Context context = Context());
-		UniqueFuture<Geometry> GPUToCPUAsync(Device device, Context context) const;
+		UniqueFuture<Geometry> GPUToCPUAsync(Device device, Context context);
 
 		entt::meta_type GetType() const override;
 		entt::meta_any GetSourceMeta() const override;
+		std::filesystem::path GetPath() const override;
 
 		inline const LoadParams<Geometry>& GetSource() const {
 			return mSource;
 		}
 
+		Handle<IResource> MoveIntoHandle() override;
+
 		void BinarySerialize(std::ostream& output) const override;
 		void BinaryDeserialize(std::istream& input)  override;
-		void BinarySerializeSource(
+		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
 			cereal::PortableBinaryOutputArchive& output) const override;
-		void BinaryDeserializeSource(
+		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
 

@@ -2,12 +2,10 @@
 
 #include <Engine/Graphics.hpp>
 #include <Engine/Systems/System.hpp>
-#include <Engine/Renderer.hpp>
 #include <Engine/GeometryStructures.hpp>
 
 namespace Morpheus {
-	class EmptyRenderer : public ISystem, 
-		public IRenderer, 
+	class EmptyRenderer : public ISystem,
 		public IVertexFormatProvider {
 	private:
 		RealtimeGraphics* mGraphics;
@@ -28,12 +26,6 @@ namespace Morpheus {
 		void OnAddedTo(SystemCollection& collection) override;
 
 		const VertexLayout& GetStaticMeshLayout() const override;
-		
-		MaterialId CreateUnmanagedMaterial(const MaterialDesc& desc) override;
-
-		void AddMaterialRef(MaterialId id) override;
-		void ReleaseMaterial(MaterialId id) override;
-		MaterialDesc GetMaterialDesc(MaterialId id) override;
 
 		GraphicsCapabilityConfig GetCapabilityConfig() const;
 	};

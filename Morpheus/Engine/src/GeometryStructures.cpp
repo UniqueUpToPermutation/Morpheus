@@ -4,7 +4,7 @@ namespace Morpheus {
 	VertexLayout VertexLayout::PositionUVNormalTangent() {
 		VertexLayout layout;
 		layout.mPosition = 0;
-		layout.mUV = 1;
+		layout.mUVs = {1};
 		layout.mNormal = 2;
 		layout.mTangent = 3;
 
@@ -27,7 +27,7 @@ namespace Morpheus {
 	VertexLayout VertexLayout::PositionUVNormal() {
 		VertexLayout layout;
 		layout.mPosition = 0;
-		layout.mUV = 1;
+		layout.mUVs = {1};
 		layout.mNormal = 2;
 
 		std::vector<DG::LayoutElement> layoutElements = {
@@ -48,7 +48,7 @@ namespace Morpheus {
 	VertexLayout VertexLayout::PositionUVNormalTangentBitangent() {
 		VertexLayout layout;
 		layout.mPosition = 0;
-		layout.mUV = 1;
+		layout.mUVs = {1};
 		layout.mNormal = 2;
 		layout.mTangent = 3;
 		layout.mBitangent = 4;

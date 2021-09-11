@@ -77,7 +77,11 @@ namespace Morpheus {
 	}
 
 	entt::meta_any Buffer::GetSourceMeta() const {
-		return nullptr;
+		throw std::runtime_error("Does not have source!");
+	}
+
+	std::filesystem::path Buffer::GetPath() const {
+		throw std::runtime_error("Does not have path!");
 	}
 
 	void Buffer::BinarySerialize(cereal::PortableBinaryOutputArchive& archive) const {
@@ -105,13 +109,13 @@ namespace Morpheus {
 		BinaryDeserialize(input);
 	}
 
-	void Buffer::BinarySerializeSource(
+	void Buffer::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
 		cereal::PortableBinaryOutputArchive& output) const {
 		throw std::runtime_error("Not implemented!");
 	}
 
-	void Buffer::BinaryDeserializeSource(
+	void Buffer::BinaryDeserializeReference(
 		const std::filesystem::path& workingPath,
 		cereal::PortableBinaryInputArchive& input) {
 		throw std::runtime_error("Not implemented!");
@@ -284,5 +288,89 @@ namespace Morpheus {
 				type,
 				flags);
 		}
+	}
+
+	GPUMultiBufferRead Buffer::BeginGPUMultiRead(
+		const std::vector<DG::IBuffer*>& buffers,
+		DG::IRenderDevice* device, 
+		DG::IDeviceContext* context) {
+
+		GPUMultiBufferRead result;
+		result.mFence = nullptr;
+
+		for (auto buf : buffers) {
+			auto& desc = buf->GetDesc();
+
+			if (desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
+				result.mStagingBuffers.emplace_back(buf);
+				result.mBufferDesc.emplace_back(desc);
+			} else {
+				// Create staging texture
+				auto stage_desc = desc;
+				stage_desc.Name = "CPU Retrieval Buffer";
+				stage_desc.CPUAccessFlags = DG::CPU_ACCESS_READ;
+				stage_desc.Usage = DG::USAGE_STAGING;
+				stage_desc.BindFlags = DG::BIND_NONE;
+
+				DG::IBuffer* stage_buf = nullptr;
+				device->CreateBuffer(stage_desc, nullptr, &stage_buf);
+
+				result.mStagingBuffers.emplace_back(stage_buf);
+				result.mBufferDesc.emplace_back(desc);
+
+				context->CopyBuffer(buf, 0, 
+					DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
+					stage_buf, 0, stage_desc.uiSizeInBytes,
+					DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+				if (!result.mFence) {
+					// Retrieve data from staging texture
+					DG::FenceDesc fence_desc;
+					fence_desc.Name = "CPU Retrieval Fence";
+					fence_desc.Type = DG::FENCE_TYPE_GENERAL;
+					DG::IFence* fence = nullptr;
+					device->CreateFence(fence_desc, result.mFence.Ref());
+				}
+				
+			}
+		}
+
+		if (result.mFence) {
+			context->EnqueueSignal(result.mFence, 1);
+		}
+
+		return result;
+	}
+
+	std::vector<std::vector<uint8_t>> Buffer::FinishGPUMultiRead(
+		DG::IDeviceContext* context,
+		const GPUMultiBufferRead& read) {
+
+		std::vector<std::vector<uint8_t>> result;
+
+		for (int i = 0; i < read.mBufferDesc.size(); ++i) {
+			const auto& desc = read.mBufferDesc[i];
+			auto buf = read.mStagingBuffers[i];
+
+			if (!desc.CPUAccessFlags & DG::CPU_ACCESS_READ) {
+				throw std::runtime_error("Invalid GPU Read!");
+			}
+
+			std::vector<uint8_t> dest;
+			dest.resize(desc.uiSizeInBytes);
+
+			DG::PVoid ptr = nullptr;
+			context->MapBuffer(buf, DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, ptr);
+			std::memcpy(&dest[0], ptr, desc.uiSizeInBytes);
+			context->UnmapBuffer(buf, DG::MAP_READ);
+
+			result.emplace_back(std::move(dest));
+		}
+
+		return result;
+	}
+
+	Handle<IResource> Buffer::MoveIntoHandle() {
+		return Handle<Buffer>(std::move(*this)).DownCast<IResource>();
 	}
 }
