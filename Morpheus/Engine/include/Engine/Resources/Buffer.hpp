@@ -141,10 +141,10 @@ namespace Morpheus {
 	public:
 		Buffer() = default;
 
-		Buffer(Buffer&& other);
+		Buffer(Buffer&& other) = default;
 		Buffer(const Buffer& other) = delete;
 
-		Buffer& operator=(Buffer&& other);
+		Buffer& operator=(Buffer&& other) = default;
 		Buffer& operator=(const Buffer& other) = delete;
 
 		void CopyFrom(const Buffer* buffer);

@@ -71,7 +71,7 @@ namespace Morpheus {
 		vsTrianglesConfig.mDefines["VERTEX_SHADER"] = "1";
 
 		LoadParams<RawShader> vsTrianglesParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_VERTEX,
 			"Im3d Triangle VS",
 			vsTrianglesConfig);
@@ -81,7 +81,7 @@ namespace Morpheus {
 		vsOtherConfig.mDefines["VERTEX_SHADER"] = "1";
 
 		LoadParams<RawShader> vsOtherParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_VERTEX,
 			"Im3d Other VS",
 			vsOtherConfig);
@@ -91,7 +91,7 @@ namespace Morpheus {
 		gsPtConfig.mDefines["GEOMETRY_SHADER"] = "1";
 
 		LoadParams<RawShader> gsPointsParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_GEOMETRY,
 			"Im3d Point GS",
 			gsPtConfig
@@ -102,7 +102,7 @@ namespace Morpheus {
 		gsLineConfig.mDefines["GEOMETRY_SHADER"] = "1";
 
 		LoadParams<RawShader> gsLinesParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_GEOMETRY,
 			"Im3d Line GS",
 			gsLineConfig
@@ -113,7 +113,7 @@ namespace Morpheus {
 		psTriangleConfig.mDefines["PIXEL_SHADER"] = "1";
 
 		LoadParams<RawShader> psTriangleParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_PIXEL,
 			"Im3d Triangle PS",
 			psTriangleConfig
@@ -124,7 +124,7 @@ namespace Morpheus {
 		psLinesConfig.mDefines["PIXEL_SHADER"] = "1";
 
 		LoadParams<RawShader> psLinesParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_PIXEL,
 			"Im3d Lines PS",
 			psLinesConfig
@@ -135,7 +135,7 @@ namespace Morpheus {
 		psPointConfig.mDefines["PIXEL_SHADER"] = "1";
 
 		LoadParams<RawShader> psPointParams(
-			"internal/Im3d.hlsl",
+			"Im3d/Im3d.hlsl",
 			DG::SHADER_TYPE_PIXEL,
 			"Im3d Point PS",
 			psPointConfig

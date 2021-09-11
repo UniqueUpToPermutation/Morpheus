@@ -27,16 +27,16 @@ namespace Morpheus {
 		prefilterEnvConfig.mDefines["OPTIMIZE_SAMPLES"] = std::to_string((int)config.bEnvMapOptimizeSamples);
 		irradianceSHConfig.mDefines["SAMPLE_COUNT"] = std::to_string(config.mIrradianceSHSamples);
 
-		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+		LoadParams<RawShader> vsParams("CubemapFace.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Cubemap Face Vertex Shader");
 
-		LoadParams<RawShader> envPsParams("internal/PrefilterEnvironment.psh",
+		LoadParams<RawShader> envPsParams("PrefilterEnvironment.psh",
 			DG::SHADER_TYPE_PIXEL,
 			"Compute Environment Pixel Shader",
 			prefilterEnvConfig);
 
-		LoadParams<RawShader> irrSHParams("internal/ComputeIrradianceSH.csh",
+		LoadParams<RawShader> irrSHParams("ComputeIrradianceSH.csh",
 			DG::SHADER_TYPE_COMPUTE,
 			"Compute Irradiance SH Compute Shader",
 			irradianceSHConfig);
@@ -97,7 +97,7 @@ namespace Morpheus {
 		overrides.mDefines["NUM_SAMPLES"] = std::to_string(integrationSamples);
 
 		LoadParams<RawShader> vsParams(
-			"internal/FullscreenTriangle.vsh",
+			"ullscreenTriangle.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Fullscreen Triangle",
 			overrides,
@@ -105,7 +105,7 @@ namespace Morpheus {
 		);
 
 		LoadParams<RawShader> psParams(
-			"internal/PrecomputeBRDF.psh",
+			"PrecomputeBRDF.psh",
 			DG::SHADER_TYPE_PIXEL,
 			"Fullscreen Triangle",
 			overrides,

@@ -7,7 +7,7 @@
 #include <Engine/Buffer.hpp>
 #include <Engine/Graphics.hpp>
 
-#include "shaders/BasicStructures.hlsl"
+#include <shaders/Utils/BasicStructures.hlsl>
 
 #include "MapHelper.hpp"
 

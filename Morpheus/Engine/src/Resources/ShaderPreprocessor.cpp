@@ -22,14 +22,14 @@ namespace Morpheus {
 		return ss.str();
 	}
 
-	void ShaderPreprocessor::Load(const std::string& source,
+	void ShaderPreprocessor::Load(
+		const std::filesystem::path& source,
 		IVirtualFileSystem* fileLoader,
-		const std::string& path,
 		const ShaderPreprocessorConfig* defaults,
 		const ShaderPreprocessorConfig* overrides,
 		std::stringstream* streamOut,
 		ShaderPreprocessorOutput* output, 
-		std::set<std::string>* alreadyVisited) {
+		std::unordered_set<std::filesystem::path, PathHasher>* alreadyVisited) {
 
 		if (alreadyVisited->find(source) != alreadyVisited->end()) {
 			return;
@@ -40,7 +40,7 @@ namespace Morpheus {
 		std::string contents;
 		if (!fileLoader->TryFind(source, &contents)) {
 			std::cout << "Unable to find: " << source << std::endl;
-			throw new std::runtime_error(std::string("Unable to find: ") + source);
+			throw new std::runtime_error(std::string("Unable to find: ") + source.string());
 		}
 
 		output->mSources.emplace_back(source);
@@ -51,7 +51,9 @@ namespace Morpheus {
 			ss << defaults->Stringify(overrides) << std::endl;
 		}
 
-		ss << std::endl << "#line 1 \"" << source << "\"" << std::endl; // Reset line numbers
+		auto sourceStr = source.string();
+
+		ss << std::endl << "#line 1 \"" << sourceStr << "\"" << std::endl; // Reset line numbers
 
 		// Find all includes
 		size_t include_pos = contents.find("#include");
@@ -69,7 +71,7 @@ namespace Morpheus {
 			ss << contents.substr(last_include_pos, include_pos - last_include_pos);
 
 			if (quotesIt == &contents[endLineIndex]) {
-				std::cout << source << ": Warning: #include detected without include file!" << std::endl;
+				std::cout << sourceStr << ": Warning: #include detected without include file!" << std::endl;
 			}
 			else {
 				size_t endIndx;
@@ -80,38 +82,27 @@ namespace Morpheus {
 				bGlobalSearch = false;
 				
 				if (endIndx == std::string::npos) {
-					std::cout << source << ": Warning: unmatched quote in #include!" << std::endl;
+					std::cout << sourceStr << ": Warning: unmatched quote in #include!" << std::endl;
 					return;
 				}
 
 				last_include_pos = endIndx + 1;
 
-				std::string includeSource = contents.substr(startIndx, endIndx - startIndx);
-				std::string nextPath = path;
+				std::filesystem::path includeSource = contents.substr(startIndx, endIndx - startIndx);
+				std::filesystem::path nextPath = source.parent_path();
 
 				if (bGlobalSearch) {
-					nextPath = ".";
-
-					size_t separator_i = includeSource.rfind('/');
-					if (separator_i != std::string::npos) {
-						nextPath = includeSource.substr(0, separator_i);
-					}
-
-					Load(includeSource, fileLoader, nextPath, defaults, overrides, streamOut,
+					Load(includeSource, fileLoader, defaults, overrides, streamOut,
 						output, alreadyVisited);
 
 				} else {
-					size_t separator_i = includeSource.rfind('/');
-					if (separator_i != std::string::npos) {
-						nextPath = path + '/' + includeSource.substr(0, separator_i);
-					}
-					includeSource = path + '/' + includeSource;
+					includeSource = nextPath / includeSource;
+
+					Load(includeSource, fileLoader, defaults, overrides, streamOut,
+						output, alreadyVisited);
 				}
 
-				Load(includeSource, fileLoader, nextPath, defaults, overrides, streamOut,
-					output, alreadyVisited);
-				
-				ss << std::endl << "\n#line " << current_line + 1 << " \"" << source << "\"" << std::endl; // Reset line numbers
+				ss << std::endl << "\n#line " << current_line + 1 << " \"" << sourceStr << "\"" << std::endl; // Reset line numbers
 			}
 
 			include_pos = contents.find("#include", include_pos + 1);
@@ -120,25 +111,17 @@ namespace Morpheus {
 		ss << contents.substr(last_include_pos);
 	}
 
-	void ShaderPreprocessor::Load(const std::string& source,
+	void ShaderPreprocessor::Load(
+		const std::filesystem::path& source,
 		IVirtualFileSystem* fileLoader,
 		ShaderPreprocessorOutput* output,
 		const ShaderPreprocessorConfig* defaults, 
 		const ShaderPreprocessorConfig* overrides) {
-		std::set<std::string> alreadyVisited;
-		std::string path = ".";
 
-		if (source.length() == 0)
-			throw std::runtime_error("source has length 0!");
-
-		size_t separator_i = source.rfind('/');
-		if (separator_i != std::string::npos) {
-			path = source.substr(0, separator_i);
-		}
-
+		std::unordered_set<std::filesystem::path, PathHasher> alreadyVisited;
 		std::stringstream streamOut;
 
-		Load(source, fileLoader, path, 
+		Load(source, fileLoader,
 			defaults, overrides,
 			&streamOut, output, &alreadyVisited);
 

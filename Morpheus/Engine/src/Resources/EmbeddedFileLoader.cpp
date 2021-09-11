@@ -4,8 +4,10 @@
 namespace Morpheus {
 	EmbeddedFileLoader* EmbeddedFileLoader::mGlobalInstance;
 
-	bool EmbeddedFileLoader::Exists(const std::string& source) const {
-		auto it = mInternalShaders.find(source);
+	bool EmbeddedFileLoader::Exists(const std::filesystem::path& source) const {
+		auto searchSource = std::filesystem::relative(source, "");
+
+		auto it = mInternalShaders.find(searchSource);
 		if (it != mInternalShaders.end()) {
 			return true;
 		} else {
@@ -13,9 +15,11 @@ namespace Morpheus {
 		}
 	}
 
-	bool EmbeddedFileLoader::TryFind(const std::string& source, std::string* contents) const {
+	bool EmbeddedFileLoader::TryFind(const std::filesystem::path& source, std::string* contents) const {
+		auto searchSource = std::filesystem::relative(source, "");
+		
 		// Search internal shaders first
-		auto it = mInternalShaders.find(source);
+		auto it = mInternalShaders.find(searchSource);
 		if (it != mInternalShaders.end()) {
 			*contents = it->second;
 			return true;
@@ -23,8 +27,10 @@ namespace Morpheus {
 		return false;
 	}
 
-	bool EmbeddedFileLoader::TryLoadJson(const std::string& source, nlohmann::json& result) const {
-		auto it = mInternalShaders.find(source);
+	bool EmbeddedFileLoader::TryLoadJson(const std::filesystem::path& source, nlohmann::json& result) const {
+		auto searchSource = std::filesystem::relative(source, "");
+		
+		auto it = mInternalShaders.find(searchSource);
 		if (it != mInternalShaders.end()) {
 			result = nlohmann::json::parse(it->second);
 			return true;

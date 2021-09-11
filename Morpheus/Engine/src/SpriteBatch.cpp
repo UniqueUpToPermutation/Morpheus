@@ -5,7 +5,7 @@
 
 using namespace DG;
 
-#include <shaders/SpriteBatchStructures.hlsl>
+#include <shaders/SpriteBatch/SpriteBatchStructures.hlsl>
 
 namespace Morpheus {
 
@@ -19,15 +19,15 @@ namespace Morpheus {
 			Future<Handle<DG::IShader>> mPS;
 		} data;
 
-		LoadParams<RawShader> vsParams("internal/SpriteBatch.vsh",
+		LoadParams<RawShader> vsParams("SpriteBatch/SpriteBatch.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Sprite Batch VS");
 
-		LoadParams<RawShader> gsParams("internal/SpriteBatch.gsh",
+		LoadParams<RawShader> gsParams("SpriteBatch/SpriteBatch.gsh",
 			DG::SHADER_TYPE_GEOMETRY,
 			"Sprite Batch GS");
 
-		LoadParams<RawShader> psParams("internal/SpriteBatch.psh",
+		LoadParams<RawShader> psParams("SpriteBatch/SpriteBatch.psh",
 			DG::SHADER_TYPE_PIXEL,
 			"Sprite Batch PS");
 

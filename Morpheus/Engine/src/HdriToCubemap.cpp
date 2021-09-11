@@ -23,13 +23,13 @@ namespace Morpheus {
 		else 
 			config.mDefines["TRANSFORM_SRGB_TO_LINEAR"] = "0";
 
-		LoadParams<RawShader> vsParams("internal/CubemapFace.vsh",
+		LoadParams<RawShader> vsParams("CubemapFace.vsh",
 			DG::SHADER_TYPE_VERTEX,
 			"Cubemap Face Vertex Shader",
 			config,
 			"main");
 
-		LoadParams<RawShader> psParams("internal/HdriToCubemap.psh",
+		LoadParams<RawShader> psParams("HdriToCubemap.psh",
 			DG::SHADER_TYPE_PIXEL,
 			"HDRI Convert Pixel Shader",
 			config,

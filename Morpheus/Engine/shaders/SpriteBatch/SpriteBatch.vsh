@@ -1,5 +1,5 @@
 #include "SpriteBatchStructures.hlsl"
-#include "BasicStructures.hlsl"
+#include "../Utils/BasicStructures.hlsl"
 
 cbuffer Globals 
 {

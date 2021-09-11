@@ -27,17 +27,6 @@ namespace Morpheus {
 		mCpuAspect = buffer->mCpuAspect;
 	}
 
-	Buffer::Buffer(Buffer&& other) {
-		*this = std::move(other);
-	}
-
-	Buffer& Buffer::operator=(Buffer&& other) {
-		mCpuAspect = std::move(other.mCpuAspect);
-		mGpuAspect = std::move(other.mGpuAspect);
-		mDevice = std::move(other.mDevice);
-		return *this;
-	}
-
 	void Buffer::CopyTo(Buffer* buffer) const {
 		buffer->CopyFrom(this);
 	}

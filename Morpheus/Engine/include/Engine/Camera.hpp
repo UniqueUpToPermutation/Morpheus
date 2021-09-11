@@ -5,7 +5,7 @@
 #include <Engine/Defines.hpp>
 #include <Engine/Entity.hpp>
 
-#include <shaders/BasicStructures.hlsl>
+#include <shaders/Utils/BasicStructures.hlsl>
 
 namespace Morpheus {
 

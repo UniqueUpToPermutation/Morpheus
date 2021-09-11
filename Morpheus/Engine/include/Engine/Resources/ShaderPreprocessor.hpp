@@ -28,17 +28,16 @@ namespace Morpheus {
 	
 	class ShaderPreprocessor {
 	private:
-		static void Load(const std::string& source,
+		static void Load(const std::filesystem::path& source,
 			IVirtualFileSystem* fileLoader,
-			const std::string& path,
 			const ShaderPreprocessorConfig* defaults,
 			const ShaderPreprocessorConfig* overrides,
 			std::stringstream* streamOut,
 			ShaderPreprocessorOutput* output, 
-			std::set<std::string>* alreadyVisited);
+			std::unordered_set<std::filesystem::path, PathHasher>* alreadyVisited);
 
 	public:
-		static void Load(const std::string& source,
+		static void Load(const std::filesystem::path& source,
 			IVirtualFileSystem* fileLoader,
 			ShaderPreprocessorOutput* output, 
 			const ShaderPreprocessorConfig* defaults, 
