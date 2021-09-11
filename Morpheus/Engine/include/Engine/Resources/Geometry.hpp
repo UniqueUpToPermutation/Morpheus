@@ -451,17 +451,10 @@ namespace Morpheus {
 		void CopyTo(Geometry* geometry) const;
 		void CopyFrom(const Geometry& geometry);
 
-		inline Geometry(const Geometry& other) = delete;
-		inline Geometry(Geometry&& other) {
-			AdoptData(std::move(other));
-		}
-
+		Geometry(const Geometry& other) = delete;
+		Geometry(Geometry&& other) = default;
 		Geometry& operator=(const Geometry& other) = delete;
-		
-		inline Geometry& operator=(Geometry&& other) {
-			AdoptData(std::move(other));
-			return *this;
-		}
+		Geometry& operator=(Geometry&& other) = default;
 
 		inline Geometry(const std::string& source) {
 			Read(source);

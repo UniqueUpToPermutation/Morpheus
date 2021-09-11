@@ -1411,15 +1411,6 @@ namespace Morpheus {
 		mDevice = std::move(other.mDevice);
 	}
 
-	Texture::Texture(Texture&& other) {
-		AdoptData(std::move(other));
-	}
-
-	Texture& Texture::operator=(Texture&& other) {
-		AdoptData(std::move(other));
-		return *this;
-	}
-
 	BarrierOut Texture::MoveAsync(Device device, Context context) {
 		Barrier result;
 

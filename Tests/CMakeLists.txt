@@ -16,8 +16,4 @@ if(TARGET Morpheus-Engine)
 	if (USE_PBRT)
 		add_subdirectory(PbrtTest)
 	endif()
-
-	if (USE_BULLET)
-		add_subdirectory(BulletTest)
-	endif()
 endif()

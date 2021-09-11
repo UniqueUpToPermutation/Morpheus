@@ -104,8 +104,6 @@ namespace Morpheus {
 		Handle<Frame> mFrame;
 	};
 
-	struct ResourceTable;
-
 	class Frame : public IFrameAbstract {
 	private:
 		std::filesystem::path mPath;
@@ -119,8 +117,8 @@ namespace Morpheus {
 		std::unordered_map<std::string, entt::entity> mNameToEntity;
 
 	public:
-		Frame(Frame&&);
-		Frame& operator=(Frame&&);
+		Frame(Frame&&) = default;
+		Frame& operator=(Frame&&) = default;
 
 		Frame(const Frame&) = delete;
 		Frame& operator=(const Frame&) = delete;

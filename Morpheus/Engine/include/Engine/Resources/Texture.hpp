@@ -265,10 +265,10 @@ namespace Morpheus {
 			CreateDeviceAspect(device, texture);
 		}
 
-		Texture(Texture&& other);
+		Texture(Texture&& other) = default;
 		Texture(const Texture& other) = delete;
 
-		Texture& operator=(Texture&& other);
+		Texture& operator=(Texture&& other) = default;
 		Texture& operator=(const Texture& other) = delete;
 
 		Texture To(Device device, Context context = Context());

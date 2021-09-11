@@ -55,7 +55,8 @@ namespace Morpheus {
 		T* mResource;
 
 	public:
-		inline Handle(T&& resource) : mResource(new T(std::move(resource))) {
+		inline Handle(T&& resource) : 
+			mResource(new T(std::move(resource))) {
 		}
 
 		inline Handle() : mResource(nullptr) {
@@ -182,8 +183,14 @@ namespace Morpheus {
 		};
 
 		template <typename Archive>
-		void serialize(Archive& arr) {
-			arr(mPath);
+		void save(Archive& arr) const {
+			std::save<Archive>(arr, mPath);
+			arr(mEntity);
+		}
+
+		template <typename Archive>
+		void load(Archive& arr) {
+			std::load<Archive>(arr, mPath);
 			arr(mEntity);
 		}
 
@@ -193,9 +200,27 @@ namespace Morpheus {
 		}
 	};
 
+	struct RefCounter {
+		std::atomic<uint> mCount;
+
+		inline RefCounter() {
+			mCount = 1;
+		}
+		inline RefCounter(const RefCounter&) {
+		}
+		inline RefCounter& operator=(const RefCounter&) {
+			return *this;
+		}
+		inline RefCounter(RefCounter&&) {
+		}
+		inline RefCounter& operator=(RefCounter&&) {
+			return *this;
+		}
+	};
+
 	class IResource {
 	private:
-		std::atomic<uint> mRefCount;
+		RefCounter mRefCount;
 
 	protected:
 		entt::entity mEntity = entt::null;
@@ -216,22 +241,18 @@ namespace Morpheus {
 			return mDevice;
 		}
 
-		inline IResource() {
-			mRefCount = 1;
-		}
-
 		inline uint AddRef() {
-			return mRefCount.fetch_add(1) + 1;
+			return mRefCount.mCount.fetch_add(1) + 1;
 		}
 
 		inline uint GetRefCount() {
-			return mRefCount;
+			return mRefCount.mCount;
 		}
 
 		virtual ~IResource() = default;
 
 		inline uint Release() {
-			auto val = mRefCount.fetch_sub(1);
+			auto val = mRefCount.mCount.fetch_sub(1);
 			assert(val >= 1);
 
 			if (val == 1)

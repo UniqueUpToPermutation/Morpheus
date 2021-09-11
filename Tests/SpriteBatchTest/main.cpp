@@ -27,7 +27,8 @@ MAIN() {
 		ImmediateComputeQueue queue;
 		auto sbPipelineFuture = SpriteBatchPipeline::LoadDefault(graphics, &sbGlobals, 
 			DG::FILTER_TYPE_LINEAR, &embeddedFileLoader);
-		auto textureFuture = Texture::Load(graphics.Device(), "sprite.png");
+
+		auto textureFuture = Texture::Load(graphics.Device(), LoadParams<Texture>("sprite.png"));
 		queue.Submit(sbPipelineFuture);
 		queue.Submit(textureFuture);
 		queue.YieldUntilEmpty();

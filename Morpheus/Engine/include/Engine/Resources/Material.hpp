@@ -42,7 +42,14 @@ namespace Morpheus {
 		MaterialDesc mDesc;
 
 	public:
+		inline Material() {
+		}
+		
 		Material(const MaterialDesc& desc);
+		Material(Material&&) = default;
+		Material& operator=(Material&&) = default;
+		Material(const Material&) = delete;
+		Material& operator=(const Material&) = delete;
 
 		Material Duplicate();
 		const MaterialDesc& GetDesc() const;

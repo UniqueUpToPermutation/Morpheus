@@ -7,29 +7,6 @@
 #include <cereal/archives/portable_binary.hpp>
 
 namespace Morpheus {
-
-	Frame::Frame(Frame&& other) {
-		*this = std::move(other);
-	}
-
-	Frame& Frame::operator=(Frame&& other) {
-		mEntity = std::move(other.mEntity);
-		mFrame = std::move(other.mFrame);
-		mDevice = std::move(other.mDevice);
-
-		mPath = std::move(other.mPath);
-		
-		mRegistry = std::move(other.mRegistry);
-		mRoot = std::move(other.mRoot);
-		mCamera = std::move(other.mCamera);
-
-		mInternalResourceTable = std::move(other.mInternalResourceTable);
-		mEntityToResource = std::move(other.mEntityToResource);
-		mNameToEntity = std::move(other.mNameToEntity);
-
-		return *this;
-	}
-
 	const std::unordered_map<entt::entity, ArchiveBlobPointer>&
 		Frame::GetResourceTable() const {
 		return mInternalResourceTable;

@@ -1,21 +1,50 @@
 #include <Engine/Resources/FrameIO.hpp>
 #include <Engine/Resources/Cache.hpp>
 #include <Engine/Systems/System.hpp>
+#include <Engine/Resources/Material.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 #include <cereal/types/unordered_map.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
+#include <fstream>
+
 using namespace entt;
 
 namespace Morpheus {
 
+	std::unique_ptr<cereal::PortableBinaryInputArchive> 
+		MakePortableBinaryInputArchive(std::istream& stream) {
+		return std::make_unique<cereal::PortableBinaryInputArchive>(stream);
+	}
+
+	std::unique_ptr<cereal::PortableBinaryOutputArchive>
+		MakePortableBinaryOutputArchive(std::ostream& stream) {
+		return std::make_unique<cereal::PortableBinaryOutputArchive>(stream);
+	}
+
+	void WriteInt64(cereal::PortableBinaryOutputArchive& arr, size_t sz) {
+		arr(sz);
+	}
+
+	void WriteEntity(cereal::PortableBinaryOutputArchive& arr, entt::entity e) {
+		arr(e);
+	}
+
+	void ReadInt64(cereal::PortableBinaryInputArchive& arr, size_t& sz) {
+		arr(sz);
+	}
+
+	void ReadEntity(cereal::PortableBinaryInputArchive& arr, entt::entity& e) {
+		arr(e);
+	}
+
 	template <typename Archive>
 	void FrameDependency::serialize(Archive& ar) {
 		ar(mType);
-		ar(mFramePath);
-		ar(mEntity);
+		ar(mIdentifier);
 		ar(mTypeName);
 		ar(mBlob);
 	}
@@ -24,21 +53,6 @@ namespace Morpheus {
 	void serialize(Archive& archive, ArchiveBlobPointer& m) {
 		archive(CEREAL_NVP(m.mBegin));
 		archive(CEREAL_NVP(m.mSize));
-	}
-
-	template <class Archive>
-	void serialize(Archive& archive, ResourceTableEntry& m) {
-		archive(CEREAL_NVP(m.mId));
-		archive(CEREAL_NVP(m.mInternalPointer));
-		archive(CEREAL_NVP(m.mPath));
-		archive(CEREAL_NVP(m.mType));
-		archive(CEREAL_NVP(m.mTypeName));
-	}
-
-	template <class Archive>
-	void serialize(Archive& archive, ResourceTable& m) {
-		archive(CEREAL_NVP(m.mEntries));
-		archive(CEREAL_NVP(m.mInternalIds));	
 	}
 
 	void FrameTable::Write(std::ostream& stream) {
@@ -63,7 +77,7 @@ namespace Morpheus {
 
 	template <>
 	SerializableType MakeSerializableComponentType<Material>() {
-		return SerializableType(new MaterialType());
+		return SerializableType(new MaterialSerializableType());
 	}
 
 	void FrameTable::FindAndThenRead(std::istream& stream) {
@@ -378,6 +392,13 @@ namespace Morpheus {
 		const std::filesystem::path& path,
 		const std::vector<SerializableType>& componentTypes) {
 
+		std::ofstream f(path, std::ios::binary);
+
+		if (!f.good()) {
+			throw std::runtime_error("Failed to open file!");
+		}
+
+		Save(frame, f, componentTypes);
 	}
 
 	Frame FrameIO::Load(
@@ -398,5 +419,17 @@ namespace Morpheus {
 		table.ReadFramesRecursive(cache, componentTypes);
 
 		return frame;
+	}
+
+	Frame FrameIO::Load(const std::filesystem::path& path,
+		ResourceCache& cache,
+		const std::vector<SerializableType>& componentTypes) {
+		std::ifstream f(path, std::ios::binary);
+
+		if (!f.good()) {
+			throw std::runtime_error("Failed to open file!");
+		}
+
+		return Load(f, path.parent_path(), cache, componentTypes);
 	}
 }

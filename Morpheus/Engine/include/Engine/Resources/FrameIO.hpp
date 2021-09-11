@@ -202,7 +202,7 @@ namespace Morpheus {
 		SerializableTypeImpl<T, ResourceComponent<T>, true, false, false>;
 
 	// Materials are always loaded completely
-	using MaterialType = 
+	using MaterialSerializableType = 
 		SerializableTypeImpl<Material, ResourceComponent<Material>, true, false, true, -1>;
 
 	typedef std::shared_ptr<IAbstractSerializableType> SerializableType;
@@ -318,7 +318,7 @@ namespace Morpheus {
 			const std::filesystem::path& path,
 			const std::vector<SerializableType>& componentTypes);
 		static Frame Load(std::istream& stream,
-		const std::filesystem::path& workingPath,
+			const std::filesystem::path& workingPath,
 			ResourceCache& cache,
 			const std::vector<SerializableType>& componentTypes);
 		static Frame Load(const std::filesystem::path& path,

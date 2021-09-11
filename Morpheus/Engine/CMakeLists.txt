@@ -66,6 +66,7 @@ list(APPEND SOURCE
 	src/Resources/Shader.cpp
 	src/Resources/Texture.cpp
 	src/Resources/Geometry.cpp
+	src/Resources/Material.cpp
 	src/Resources/ShaderPreprocessor.cpp
 	src/Resources/EmbeddedFileLoader.cpp
 	src/Resources/ResourceData.cpp
@@ -75,6 +76,7 @@ list(APPEND SOURCE
 	src/Resources/EmbeddedGeometry.cpp
 	src/Resources/Buffer.cpp
 	src/Resources/Cache.cpp
+	src/Resources/FrameIO.cpp
 
 	src/Components/Transform.cpp
 
@@ -121,6 +123,8 @@ list(APPEND INCLUDE
 	include/Engine/Resources/RawSampler.hpp
 	include/Engine/Resources/TextureIterator.hpp
 	include/Engine/Resources/Buffer.hpp
+	include/Engine/Resources/FrameIO.hpp
+	include/Engine/Resources/Material.hpp
 )
 
 if (USE_GLFW) 

@@ -1,4 +1,5 @@
 #include <Engine/Resources/Material.hpp>
+#include <Engine/Resources/Texture.hpp>
 
 namespace Morpheus {
 	UniqueFuture<MaterialDesc> MaterialDesc::CreateFuture(
@@ -82,7 +83,7 @@ namespace Morpheus {
 
 	}
 
-	BarrierOut Material::MoveAsync(Device device, Context context = Context()) {
+	BarrierOut Material::MoveAsync(Device device, Context context) {
 		return Barrier();
 	}
 

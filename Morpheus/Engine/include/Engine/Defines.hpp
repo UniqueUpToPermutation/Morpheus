@@ -146,7 +146,6 @@ namespace Morpheus {
 	struct SerializationSet;
 
 	struct ArchiveBlobPointer;
-	struct ResourceTableEntry;
 	class FrameHeader;
 
 	constexpr MaterialId NullMaterialId = -1;

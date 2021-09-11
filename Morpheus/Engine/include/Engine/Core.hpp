@@ -7,7 +7,6 @@
 #include <Engine/Resources/Texture.hpp>
 
 #include <Engine/Systems/System.hpp>
-#include <Engine/Systems/DefaultRenderer.hpp>
 
 #include <Engine/ThreadPool.hpp>
 #include <Engine/Entity.hpp>
