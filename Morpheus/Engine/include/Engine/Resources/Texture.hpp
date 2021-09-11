@@ -255,10 +255,20 @@ namespace Morpheus {
 			mSource = params;
 		}
 
+		inline Texture(const std::string& path) : 
+			Texture(LoadParams<Texture>(std::filesystem::path(path))) {
+		}
+
 		inline Texture(Device device, 
 			const LoadParams<Texture>& params, 
 			Context context = Context()) : Texture(params) {
 			Move(device, context);
+		}
+
+		inline Texture(Device device,
+			const std::string& path,
+			Context context = Context()) : 
+			Texture(device, LoadParams<Texture>(std::filesystem::path(path)), context) {
 		}
 
 		inline Texture(Device device, const Texture* texture) {

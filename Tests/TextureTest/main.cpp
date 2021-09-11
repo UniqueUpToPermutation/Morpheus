@@ -16,11 +16,11 @@ int main() {
 	{
 		Texture textureCopy;
 		textureCopy.CopyFrom(texture);
-		textureCopy.BinarySerialize("brick.bin");
+		textureCopy.BinarySerializeToFile("brick.bin");
 	}
 
 	Texture textureFromArchive;
-	textureFromArchive.BinaryDeserialize("brick.bin");
+	textureFromArchive.BinaryDeserializeFromFile("brick.bin");
 
 	assert(textureFromArchive.GetDevice().IsCPU());
 	
@@ -69,7 +69,7 @@ int main() {
 	Texture fromArchive;
 	bool bArchiveTextureExists = false;
 	if (std::filesystem::exists("FromGpu.bin")) {
-		fromArchive.BinaryDeserialize("FromGpu.bin");
+		fromArchive.BinaryDeserializeFromFile("FromGpu.bin");
 		bArchiveTextureExists = true;
 	}
 
@@ -153,7 +153,7 @@ int main() {
 		Texture fromGpu1 = gpuTexture1.To(Device::CPU(), graphics.ImmediateContext());
 		
 		fromGpu1.SavePng("FromGpu1.png", false);
-		fromGpu1.BinarySerialize("FromGpu.bin");
+		fromGpu1.BinarySerializeToFile("FromGpu.bin");
 
 		Texture fromGpu2 = gpuTexture2.To(Device::CPU(), graphics.ImmediateContext());
 		

@@ -281,8 +281,9 @@ namespace Morpheus {
 		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			std::istream& input);
-		void BinarySerialize(const std::filesystem::path& output) const;
-		void BinaryDeserialize(const std::filesystem::path& input);
+
+		void BinarySerializeToFile(const std::filesystem::path& output) const;
+		void BinaryDeserializeFromFile(const std::filesystem::path& input);
 
 		void Move(Device device, Context context = Context());
 

@@ -56,7 +56,7 @@ namespace Morpheus {
 		BinaryDeserializeReference(workingPath, arr);
 	}
 
-	void IResource::BinarySerialize(const std::filesystem::path& output) const {
+	void IResource::BinarySerializeToFile(const std::filesystem::path& output) const {
 		std::ofstream f_(output, std::ios::binary);
 
 		if (!f_.is_open()) {
@@ -68,7 +68,7 @@ namespace Morpheus {
 		f_.close();
 	}
 
-	void IResource::BinaryDeserialize(const std::filesystem::path& input) {
+	void IResource::BinaryDeserializeFromFile(const std::filesystem::path& input) {
 		std::ifstream f_(input, std::ios::binary);
 
 		if (!f_.is_open()) {
