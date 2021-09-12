@@ -88,6 +88,7 @@ namespace Morpheus {
 		virtual std::unique_ptr<Task> Startup(SystemCollection& systems) = 0;
 		virtual bool IsInitialized() const = 0;
 		virtual void Shutdown() = 0;
+		virtual std::unique_ptr<Task> LoadResources(Frame* frame) = 0;
 		virtual void NewFrame(Frame* frame) = 0;
 		virtual void OnAddedTo(SystemCollection& collection) = 0;
 		
@@ -289,6 +290,7 @@ namespace Morpheus {
 
 		void Startup(IComputeQueue* queue = nullptr);
 		void SetFrame(Frame* frame);
+		Task LoadResources(Frame* frame);
 		void Shutdown();
 
 		/* Renders and then updates the frame.

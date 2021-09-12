@@ -59,6 +59,21 @@ namespace Morpheus {
 		}
 	}
 
+	Task SystemCollection::LoadResources(Frame* frame) {
+		CustomTask task;
+
+		for (auto& system : mSystems) {
+			auto loadTask = system->LoadResources(frame);
+
+			if (loadTask) {
+				std::shared_ptr<Task> loadTaskShared(loadTask.release());
+				task.Add(loadTaskShared);
+			}
+		}
+
+		return task;
+	}
+
 	void FrameProcessor::Apply(const FrameTime& time, 
 			IComputeQueue* queue,
 			bool bUpdate,
