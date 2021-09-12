@@ -1,6 +1,6 @@
 #include <Engine/Im3d.hpp>
 #include <Engine/Resources/Shader.hpp>
-#include <Engine/Camera.hpp>
+#include <Engine/Components/Camera.hpp>
 #include <Engine/Graphics.hpp>
 
 #include "MapHelper.hpp"

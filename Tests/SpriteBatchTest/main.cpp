@@ -6,6 +6,8 @@
 using namespace Morpheus;
 
 MAIN() {
+	Meta::Initialize();
+
 	// Create windowing stuff
 	Platform platform;
 	platform.Startup();

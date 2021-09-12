@@ -4,6 +4,7 @@
 using namespace Morpheus;
 
 MAIN() {
+	Meta::Initialize();
 
 	Platform platform;
 	platform.Startup();

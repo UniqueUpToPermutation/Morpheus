@@ -17,7 +17,7 @@ namespace Morpheus {
 		static void RegisterMetaData();
 
 		static void Serialize(
-			SkyboxComponent& transform, 
+			SkyboxComponent& component, 
 			cereal::PortableBinaryOutputArchive& archive,
 			IDependencyResolver* dependencies);
 

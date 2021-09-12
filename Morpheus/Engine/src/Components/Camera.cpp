@@ -1,10 +1,16 @@
 #include <Engine/Entity.hpp>
-#include <Engine/Camera.hpp>
+#include <Engine/Components/Camera.hpp>
 #include <Engine/Components/Transform.hpp>
 #include <Engine/Graphics.hpp>
 #include <Engine/RendererTransformCache.hpp>
+#include <Engine/Resources/FrameIO.hpp>
+#include <Engine/Reflection.hpp>
+
+#include <cereal/archives/portable_binary.hpp>
 
 #include "SwapChain.h"
+
+using namespace entt;
 
 namespace Morpheus {
 
@@ -221,15 +227,6 @@ namespace Morpheus {
 	Camera::Camera(CameraType type) :
 		mType(type) {	
 	}
-	Camera::Camera(const Camera& other) :
-		mEye(other.mEye),
-		mLookAt(other.mLookAt),
-		mUp(other.mUp),
-		mFieldOfView(other.mFieldOfView),
-		mNearPlane(other.mNearPlane),
-		mFarPlane(other.mFarPlane),
-		mType(other.mType) {
-	}
 
 	DG::float4x4 Camera::GetView() const {
 		auto translate = DG::float4x4::Translation(-mEye);
@@ -270,5 +267,30 @@ namespace Morpheus {
 
 	DG::float3 Camera::GetEye() const {
 		return mEye;
+	}
+
+	void Camera::RegisterMetaData() {
+		meta<Camera>()
+			.type("Camera"_hs);
+
+		MakeCopyableComponentType<Camera>();
+		MakeSerializableComponentType<Camera>();
+	}
+
+	void Camera::Serialize(
+		Camera& component, 
+		cereal::PortableBinaryOutputArchive& archive,
+		IDependencyResolver* dependencies) {
+		
+		component.serialize(archive);
+	}
+
+	Camera Camera::Deserialize(
+		cereal::PortableBinaryInputArchive& archive,
+		const IDependencyResolver* dependencies) {
+
+		Camera camera;
+		camera.serialize(archive);
+		return camera;
 	}
 }

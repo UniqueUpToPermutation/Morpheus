@@ -11,6 +11,8 @@ using namespace Morpheus;
 void AddEmbeddedShaders(file_map_t* map);
 
 MAIN() {
+	Meta::Initialize();
+
 	// Startup everything
 	EmbeddedFileLoader embeddedFiles;
 	embeddedFiles.Add(&AddEmbeddedShaders);

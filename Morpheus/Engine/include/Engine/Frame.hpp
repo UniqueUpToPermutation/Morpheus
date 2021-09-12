@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Entity.hpp>
-#include <Engine/Camera.hpp>
+#include <Engine/Components/Camera.hpp>
 #include <Engine/Components/ResourceComponent.hpp>
 #include <Engine/Resources/Resource.hpp>
 

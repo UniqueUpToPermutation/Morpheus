@@ -1,6 +1,13 @@
 #include <Engine/Reflection.hpp>
 #include <Engine/Systems/System.hpp>
 #include <Engine/Resources/FrameIO.hpp>
+#include <Engine/Resources/Texture.hpp>
+#include <Engine/Resources/Geometry.hpp>
+#include <Engine/Resources/Material.hpp>
+#include <Engine/Components/Camera.hpp>
+#include <Engine/Components/SkyboxComponent.hpp>
+#include <Engine/Components/StaticMeshComponent.hpp>
+#include <Engine/Components/Transform.hpp>
 
 namespace Morpheus {
 
@@ -66,5 +73,16 @@ namespace Morpheus {
 			gSerializableTypes.emplace_hint(it, type->GetType(), type);
 			return type;
 		}
+	}
+
+	void Meta::Initialize() {
+		Texture::RegisterMetaData();
+		Geometry::RegisterMetaData();
+		Material::RegisterMetaData();
+		Frame::RegisterMetaData();
+		Camera::RegisterMetaData();
+		StaticMeshComponent::RegisterMetaData();
+		Transform::RegisterMetaData();
+		SkyboxComponent::RegisterMetaData();
 	}
 }

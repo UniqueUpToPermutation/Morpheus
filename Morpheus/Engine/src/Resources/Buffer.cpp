@@ -359,6 +359,21 @@ namespace Morpheus {
 		return result;
 	}
 
+	void Buffer::CreateGpuAspect(Device device, Buffer* other) {
+		DG::BufferData data;
+		data.DataSize = other->mCpuAspect.mData.size() * 
+			sizeof(decltype(other->mCpuAspect.mData[0]));
+		data.pData = &other->mCpuAspect.mData[0];
+
+		DG::BufferData* pData = nullptr;
+		if (other->mCpuAspect.mData.size() > 0) {
+			pData = &data;
+		}
+
+		device.mUnderlying.mGpuDevice->CreateBuffer(other->mCpuAspect.mDesc, 
+			pData, mGpuAspect.mBuffer.Ref());
+	}
+
 	Handle<IResource> Buffer::MoveIntoHandle() {
 		return Handle<Buffer>(std::move(*this)).DownCast<IResource>();
 	}

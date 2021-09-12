@@ -1,7 +1,5 @@
-#include <Engine/Platform.hpp>
-#include <Engine/Graphics.hpp>
-#include <Engine/Entity.hpp>
-#include <Engine/Frame.hpp>
+#include <Engine/Core.hpp>
+
 #include <Engine/Systems/EmptyRenderer.hpp>
 
 #include "Timer.hpp"
@@ -9,6 +7,8 @@
 using namespace Morpheus;
 
 MAIN() {
+	Meta::Initialize();
+
 	ThreadPool pool;
 	pool.Startup();
 

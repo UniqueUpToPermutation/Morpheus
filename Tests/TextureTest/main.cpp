@@ -9,6 +9,8 @@
 using namespace Morpheus;
 
 int main() {
+	Meta::Initialize();
+
 	Texture texture(Device::CPU(), "brick_albedo.png");
 	
 	assert(texture.GetDevice().IsCPU());

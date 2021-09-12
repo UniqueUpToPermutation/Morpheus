@@ -22,6 +22,7 @@ Im3d::Mat4 ToIm3d(const DG::float4x4& f) {
 }
 
 MAIN() {
+	Meta::Initialize();
 
 	Platform platform(CreatePlatformGLFW());
 	platform.Startup();

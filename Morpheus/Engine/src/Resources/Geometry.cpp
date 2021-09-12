@@ -1018,6 +1018,14 @@ namespace Morpheus {
 		}
 	}
 
+	entt::meta_type Geometry::GetType() const {
+		return entt::resolve<Geometry>();
+	}
+
+	entt::meta_any Geometry::GetSourceMeta() const {
+		return mSource;
+	}
+
 	std::filesystem::path Geometry::GetPath() const {
 		return mSource.mPath;
 	}

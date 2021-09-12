@@ -41,7 +41,8 @@ namespace Morpheus {
 
 	public:
 		Camera(CameraType type = CameraType::PERSPECTIVE);
-		Camera(const Camera& other);
+		Camera(const Camera&) = default;
+		Camera& operator=(const Camera&) = default;
 
 		// Does not take into account the transform of this node
 		DG::float4x4 GetView() const;
@@ -151,5 +152,28 @@ namespace Morpheus {
 	
 		HLSL::CameraAttribs GetLocalAttribs(RealtimeGraphics& graphics);
 		HLSL::CameraAttribs GetTransformedAttribs(entt::entity entity, entt::registry* registry, RealtimeGraphics& graphics);
+	
+		template <typename Archive>
+		void serialize(Archive& arr) {
+			arr(mEye);
+			arr(mLookAt);
+			arr(mUp);
+			arr(mFieldOfView);
+			arr(mNearPlane);
+			arr(mFarPlane);
+			arr(mOrthoSize);
+			arr(mType);
+		}
+
+		static void RegisterMetaData();
+
+		static void Serialize(
+			Camera& component, 
+			cereal::PortableBinaryOutputArchive& archive,
+			IDependencyResolver* dependencies);
+
+		static Camera Deserialize(
+			cereal::PortableBinaryInputArchive& archive,
+			const IDependencyResolver* dependencies);
 	};
 }

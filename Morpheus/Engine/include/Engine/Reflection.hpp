@@ -10,7 +10,7 @@ namespace Morpheus {
 	public:
 		virtual entt::meta_type GetType() const = 0;
 		virtual void CopyAll(entt::registry& src, entt::registry& dest, 
-			const std::unordered_map<entt::entity, entt::entity>& entityMap);
+			const std::unordered_map<entt::entity, entt::entity>& entityMap) = 0;
 	};
 
 	typedef std::shared_ptr<IAbstractCopyableType> CopyableType;
@@ -80,5 +80,9 @@ namespace Morpheus {
 	public:
 		virtual ResourceId AddDependency(Handle<IResource> resource) = 0;
 		virtual Handle<IResource> GetDependency(ResourceId id) const = 0;
+	};
+
+	struct Meta {
+		static void Initialize();
 	};
 }

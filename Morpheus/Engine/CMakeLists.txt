@@ -49,7 +49,6 @@ find_package(assimp REQUIRED)
 list(APPEND SOURCE
 	src/LightProbeProcessor.cpp
 	src/HdriToCubemap.cpp
-	src/Camera.cpp
 	src/ThreadPool.cpp
 	src/Graphics.cpp
 	src/RendererTransformCache.cpp
@@ -81,6 +80,7 @@ list(APPEND SOURCE
 	src/Components/Transform.cpp
 	src/Components/SkyboxComponent.cpp
 	src/Components/StaticMeshComponent.cpp
+	src/Components/Camera.cpp
 
 	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
 	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp
@@ -94,7 +94,6 @@ endif()
 
 list(APPEND INCLUDE
     include/Engine/LightProbeProcessor.hpp
-    include/Engine/Camera.hpp
     include/Engine/Entity.hpp
     include/Engine/GeometryStructures.hpp
     include/Engine/HdriToCubemap.hpp
@@ -116,6 +115,7 @@ list(APPEND INCLUDE
 	include/Engine/Components/SkyboxComponent.hpp
 	include/Engine/Components/LightProbe.hpp
 	include/Engine/Components/ResourceComponent.hpp
+	include/Engine/Components/Camera.hpp
 
 	include/Engine/Resources/Cache.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp
