@@ -369,6 +369,17 @@ namespace Morpheus {
 					= dependency.second.mResource;
 			}
 		}
+
+		mFrame->mRoot = mRoot;
+		mFrame->mCamera = mCamera;
+	}
+
+	void FrameTable::InitFromFrame() {
+		mInternalResourceTable = mFrame->mInternalResourceTable;
+		mNameToEntity = mNameToEntity;
+
+		mRoot = mFrame->mRoot;
+		mCamera = mFrame->mCamera;
 	}
 
 	void FrameIO::Save(Frame& frame,
@@ -382,6 +393,8 @@ namespace Morpheus {
 		// Build the resource table
 		// First, add subframes to resource table
 		FrameTable table(&frame);
+		table.InitFromFrame();
+
 		for (auto& subFrame : set.mSubFrames) {
 			auto& subFrameComponent = frame.Registry().get<SubFrameComponent>(subFrame);
 			table.AddDependency(subFrameComponent.mFrame.DownCast<IResource>());

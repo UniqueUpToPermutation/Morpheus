@@ -310,6 +310,7 @@ namespace Morpheus {
 		void Write(std::ostream& stream);
 
 		void FlushToFrame();
+		void InitFromFrame();
 
 		friend class FrameIO;
 	};

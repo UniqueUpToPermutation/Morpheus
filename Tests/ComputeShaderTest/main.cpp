@@ -8,7 +8,7 @@
 
 using namespace Morpheus;
 
-void AddEmbeddedShaders(std::unordered_map<std::string, const char*>* map);
+void AddEmbeddedShaders(file_map_t* map);
 
 MAIN() {
 	// Startup everything
@@ -57,7 +57,7 @@ MAIN() {
 	config.mDefines["CELL_SIZE_Y"] = std::to_string(cellSizeY);
 
 	LoadParams<RawShader> shaderParams(
-		"internal/Mandelbrot.csh",
+		"Mandelbrot.csh",
 		DG::SHADER_TYPE_COMPUTE,
 		"Compute Shader",
 		config,
