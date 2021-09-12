@@ -25,20 +25,20 @@ namespace Morpheus {
 			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
 
-		Transform(DG::float3 translation) :
+		inline Transform(DG::float3 translation) :
 			mTranslation(translation),
 			mScale(1.0f, 1.0f, 1.0f),
 			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
 			
-		Transform(DG::float3 translation,
+		inline Transform(DG::float3 translation,
 			DG::Quaternion rotation) : 
 			mTranslation(translation),
 			mScale(1.0f, 1.0f, 1.0f),
 			mRotation(0.0f, 0.0f, 0.0f, 1.0f) {
 		}
 
-		Transform(DG::float3 translation,
+		inline Transform(DG::float3 translation,
 			DG::Quaternion rotation,
 			DG::float3 scale) :
 			mTranslation(translation),
@@ -105,16 +105,22 @@ namespace Morpheus {
 		}
 #endif
 
+		template <typename Archive>
+		void serialize(Archive& arr) {
+			arr(mTranslation);
+			arr(mScale);
+			arr(mRotation);
+		}
+
 		static void RegisterMetaData();
 
-		static void Serialize(entt::registry* registry, 
-			std::ostream& stream,
+		static void Serialize(
+			Transform& transform, 
+			cereal::PortableBinaryOutputArchive& archive,
+			IDependencyResolver* dependencies);
+
+		static Transform Deserialize(
+			cereal::PortableBinaryInputArchive& archive,
 			const IDependencyResolver* dependencies);
-		static void Deserialize(entt::registry* registry, 
-			std::istream& stream,
-			const FrameHeader& header);
-		static void BuildResourceTable(entt::registry* registry,
-			FrameHeader& header,
-			const SerializationSet& subset);
 	};
 }

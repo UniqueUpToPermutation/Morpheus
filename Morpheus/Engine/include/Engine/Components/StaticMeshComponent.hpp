@@ -9,14 +9,13 @@ namespace Morpheus {
 		Handle<Geometry> mGeometry;
 
 		static void RegisterMetaData();
-		static void BuildResourceTable(const Frame* frame, FrameHeader* header);
-
-		static void Serialize(entt::registry* registry, 
-			std::ostream& stream,
-			const FrameHeader& header,
-			const SerializationSet& subset);
-		static void Deserialize(entt::registry* registry, 
-			std::istream& stream,
-			const FrameHeader& header);
+		
+		static void Serialize(
+			StaticMeshComponent& component, 
+			cereal::PortableBinaryOutputArchive& archive,
+			IDependencyResolver* dependencies);
+		static StaticMeshComponent Deserialize(
+			cereal::PortableBinaryInputArchive& archive,
+			const IDependencyResolver* dependencies);
 	};
 }

@@ -1,8 +1,13 @@
 #include <Engine/Components/Transform.hpp>
 
+#include <cereal/archives/portable_binary.hpp>
+
 #ifdef USE_BULLET
 #include "btBulletDynamicsCommon.h"
 #endif
+
+using namespace entt;
+
 namespace Morpheus {
 	DG::float4x4 Transform::ToMatrix() const {
 		DG::float4x4 result = mRotation.ToMatrix();
@@ -38,4 +43,23 @@ namespace Morpheus {
 	}
 
 #endif
+
+	void Transform::RegisterMetaData() {
+		meta<Transform>()
+			.type("Transform"_hs);
+	}
+
+	void Transform::Serialize(Transform& transform,
+		cereal::PortableBinaryOutputArchive& archive,
+		IDependencyResolver* dependencies) {
+		transform.serialize(archive);
+	}
+
+	Transform Transform::Deserialize(
+		cereal::PortableBinaryInputArchive& archive,
+		const IDependencyResolver* dependices) {
+		Transform transform;
+		transform.serialize(archive);
+		return transform;
+	}
 }

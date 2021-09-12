@@ -44,6 +44,12 @@ namespace Diligent {
 		archive(m.z);
 		archive(m.w);
 	}
+
+	template <class Archive>
+	void serialize(Archive& archive,
+		Quaternion& q) {
+		archive(q.q);		
+	}
 }
 namespace Morpheus {
 
