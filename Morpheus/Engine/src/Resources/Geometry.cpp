@@ -1026,7 +1026,7 @@ namespace Morpheus {
 		return Handle<Geometry>(std::move(*this)).DownCast<IResource>();
 	}
 
-	void Geometry::BinarySerialize(std::ostream& output) const {
+	void Geometry::BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) {
 		cereal::PortableBinaryOutputArchive arr(output);
 
 		GeometryDataFloat data = Unpack();
@@ -1035,7 +1035,7 @@ namespace Morpheus {
 		arr(data);
 	}
 
-	void Geometry::BinaryDeserialize(std::istream& input) {
+	void Geometry::BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) {
 		cereal::PortableBinaryInputArchive arr(input);
 
 		VertexLayout layout;
@@ -1049,7 +1049,7 @@ namespace Morpheus {
 
 	void Geometry::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		cereal::PortableBinaryOutputArchive& output) const {
+		cereal::PortableBinaryOutputArchive& output) {
 		auto params = mSource;
 		params.mPath = std::filesystem::relative(params.mPath, workingPath);
 		output(params);

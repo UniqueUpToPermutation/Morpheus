@@ -58,6 +58,8 @@ namespace Morpheus {
 	void FrameTable::Write(std::ostream& stream) {
 		cereal::PortableBinaryOutputArchive out(stream);
 	
+		out(mRoot);
+		out(mCamera);
 		out(mInternalResourceTable);
 		out(mTypeDirectory);
 		out(mNameToEntity);
@@ -68,6 +70,8 @@ namespace Morpheus {
 	void FrameTable::Read(std::istream& stream) {
 		cereal::PortableBinaryInputArchive in(stream);
 
+		in(mRoot);
+		in(mCamera);
 		in(mInternalResourceTable);
 		in(mTypeDirectory);
 		in(mNameToEntity);
@@ -137,7 +141,7 @@ namespace Morpheus {
 		for (auto& dependency : mDependencies) {
 			auto resourceStart = stream.tellp();
 			if (dependency.second.mType == DependencyEntryType::INTERNAL) {
-				dependency.second.mResource->BinarySerialize(stream);
+				dependency.second.mResource->BinarySerialize(stream, this);
 			}
 			auto resourceEnd = stream.tellp();
 
@@ -286,6 +290,15 @@ namespace Morpheus {
 		}
 	}
 
+	void FrameTable::ReadResourceData(std::istream& stream) {
+		for (auto& dependency : mDependencies) {
+			if (dependency.second.mType == DependencyEntryType::INTERNAL) {
+				stream.seekg(dependency.second.mBlob.mBegin);
+				dependency.second.mResource->BinaryDeserialize(stream, this);
+			}
+		}
+	}
+
 	void FrameTable::WriteComponents(
 		const std::filesystem::path& workingPath,
 		std::ostream& stream, 
@@ -342,6 +355,18 @@ namespace Morpheus {
 				// Write entry into frame table
 				std::string type_name(type->GetType().info().name());
 				mTypeDirectory[type_name] = blob;
+			}
+		}
+	}
+
+	void FrameTable::FlushToFrame() {
+		mFrame->mInternalResourceTable = std::move(mInternalResourceTable);
+		mFrame->mNameToEntity = std::move(mNameToEntity);
+
+		for (auto& dependency : mDependencies) {
+			if (dependency.second.mType == DependencyEntryType::INTERNAL) {
+				mFrame->mEntityToResource[dependency.second.mIdentifier.mEntity] 
+					= dependency.second.mResource;
 			}
 		}
 	}
@@ -417,6 +442,7 @@ namespace Morpheus {
 		table.ReadResourceComponents(cache, stream, workingPath, componentTypes);
 		table.ReadComponents(stream, workingPath, componentTypes);
 		table.ReadFramesRecursive(cache, componentTypes);
+		table.FlushToFrame();
 
 		return frame;
 	}

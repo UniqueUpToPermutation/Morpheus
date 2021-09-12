@@ -14,15 +14,15 @@ namespace Morpheus {
 		inline SkyboxComponent(const Handle<Texture>& cubemap) : mCubemap(cubemap) {
 		}
 
-		static void BuildResourceTable(entt::registry* registry,
-			FrameHeader& header,
-			const SerializationSet& subset);
-		static void Serialize(entt::registry* registry, 
-			std::ostream& stream,
-			const FrameHeader& header,
-			const SerializationSet& subset);
-		static void Deserialize(entt::registry* registry, 
-			std::istream& stream,
-			const FrameHeader& header);
+		static void RegisterMetaData();
+
+		static void Serialize(
+			SkyboxComponent& transform, 
+			cereal::PortableBinaryOutputArchive& archive,
+			IDependencyResolver* dependencies);
+
+		static SkyboxComponent Deserialize(
+			cereal::PortableBinaryInputArchive& archive,
+			const IDependencyResolver* dependencies);
 	};
 }

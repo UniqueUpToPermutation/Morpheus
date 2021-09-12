@@ -1,5 +1,8 @@
 #include <Engine/Components/StaticMeshComponent.hpp>
 #include <Engine/Resources/FrameIO.hpp>
+#include <Engine/Resources/Texture.hpp>
+#include <Engine/Resources/Geometry.hpp>
+#include <Engine/Resources/Material.hpp>
 
 #include <cereal/archives/portable_binary.hpp>
 
@@ -9,6 +12,9 @@ namespace Morpheus {
 	void StaticMeshComponent::RegisterMetaData() {
 		meta<StaticMeshComponent>()
 			.type("StaticMeshComponent"_hs);
+
+		MakeCopyableComponentType<StaticMeshComponent>();
+		MakeSerializableComponentType<StaticMeshComponent>();
 	}
 		
 	void StaticMeshComponent::Serialize(
@@ -29,6 +35,15 @@ namespace Morpheus {
 		cereal::PortableBinaryInputArchive& archive,
 		const IDependencyResolver* dependencies) {
 
-		
+		ResourceId materialId;
+		ResourceId geometryId;
+
+		archive(materialId);
+		archive(geometryId);
+
+		StaticMeshComponent component;
+		component.mMaterial = dependencies->GetDependency(materialId).TryCast<Material>();
+		component.mGeometry = dependencies->GetDependency(geometryId).TryCast<Geometry>();
+		return component;
 	}
 }

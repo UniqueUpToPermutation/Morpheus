@@ -134,13 +134,13 @@ namespace Morpheus {
 		}
 
 		template <typename T2>
-		inline Handle<T2> TryCast() const {
+		inline Handle<T2> TryCast() {
 			return Handle<T2>(dynamic_cast<T2*>(mResource));
 		}
 
 		template <typename T2>
-		inline Handle<T2> DownCast() const {
-			return Handle<T2>(mResource);
+		inline Handle<T2> DownCast() {
+			return Handle<T2>(static_cast<T2*>(mResource));
 		}
 
 		inline T* Release() {
@@ -264,11 +264,11 @@ namespace Morpheus {
 		virtual entt::meta_type GetType() const = 0;
 		virtual entt::meta_any GetSourceMeta() const = 0;
 		virtual std::filesystem::path GetPath() const = 0;
-		virtual void BinarySerialize(std::ostream& output) const = 0;
-		virtual void BinaryDeserialize(std::istream& input) = 0;
+		virtual void BinarySerialize(std::ostream& output, IDependencyResolver* dependencies = nullptr) = 0;
+		virtual void BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies = nullptr) = 0;
 		virtual void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
-			cereal::PortableBinaryOutputArchive& output) const = 0;
+			cereal::PortableBinaryOutputArchive& output) = 0;
 		virtual void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) = 0;
@@ -277,12 +277,12 @@ namespace Morpheus {
 
 		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
-			std::ostream& output) const;
+			std::ostream& output);
 		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			std::istream& input);
 
-		void BinarySerializeToFile(const std::filesystem::path& output) const;
+		void BinarySerializeToFile(const std::filesystem::path& output);
 		void BinaryDeserializeFromFile(const std::filesystem::path& input);
 
 		void Move(Device device, Context context = Context());

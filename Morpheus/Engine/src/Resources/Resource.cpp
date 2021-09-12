@@ -44,7 +44,7 @@ namespace Morpheus {
 
 	void IResource::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		std::ostream& output) const {
+		std::ostream& output) {
 		cereal::PortableBinaryOutputArchive arr(output);
 		BinarySerializeReference(workingPath, arr);
 	}
@@ -56,7 +56,7 @@ namespace Morpheus {
 		BinaryDeserializeReference(workingPath, arr);
 	}
 
-	void IResource::BinarySerializeToFile(const std::filesystem::path& output) const {
+	void IResource::BinarySerializeToFile(const std::filesystem::path& output) {
 		std::ofstream f_(output, std::ios::binary);
 
 		if (!f_.is_open()) {

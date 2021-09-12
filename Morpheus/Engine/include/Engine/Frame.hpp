@@ -288,11 +288,11 @@ namespace Morpheus {
 		entt::meta_type GetType() const override;
 		entt::meta_any GetSourceMeta() const override;
 		std::filesystem::path GetPath() const override;
-		void BinarySerialize(std::ostream& output) const override;
-		void BinaryDeserialize(std::istream& input) override;
+		void BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) override;
+		void BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) override;
 		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
-			cereal::PortableBinaryOutputArchive& output) const override;
+			cereal::PortableBinaryOutputArchive& output) override;
 		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;
@@ -300,5 +300,8 @@ namespace Morpheus {
 		Handle<IResource> MoveIntoHandle() override;
 
 		void DuplicateSubframe(Frame& subframe, entt::entity e);
+
+		friend class FrameIO;
+		friend class FrameTable;
 	};
 }

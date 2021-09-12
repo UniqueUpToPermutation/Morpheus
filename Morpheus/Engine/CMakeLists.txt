@@ -79,6 +79,8 @@ list(APPEND SOURCE
 	src/Resources/FrameIO.cpp
 
 	src/Components/Transform.cpp
+	src/Components/SkyboxComponent.cpp
+	src/Components/StaticMeshComponent.cpp
 
 	${CMAKE_SOURCE_DIR}/lodepng/lodepng.cpp
 	${CMAKE_SOURCE_DIR}/im3d/im3d.cpp
@@ -110,6 +112,10 @@ list(APPEND INCLUDE
 	include/Engine/Systems/System.hpp
 
 	include/Engine/Components/Transform.hpp
+	include/Engine/Components/StaticMeshComponent.hpp
+	include/Engine/Components/SkyboxComponent.hpp
+	include/Engine/Components/LightProbe.hpp
+	include/Engine/Components/ResourceComponent.hpp
 
 	include/Engine/Resources/Cache.hpp
     include/Engine/Resources/EmbeddedFileLoader.hpp

@@ -73,7 +73,7 @@ namespace Morpheus {
 		throw std::runtime_error("Does not have path!");
 	}
 
-	void Buffer::BinarySerialize(cereal::PortableBinaryOutputArchive& archive) const {
+	void Buffer::BinarySerialize(cereal::PortableBinaryOutputArchive& archive) {
 		if (!mDevice.IsCPU())
 			std::runtime_error("Resource must be on the CPU!");
 
@@ -88,19 +88,19 @@ namespace Morpheus {
 		archive(mCpuAspect.mData);
 	}
 
-	void Buffer::BinarySerialize(std::ostream& output) const {
+	void Buffer::BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) {
 		cereal::PortableBinaryOutputArchive arr(output);
 		BinarySerialize(arr);
 	}
 
-	void Buffer::BinaryDeserialize(std::istream& input) {
+	void Buffer::BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) {
 		cereal::PortableBinaryInputArchive arr(input);
-		BinaryDeserialize(input);
+		BinaryDeserialize(arr);
 	}
 
 	void Buffer::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		cereal::PortableBinaryOutputArchive& output) const {
+		cereal::PortableBinaryOutputArchive& output) {
 		throw std::runtime_error("Not implemented!");
 	}
 

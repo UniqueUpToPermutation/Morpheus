@@ -9,7 +9,7 @@ namespace Morpheus {
 	class IAbstractCopyableType {
 	public:
 		virtual entt::meta_type GetType() const = 0;
-		virtual void CopyAll(const entt::registry& src, entt::registry& dest, 
+		virtual void CopyAll(entt::registry& src, entt::registry& dest, 
 			const std::unordered_map<entt::entity, entt::entity>& entityMap);
 	};
 
@@ -22,14 +22,16 @@ namespace Morpheus {
 			return entt::resolve<T>();
 		}
 
-		void CopyAll(const entt::registry& src, entt::registry& dest, 
+		void CopyAll(entt::registry& src, entt::registry& dest, 
 			const std::unordered_map<entt::entity, entt::entity>& entityMap) {
 			auto tView = src.view<T>();
 
 			for (auto e : tView) {
-				auto newE = entityMap[e];
-				auto& instance = tView.get(e);
-				dest.emplace<T>(newE, instance);
+				auto it = entityMap.find(e);
+				if (it != entityMap.end()) {
+					auto instance = tView.get(e);
+					dest.emplace<T>(it->second, std::get<0>(instance));
+				}
 			}
 		}
 	};

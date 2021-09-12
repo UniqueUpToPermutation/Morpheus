@@ -1217,7 +1217,7 @@ namespace Morpheus {
 			fstr.seekg(blob.mBegin);
 
 			Texture texture;
-			texture.BinaryDeserialize(fstr);
+			texture.BinaryDeserialize(fstr, nullptr);
 
 			result = std::move(texture);
 		});
@@ -1529,7 +1529,7 @@ namespace Morpheus {
 		}
 	}
 
-	void Texture::BinarySerialize(std::ostream& output) const {
+	void Texture::BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) {
 		cereal::PortableBinaryOutputArchive arr(output);
 	
 		if (!mDevice.IsCPU())
@@ -1541,7 +1541,7 @@ namespace Morpheus {
 		arr(mCpuAspect.mData);
 	}
 
-	void Texture::BinaryDeserialize(std::istream& input) {
+	void Texture::BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) {
 		cereal::PortableBinaryInputArchive arr(input);
 
 		arr(mIntensity);
@@ -1554,7 +1554,7 @@ namespace Morpheus {
 
 	void Texture::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		cereal::PortableBinaryOutputArchive& output) const {
+		cereal::PortableBinaryOutputArchive& output) {
 		auto params = mSource;
 		params.mPath = std::filesystem::relative(params.mPath, workingPath);
 		output(params);

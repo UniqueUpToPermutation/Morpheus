@@ -1,7 +1,21 @@
 #include <Engine/Resources/Material.hpp>
 #include <Engine/Resources/Texture.hpp>
+#include <Engine/Resources/FrameIO.hpp>
+
+#include <cereal/archives/portable_binary.hpp>
+
+using namespace entt;
 
 namespace Morpheus {
+	template <typename Archive>
+	void serialize(Archive& arr, MaterialDesc::Params& params) {
+		arr(params.mAlbedoFactor);
+		arr(params.mDisplacementFactor);
+		arr(params.mMetallicFactor);
+		arr(params.mRoughnessFactor);
+		arr(params.mType);
+	}
+
 	UniqueFuture<MaterialDesc> MaterialDesc::CreateFuture(
 		Future<Handle<Texture>> albedo,
 		Future<Handle<Texture>> normal,
@@ -63,24 +77,61 @@ namespace Morpheus {
 		return "";
 	}
 
-	void Material::BinarySerialize(std::ostream& output) const {
+	void Material::BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) {
+		cereal::PortableBinaryOutputArchive arr(output);
 
+		arr(mDesc.mParams);
+
+		ResourceId albedo = dependencies->AddDependency(
+			mDesc.mResources.mAlbedo.DownCast<IResource>());
+		ResourceId normal = dependencies->AddDependency(
+			mDesc.mResources.mNormal.DownCast<IResource>());
+		ResourceId metallic = dependencies->AddDependency(
+			mDesc.mResources.mMetallic.DownCast<IResource>());
+		ResourceId roughness = dependencies->AddDependency(
+			mDesc.mResources.mRoughness.DownCast<IResource>());
+		ResourceId displacement = dependencies->AddDependency(
+			mDesc.mResources.mDisplacement.DownCast<IResource>());
+
+		arr(albedo);
+		arr(normal);
+		arr(metallic);
+		arr(roughness);
+		arr(displacement);
 	}
 
-	void Material::BinaryDeserialize(std::istream& input) {
+	void Material::BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) {
+		cereal::PortableBinaryInputArchive arr(input);
 
+		arr(mDesc.mParams);
+
+		ResourceId albedo;
+		ResourceId normal;
+		ResourceId metallic;
+		ResourceId roughness;
+		ResourceId displacement;
+
+		arr(albedo);
+		arr(normal);
+		arr(metallic);
+		arr(roughness);
+		arr(displacement);
+
+		mDesc.mResources.mAlbedo = dependencies->GetDependency(albedo).TryCast<Texture>();
+		mDesc.mResources.mNormal = dependencies->GetDependency(normal).TryCast<Texture>();
+		mDesc.mResources.mMetallic = dependencies->GetDependency(metallic).TryCast<Texture>();
+		mDesc.mResources.mRoughness = dependencies->GetDependency(roughness).TryCast<Texture>();
+		mDesc.mResources.mDisplacement = dependencies->GetDependency(displacement).TryCast<Texture>();
 	}
 
 	void Material::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		cereal::PortableBinaryOutputArchive& output) const {
-
+		cereal::PortableBinaryOutputArchive& output) {
 	}
 
 	void Material::BinaryDeserializeReference(
 		const std::filesystem::path& workingPath,
 		cereal::PortableBinaryInputArchive& input) {
-
 	}
 
 	BarrierOut Material::MoveAsync(Device device, Context context) {
@@ -100,5 +151,13 @@ namespace Morpheus {
 
 	const MaterialDesc& Material::GetDesc() const {
 		return mDesc;
+	}
+
+	void Material::RegisterMetaData() {
+		meta<Material>()
+			.type("Material"_hs)
+			.base<IResource>();
+
+		MakeSerializableResourceType<Material>();
 	}
 }

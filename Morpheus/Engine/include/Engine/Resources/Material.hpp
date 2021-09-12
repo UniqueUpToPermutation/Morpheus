@@ -56,26 +56,17 @@ namespace Morpheus {
 		entt::meta_type GetType() const;
 		entt::meta_any GetSourceMeta() const;
 		std::filesystem::path GetPath() const;
-		void BinarySerialize(std::ostream& output) const;
-		void BinaryDeserialize(std::istream& input);
+		void BinarySerialize(std::ostream& output, IDependencyResolver* dependencies);
+		void BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies);
 		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
-			cereal::PortableBinaryOutputArchive& output) const;
+			cereal::PortableBinaryOutputArchive& output);
 		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input);
 		BarrierOut MoveAsync(Device device, Context context = Context());
 		Handle<IResource> MoveIntoHandle();
 
-		static void Serialize(entt::registry* registry, 
-			std::ostream& stream,
-			const FrameHeader& header,
-			const SerializationSet& subset);
-		static void Deserialize(entt::registry* registry, 
-			std::istream& stream,
-			const FrameHeader& header);
-		static void BuildResourceTable(entt::registry* registry,
-			FrameHeader& header,
-			const SerializationSet& subset);
+		static void RegisterMetaData();
 	};
 }

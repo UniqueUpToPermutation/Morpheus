@@ -1,22 +1,41 @@
 #include <Engine/Components/SkyboxComponent.hpp>
+#include <Engine/Resources/FrameIO.hpp>
+#include <Engine/Resources/Texture.hpp>
+
+#include <cereal/archives/portable_binary.hpp>
+
+using namespace entt;
 
 namespace Morpheus {
-	void SkyboxComponent::LoadPipeline(ResourceManager* manager) {
-		mPipeline = manager->Load<PipelineResource>("Skybox");
+	void SkyboxComponent::RegisterMetaData() {
+		meta<SkyboxComponent>()
+			.type("SkyboxComponent"_hs);
 
-		mPipeline->GetState()->CreateShaderResourceBinding(&mResourceBinding, true);
-		if (mCubemap) {
-			auto textureVar = mResourceBinding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture");
-			if (textureVar)
-				textureVar->Set(mCubemap->GetShaderView());
-		}
+		MakeCopyableComponentType<SkyboxComponent>();
+		MakeSerializableComponentType<SkyboxComponent>();
 	}
 
-	void SkyboxComponent::SetCubemap(TextureResource* resource) {
-		if (mCubemap)
-			mCubemap->Release();
-		mCubemap = resource;
-		mCubemap->AddRef();
-		mResourceBinding->GetVariableByName(DG::SHADER_TYPE_PIXEL, "mTexture")->Set(mCubemap->GetShaderView());
+	void SkyboxComponent::Serialize(
+		SkyboxComponent& component, 
+		cereal::PortableBinaryOutputArchive& archive,
+		IDependencyResolver* dependencies) {
+		
+		auto textureId = dependencies->AddDependency(
+			component.mCubemap.DownCast<IResource>());
+
+		archive(textureId);
+	}
+
+	SkyboxComponent SkyboxComponent::Deserialize(
+		cereal::PortableBinaryInputArchive& archive,
+		const IDependencyResolver* dependencies) {
+
+		ResourceId textureId;
+
+		archive(textureId);
+
+		SkyboxComponent component;
+		component.mCubemap = dependencies->GetDependency(textureId).TryCast<Texture>();
+		return component;
 	}
 }

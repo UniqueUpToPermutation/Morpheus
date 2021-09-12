@@ -2,6 +2,9 @@
 
 #include <cereal/archives/portable_binary.hpp>
 
+#include <Engine/Reflection.hpp>
+#include <Engine/Resources/FrameIO.hpp>
+
 #ifdef USE_BULLET
 #include "btBulletDynamicsCommon.h"
 #endif
@@ -47,6 +50,9 @@ namespace Morpheus {
 	void Transform::RegisterMetaData() {
 		meta<Transform>()
 			.type("Transform"_hs);
+
+		MakeCopyableComponentType<Transform>();
+		MakeSerializableComponentType<Transform>();
 	}
 
 	void Transform::Serialize(Transform& transform,

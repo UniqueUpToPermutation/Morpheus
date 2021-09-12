@@ -246,6 +246,9 @@ namespace Morpheus {
 
 	class FrameTable : public IDependencyResolver {
 	private:
+		entt::entity mRoot;
+		entt::entity mCamera;
+
 		std::unordered_map<entt::entity, ArchiveBlobPointer> mInternalResourceTable;
 		std::unordered_map<std::string, ArchiveBlobPointer> mTypeDirectory;
 		std::unordered_map<std::string, entt::entity> mNameToEntity;
@@ -305,6 +308,8 @@ namespace Morpheus {
 		void Read(std::istream& stream);
 		void FindAndThenRead(std::istream& stream);
 		void Write(std::ostream& stream);
+
+		void FlushToFrame();
 
 		friend class FrameIO;
 	};

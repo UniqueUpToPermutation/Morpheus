@@ -294,11 +294,11 @@ namespace Morpheus {
 			return mSource;
 		}
 
-		void BinarySerialize(std::ostream& output) const override;
-		void BinaryDeserialize(std::istream& input) override;
+		void BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) override;
+		void BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) override;
 		void BinarySerializeReference(
 			const std::filesystem::path& workingPath, 
-			cereal::PortableBinaryOutputArchive& output) const override;
+			cereal::PortableBinaryOutputArchive& output) override;
 		void BinaryDeserializeReference(
 			const std::filesystem::path& workingPath,
 			cereal::PortableBinaryInputArchive& input) override;

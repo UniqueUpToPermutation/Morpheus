@@ -62,17 +62,17 @@ namespace Morpheus {
 		return mPath;
 	}
 
-	void Frame::BinarySerialize(std::ostream& output) const {
+	void Frame::BinarySerialize(std::ostream& output, IDependencyResolver* dependencies) {
 		throw std::runtime_error("Cannot serialize! Use FrameIO instead!");
 	}
 
-	void Frame::BinaryDeserialize(std::istream& input) {
+	void Frame::BinaryDeserialize(std::istream& input, const IDependencyResolver* dependencies) {
 		throw std::runtime_error("Cannot deserialize! Use FrameIO instead!");
 	}
 
 	void Frame::BinarySerializeReference(
 		const std::filesystem::path& workingPath, 
-		cereal::PortableBinaryOutputArchive& output) const {
+		cereal::PortableBinaryOutputArchive& output) {
 	
 		auto relativePath = std::filesystem::relative(mPath, workingPath);
 		output(relativePath.string());
