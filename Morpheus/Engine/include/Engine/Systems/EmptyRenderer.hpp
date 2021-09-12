@@ -20,6 +20,8 @@ namespace Morpheus {
 		}
 
 		std::unique_ptr<Task> Startup(SystemCollection& collection) override;
+		std::unique_ptr<Task> LoadResources(Frame* frame) override;
+		
 		bool IsInitialized() const override;
 		void Shutdown() override;
 		void NewFrame(Frame* frame) override;

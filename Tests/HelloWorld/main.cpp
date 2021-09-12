@@ -24,6 +24,7 @@ MAIN() {
 
 	auto frame = std::make_unique<Frame>();
 	systems.SetFrame(frame.get());
+	systems.LoadResources()
 
 	DG::Timer timer;
 	FrameTime time(timer);

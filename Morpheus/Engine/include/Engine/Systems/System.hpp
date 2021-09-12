@@ -290,7 +290,8 @@ namespace Morpheus {
 
 		void Startup(IComputeQueue* queue = nullptr);
 		void SetFrame(Frame* frame);
-		Task LoadResources(Frame* frame);
+		Task LoadResourcesAsync(Frame* frame);
+		void LoadResources(Frame* frame, IComputeQueue* queue = nullptr);
 		void Shutdown();
 
 		/* Renders and then updates the frame.

@@ -39,6 +39,10 @@ namespace Morpheus {
 	void EmptyRenderer::NewFrame(Frame* frame) {
 	}
 
+	std::unique_ptr<Task> EmptyRenderer::LoadResources(Frame* frame) {
+		return nullptr;
+	}
+
 	void EmptyRenderer::OnAddedTo(SystemCollection& collection) {
 		collection.RegisterInterface<IVertexFormatProvider>(this);
 	}

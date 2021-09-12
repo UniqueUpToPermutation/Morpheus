@@ -59,7 +59,7 @@ namespace Morpheus {
 		}
 	}
 
-	Task SystemCollection::LoadResources(Frame* frame) {
+	Task SystemCollection::LoadResourcesAsync(Frame* frame) {
 		CustomTask task;
 
 		for (auto& system : mSystems) {
@@ -72,6 +72,16 @@ namespace Morpheus {
 		}
 
 		return task;
+	}
+
+	void SystemCollection::LoadResources(Frame* frame, IComputeQueue* queue) {
+		auto task = LoadResourcesAsync(frame);
+
+		if (queue) {
+			queue->Evaluate(task.OutNode());
+		} else {
+			task();
+		}
 	}
 
 	void FrameProcessor::Apply(const FrameTime& time, 
