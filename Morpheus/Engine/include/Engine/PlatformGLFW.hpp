@@ -7,6 +7,12 @@
 typedef struct GLFWwindow GLFWwindow;
 
 namespace Morpheus {
+	typedef std::function<bool(GLFWwindow* window, int key, int scancode, int action, int mods)>
+		glfw_key_callback_t;
+	typedef std::function<bool(GLFWwindow* window, double xoffset, double yoffset)>	
+		glfw_scroll_callback_t;
+	typedef std::function<bool(GLFWwindow* window, unsigned int c)>
+		glfw_char_callback_t;
 
 	class PlatformGLFW : public IPlatform {
 	private:
