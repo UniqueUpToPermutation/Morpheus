@@ -1,6 +1,6 @@
 # Morpheus Graphics Engine
 
-**NOTE: The Engine is currently undergoing an overhaul. While I'm working on the overhaul, the details below may be inaccurate.**
+**NOTE: The engine is currently undergoing an overhaul. While I'm working on the overhaul, the details below may be inaccurate.**
 
 Morpheus is a realtime graphics engine built ontop of the low-level [DiligentEngine](https://github.com/DiligentGraphics/DiligentEngine) graphics API. Morpheus comes with a physically based renderer with spherical harmonics based irradiance. Morpheus is currently under development and is intended mostly as an educational hobby project.
 
