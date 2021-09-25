@@ -26,11 +26,13 @@ if(USE_PBRT)
 	add_definitions(-DUSE_PBRT)
 endif()
 
+add_subdirectory(DiligentEngine)
+
 if (USE_GLFW)
 	add_definitions(-DUSE_GLFW)
+	set(GLFW_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/DiligentEngine/DiligentSamples/ThirdParty/glfw/include" CACHE INTERNAL "")
 endif()
 
-add_subdirectory(DiligentEngine)
 add_subdirectory(Morpheus)
 
 if(USE_PBRT)
