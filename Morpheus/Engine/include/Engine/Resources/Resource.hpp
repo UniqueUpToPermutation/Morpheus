@@ -160,6 +160,7 @@ namespace Morpheus {
 			}
 		};
 	};
+
 	struct ArchiveLoad {
 		ArchiveLoadType mType = ArchiveLoadType::NONE;
 
@@ -206,6 +207,9 @@ namespace Morpheus {
 		inline RefCounter() {
 			mCount = 1;
 		}
+		inline RefCounter(uint count) {
+			mCount = count;
+		}
 		inline RefCounter(const RefCounter&) {
 		}
 		inline RefCounter& operator=(const RefCounter&) {
@@ -220,12 +224,15 @@ namespace Morpheus {
 
 	class IResource {
 	private:
-		RefCounter mRefCount;
+		RefCounter mRefCount = 1u;
 
 	protected:
 		entt::entity mEntity = entt::null;
-		IFrameAbstract* mFrame;
+		IFrameAbstract* mFrame = nullptr;
+
+		// For external devices only
 		Device mDevice;
+		ExResourceId mExternalId = 0;
 
 	public:
 		// Used for resource caching
@@ -249,14 +256,27 @@ namespace Morpheus {
 			return mRefCount.mCount;
 		}
 
+		inline ExResourceId GetExternalId() const {
+			return mExternalId;
+		}
+
+		IResource() = default;
+		inline IResource(IExternalResourceDevice* device) :
+			mDevice(device), mExternalId(device->GenerateId()) {
+		}
+
 		virtual ~IResource() = default;
 
 		inline uint Release() {
 			auto val = mRefCount.mCount.fetch_sub(1);
 			assert(val >= 1);
 
-			if (val == 1)
+			if (val == 1) {
+				auto ext = mDevice.AsExternal();
+				if (ext) 
+					ext->Destroy(this);
 				delete this;
+			}
 
 			return val - 1;
 		}

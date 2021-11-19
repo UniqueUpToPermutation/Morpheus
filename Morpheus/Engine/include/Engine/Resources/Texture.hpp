@@ -127,13 +127,6 @@ namespace Morpheus {
 		// Texture Aspects
 		// -------------------------------------------------------------
 
-		void CreateExternalAspect(IExternalGraphicsDevice* device,
-			const Texture* source);
-			
-		inline void CreateExternalAspect(IExternalGraphicsDevice* device) {
-			CreateExternalAspect(device, this);
-		}
-
 		void CreateRasterAspect(DG::IRenderDevice* device, 
 			const Texture* source);
 		void CreateRasterAspect(DG::IRenderDevice* device,
@@ -223,7 +216,7 @@ namespace Morpheus {
 
 		inline Texture() {
 		}
-
+		
 		inline Texture(DG::IRenderDevice* device, DG::ITexture* texture) {
 			CreateRasterAspect(device, texture);
 		}

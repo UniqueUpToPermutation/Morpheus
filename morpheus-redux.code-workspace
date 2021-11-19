@@ -88,8 +88,9 @@
 			"csetjmp": "cpp",
 			"queue": "cpp",
 			"stack": "cpp",
-			"slist": "cpp"
+			"slist": "cpp",
+			"core": "cpp"
 		},
 		"python.pythonPath": "/home/philip/anaconda3/bin/python"
-	}
+	},
 }

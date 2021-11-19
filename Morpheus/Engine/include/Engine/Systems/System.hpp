@@ -58,9 +58,14 @@ namespace Morpheus {
 		Frame* mFrame;
 	};
 
+	struct RendererGlobals {
+
+    };
+
 	struct RenderParams {
 		FrameTime mTime;
 		Frame* mFrame;
+		RendererGlobals mGlobals;
 	};
 
 	struct InjectProc {

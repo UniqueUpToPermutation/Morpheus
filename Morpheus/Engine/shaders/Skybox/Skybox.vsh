@@ -1,4 +1,4 @@
-#include "Utils/BasicStructures.hlsl"
+#include "../Utils/BasicStructures.hlsl"
 
 cbuffer ViewData
 {

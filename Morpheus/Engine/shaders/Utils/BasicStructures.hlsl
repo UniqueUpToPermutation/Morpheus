@@ -1,7 +1,6 @@
 #ifndef _BASIC_STRUCTURES_FXH_
 #define _BASIC_STRUCTURES_FXH_
 
-
 #ifdef __cplusplus
 
 #   ifndef BOOL
@@ -26,7 +25,7 @@ typedef DG::float4 float4;
 typedef DG::float3 float3;
 typedef DG::float2 float2;
 typedef DG::float4x4 float4x4;
-
+}
 #else
 
 #   ifndef BOOL
@@ -39,6 +38,9 @@ typedef DG::float4x4 float4x4;
 
 #endif
 
+#ifdef __cplusplus
+namespace HLSL {
+#endif
 
 struct CascadeAttribs
 {

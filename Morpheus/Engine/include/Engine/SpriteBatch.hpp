@@ -17,7 +17,7 @@ namespace Morpheus {
 
 	class SpriteBatchGlobals {
 	private:
-		DynamicGlobalsBuffer<HLSL::CameraAttribs> mCamera;
+		DynamicUniformBuffer<HLSL::CameraAttribs> mCamera;
 
 	public:
 		inline SpriteBatchGlobals(DG::IRenderDevice* device) : mCamera(device) {

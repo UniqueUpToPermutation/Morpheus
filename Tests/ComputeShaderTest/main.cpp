@@ -89,7 +89,7 @@ MAIN() {
 	graphics.Device()->CreateComputePipelineState(pipelineInfo, pipeline.Ref());
 
 	// Create uniform buffer
-	DynamicGlobalsBuffer<UniformGlobals> globalsBuffer(graphics.Device());
+	DynamicUniformBuffer<UniformGlobals> globalsBuffer(graphics.Device());
 	auto unformGlobalsVar = pipeline->GetStaticVariableByName(DG::SHADER_TYPE_COMPUTE, "mUniformGlobals");
 	unformGlobalsVar->Set(globalsBuffer.Get());
 

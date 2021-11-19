@@ -40,7 +40,7 @@ namespace Morpheus {
 			DG::LayoutElement(5, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE),
 			DG::LayoutElement(6, 1, 4, DG::VT_FLOAT32, false, DG::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE)
 		};
-		
+
 		layout.mElements = std::move(layoutElements);
 		return layout;
 	}

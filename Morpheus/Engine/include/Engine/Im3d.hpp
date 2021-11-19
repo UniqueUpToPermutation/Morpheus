@@ -24,18 +24,18 @@ namespace Morpheus {
 		DG::float2 mScreenSize;
 	};
 
-	class Im3dGlobalsBuffer : public DynamicGlobalsBuffer<Im3dGlobals> {
+	class Im3dGlobalsBuffer : public DynamicUniformBuffer<Im3dGlobals> {
 	public:
 		inline Im3dGlobalsBuffer() : 
-			DynamicGlobalsBuffer<Im3dGlobals>() {
+			DynamicUniformBuffer<Im3dGlobals>() {
 		}
 
 		inline Im3dGlobalsBuffer(DG::IRenderDevice* device) : 
-			DynamicGlobalsBuffer<Im3dGlobals>(device) {
+			DynamicUniformBuffer<Im3dGlobals>(device) {
 		}
 
 		inline Im3dGlobalsBuffer(RealtimeGraphics& graphics) :
-			DynamicGlobalsBuffer<Im3dGlobals>(graphics.Device()) {
+			DynamicUniformBuffer<Im3dGlobals>(graphics.Device()) {
 		}
 
 		void Write(DG::IDeviceContext* context, 

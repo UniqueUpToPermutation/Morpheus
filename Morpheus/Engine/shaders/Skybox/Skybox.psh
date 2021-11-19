@@ -1,6 +1,6 @@
-#include "Utils/BasicStructures.hlsl"
-#include "Utils/ToneMapping.hlsl"
-#include "Utils/Gamma.hlsl"
+#include "../Utils/BasicStructures.hlsl"
+#include "../Utils/ToneMapping.hlsl"
+#include "../Utils/Gamma.hlsl"
 
 TextureCube  mTexture;
 SamplerState mTexture_sampler; // By convention, texture samplers must use the '_sampler' suffix

@@ -11,12 +11,12 @@ namespace DG = Diligent;
 
 namespace Morpheus {
 	template <typename T>
-	class DynamicGlobalsBuffer {
+	class DynamicUniformBuffer {
 	private:
 		Handle<DG::IBuffer> mBuffer;
 
 	public:
-		DynamicGlobalsBuffer() = default;
+		DynamicUniformBuffer() = default;
 
 		inline void Initialize(DG::IRenderDevice* device, const uint count = 1) {
 			DG::BufferDesc CBDesc;
@@ -29,7 +29,7 @@ namespace Morpheus {
 			device->CreateBuffer(CBDesc, nullptr, mBuffer.Ref());
 		}
 
-		inline DynamicGlobalsBuffer(DG::IRenderDevice* device, const uint count = 1) {
+		inline DynamicUniformBuffer(DG::IRenderDevice* device, const uint count = 1) {
 			Initialize(device, count);
 		}
 

@@ -5,7 +5,8 @@
 #include <Engine/GeometryStructures.hpp>
 
 namespace Morpheus {
-	class EmptyRenderer : public ISystem,
+	class EmptyRenderer : 
+		public ISystem,
 		public IVertexFormatProvider {
 	private:
 		RealtimeGraphics* mGraphics;

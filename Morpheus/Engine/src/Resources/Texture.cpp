@@ -1386,19 +1386,13 @@ namespace Morpheus {
 		if (device.IsGPU())
 			CreateRasterAspect(device, source);
 		else if (device.IsExternal())
-			CreateExternalAspect(device, source);
+			throw std::runtime_error("Cannot move to abstract external device!");
 		else if (device.IsCPU())
 			CopyFrom(*source);
 		else if (device.IsDisk())
 			throw std::runtime_error("Cannot use CreateDeviceAspect to save to disk!");
 		else 
 			throw std::runtime_error("Device was null!");
-	}
-
-	void Texture::CreateExternalAspect(IExternalGraphicsDevice* device,
-		const Texture* source) {
-		mExtAspect = ExternalAspect<ExtObjectType::TEXTURE>(device,
-			device->CreateTexture(*source));
 	}
 
 	void Texture::AdoptData(Texture&& other) {

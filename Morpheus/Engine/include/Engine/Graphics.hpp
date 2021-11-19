@@ -8,16 +8,6 @@
 
 
 namespace Morpheus {
-	
-	class IExternalGraphicsDevice {
-	public:
-		virtual ExtObjectId CreateTexture(const Texture& raw) = 0;
-		virtual ExtObjectId CreateGeometry(const Geometry& raw) = 0;
-
-		virtual void DestroyTexture(ExtObjectId id) = 0;
-		virtual void DestroyGeometry(ExtObjectId id) = 0;
-	};
-
 	enum class DeviceType {
 		INVALID,
 		CPU,
@@ -31,38 +21,54 @@ namespace Morpheus {
 		GPU
 	};
 
+	typedef uint64_t ExResourceId;
+
+	class IExternalResourceDevice {
+	public:
+		virtual void Destroy(IResource* resource) = 0;
+		virtual ExResourceId GenerateId() = 0;
+	};
+
 	struct Device {
 		DeviceType mType = DeviceType::INVALID;
 		union {
-			IExternalGraphicsDevice* mExternal;
 			DG::IRenderDevice* mGpuDevice;
+			IExternalResourceDevice* mExternalDevice;
 		} mUnderlying;
 
 		inline Device() {
 		}
 		
-		inline Device(IExternalGraphicsDevice* ext) :
-			mType(DeviceType::EXTERNAL) {
-			mUnderlying.mExternal = ext;
-		}
-
 		inline Device(DG::IRenderDevice* gpu) :
 			mType(DeviceType::GPU) {
 			mUnderlying.mGpuDevice = gpu;
 		}
 
-		inline operator IExternalGraphicsDevice*() const {
+		inline Device(IExternalResourceDevice* ext) :
+			mType(DeviceType::EXTERNAL) {
+			mUnderlying.mExternalDevice = ext;
+		}
+
+		inline DG::IRenderDevice* AsGPU() const {
+			if (mType == DeviceType::GPU)
+				return mUnderlying.mGpuDevice;
+			else
+				return nullptr;
+		}
+
+		inline IExternalResourceDevice* AsExternal() const {
 			if (mType == DeviceType::EXTERNAL)
-				return mUnderlying.mExternal;
+				return mUnderlying.mExternalDevice;
 			else
 				return nullptr;
 		}
 
 		inline operator DG::IRenderDevice*() const {
-			if (mType == DeviceType::GPU)
-				return mUnderlying.mGpuDevice;
-			else
-				return nullptr;
+			return AsGPU();	
+		}
+
+		inline operator IExternalResourceDevice*() const {
+			return AsExternal();
 		}
 
 		inline static Device CPU() {
