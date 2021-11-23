@@ -24,14 +24,14 @@ namespace Morpheus {
 		cameraComponent.ComputeTransformations(camera, registry, graphics.SwapChain(), graphics.IsGL(), 
 			&eye, &lookAt, &view, &proj, &viewProj);
 
-		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
+		DynamicUniformBuffer<Im3dGlobals>::Write(context,
 			Im3dGlobals{viewProj, DG::float2(scDesc.Width, scDesc.Height)});
 	}
 
 	void Im3dGlobalsBuffer::Write(DG::IDeviceContext* context, 
 		const DG::float4x4& viewProjection,
 		const DG::float2& screenSize) {
-		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
+		DynamicUniformBuffer<Im3dGlobals>::Write(context,
 			Im3dGlobals{viewProjection, screenSize});
 	}
 
@@ -46,7 +46,7 @@ namespace Morpheus {
 
 		DG::float4x4 translation = view * proj;
 
-		DynamicGlobalsBuffer<Im3dGlobals>::Write(context,
+		DynamicUniformBuffer<Im3dGlobals>::Write(context,
 			Im3dGlobals{translation, DG::float2(scDesc.Width, scDesc.Height)});
 	}
 
@@ -322,7 +322,7 @@ namespace Morpheus {
 
 		DG::BufferDesc CBDesc;
 		CBDesc.Name 			= "Im3d Geometry Buffer";
-		CBDesc.uiSizeInBytes 	= sizeof(Im3d::VertexData) * bufferSize;
+		CBDesc.Size 			= sizeof(Im3d::VertexData) * bufferSize;
 		CBDesc.Usage 			= DG::USAGE_DYNAMIC;
 		CBDesc.BindFlags 		= DG::BIND_VERTEX_BUFFER;
 		CBDesc.CPUAccessFlags	= DG::CPU_ACCESS_WRITE;
@@ -339,7 +339,7 @@ namespace Morpheus {
 
 		DG::IPipelineState* currentPipelineState = nullptr;
 
-		uint offsets[] = {0};
+		DG::Uint64 offsets[] = {0};
 		DG::IBuffer* vBuffers[] = { mGeometryBuffer.Ptr()};
 
 		deviceContext->SetVertexBuffers(0, 1, 

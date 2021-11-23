@@ -13,7 +13,7 @@ namespace Diligent {
 		archive(m.ElementByteStride);
 		archive(m.ImmediateContextMask);
 		archive(m.Mode);
-		archive(m.uiSizeInBytes);
+		archive(m.Size);
 		archive(m.Usage);
 	}
 }
@@ -33,7 +33,7 @@ namespace Morpheus {
 
 	Buffer::Buffer(const DG::BufferDesc& desc) {
 		mCpuAspect.mDesc = desc;
-		mCpuAspect.mData.resize(desc.uiSizeInBytes);
+		mCpuAspect.mData.resize(desc.Size);
 		mDevice = Device::CPU();
 	}
 
@@ -139,7 +139,7 @@ namespace Morpheus {
 			context->CopyBuffer(buffer, 0,
 				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
 				stage_buffer, 0,
-				stage_desc.uiSizeInBytes,
+				stage_desc.Size,
 				DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			// Retrieve data from staging texture
@@ -174,13 +174,13 @@ namespace Morpheus {
 		auto& cpuAspect = textureOut.mCpuAspect;
 
 		cpuAspect.mDesc = read.mBufferDesc;
-		cpuAspect.mData.resize(read.mBufferDesc.uiSizeInBytes);
+		cpuAspect.mData.resize(read.mBufferDesc.Size);
 
 		DG::PVoid ptr;
 		context->MapBuffer(read.mStagingBuffer, 
 			DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT,
 			ptr);
-		std::memcpy(&cpuAspect.mData[0], ptr, read.mBufferDesc.uiSizeInBytes);
+		std::memcpy(&cpuAspect.mData[0], ptr, read.mBufferDesc.Size);
 		context->UnmapBuffer(read.mStagingBuffer, DG::MAP_READ);
 	}
 
@@ -266,7 +266,7 @@ namespace Morpheus {
 			return BufferMap(context,
 				mGpuAspect.mBuffer,
 				(uint8_t*)out, 
-				mGpuAspect.mBuffer->GetDesc().uiSizeInBytes,
+				mGpuAspect.mBuffer->GetDesc().Size,
 				type,
 				flags);
 		} else {
@@ -309,7 +309,7 @@ namespace Morpheus {
 
 				context->CopyBuffer(buf, 0, 
 					DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
-					stage_buf, 0, stage_desc.uiSizeInBytes,
+					stage_buf, 0, stage_desc.Size,
 					DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 				if (!result.mFence) {
@@ -346,11 +346,11 @@ namespace Morpheus {
 			}
 
 			std::vector<uint8_t> dest;
-			dest.resize(desc.uiSizeInBytes);
+			dest.resize(desc.Size);
 
 			DG::PVoid ptr = nullptr;
 			context->MapBuffer(buf, DG::MAP_READ, DG::MAP_FLAG_DO_NOT_WAIT, ptr);
-			std::memcpy(&dest[0], ptr, desc.uiSizeInBytes);
+			std::memcpy(&dest[0], ptr, desc.Size);
 			context->UnmapBuffer(buf, DG::MAP_READ);
 
 			result.emplace_back(std::move(dest));

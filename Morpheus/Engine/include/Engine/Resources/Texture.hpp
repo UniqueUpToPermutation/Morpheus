@@ -114,8 +114,6 @@ namespace Morpheus {
 			std::vector<TextureSubResDataDesc> mSubDescs;
 		} mCpuAspect;
 
-		ExternalAspect<ExtObjectType::TEXTURE> mExtAspect;
-
 		// The intensity of the texture
 		float mIntensity = 1.0f;
 

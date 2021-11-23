@@ -83,9 +83,6 @@ namespace Morpheus {
 	class Platform;
 
 	template <typename T>
-	class DynamicGlobalsBuffer;
-
-	template <typename T>
 	struct ResourceComponent;
 
 	class Camera;
@@ -137,7 +134,6 @@ namespace Morpheus {
 
 	class IRenderer;
 	class ISystem;
-	class IExternalGraphicsDevice;
 
 	enum class ExtObjectType {
 		TEXTURE,

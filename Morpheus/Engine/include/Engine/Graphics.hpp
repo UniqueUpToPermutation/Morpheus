@@ -132,41 +132,6 @@ namespace Morpheus {
 		void Flush();
 	};
 
-	template <ExtObjectType T>
-	struct ExternalAspect {
-		IExternalGraphicsDevice* mDevice = nullptr;
-		ExtObjectId mId = NullExtObjectId;
-
-		inline ExternalAspect() {
-		}
-		inline ExternalAspect(IExternalGraphicsDevice* device, ExtObjectId id) :
-			mDevice(device),
-			mId(id) {	
-		}
-		inline ~ExternalAspect() {
-			if (mId != NullExtObjectId) {
-				if constexpr (T == ExtObjectType::GEOMETRY) {
-					mDevice->DestroyGeometry(mId);
-				} else if constexpr (T == ExtObjectType::TEXTURE) {
-					mDevice->DestroyTexture(mId);
-				}
-			}
-		}
-
-		ExternalAspect(const ExternalAspect&) = delete;
-		ExternalAspect& operator=(const ExternalAspect&) = delete;
-
-		inline ExternalAspect(ExternalAspect&& other) {
-			std::swap(mDevice, other.mDevice);
-			std::swap(mId, other.mId);
-		}
-		ExternalAspect& operator=(ExternalAspect&& other) {
-			std::swap(mDevice, other.mDevice);
-			std::swap(mId, other.mId);
-			return *this;
-		}
-	};
-
 	struct GraphicsParams {
 		DG::Uint32      	mAdapterId   			= 0;
 		bool         		bVSync               	= false;

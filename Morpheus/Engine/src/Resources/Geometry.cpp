@@ -18,12 +18,6 @@ using namespace entt;
 
 namespace Morpheus {
 
-	void Geometry::CreateExternalAspect(IExternalGraphicsDevice* device, 
-		const Geometry* source) {
-		mExtAspect = ExternalAspect<ExtObjectType::GEOMETRY>(device, 
-			device->CreateGeometry(*source));
-	}
-
 	Geometry Geometry::Prefabs::MaterialBall(Device device, const VertexLayout& layout) {
 		return Geometry(device, Geometry::Prefabs::MaterialBall(layout));
 	}
@@ -114,8 +108,6 @@ namespace Morpheus {
 
 		if (device.IsGPU())
 			CreateRasterAspect(device, source);
-		else if (device.IsExternal())
-			CreateExternalAspect(device, source);
 		else if (device.IsCPU()) 
 			CopyFrom(*source);
 		else if (device.IsDisk())
@@ -204,7 +196,6 @@ namespace Morpheus {
 		mCpuAspect = std::move(other.mCpuAspect);
 		mShared = std::move(other.mShared);
 		mRasterAspect = std::move(other.mRasterAspect);
-		mExtAspect = std::move(other.mExtAspect);
 		mDevice = std::move(other.mDevice);
 		mSource = std::move(other.mSource);
 	}
@@ -744,14 +735,14 @@ namespace Morpheus {
 			DG::BufferDesc vertexBufferDesc;
 			vertexBufferDesc.Usage         = DG::USAGE_IMMUTABLE;
 			vertexBufferDesc.BindFlags     = DG::BIND_VERTEX_BUFFER;
-			vertexBufferDesc.uiSizeInBytes = vert_buffers[i].size();
+			vertexBufferDesc.Size 		   = vert_buffers[i].size();
 			bufferDescs.emplace_back(vertexBufferDesc);
 		}
 
 		DG::BufferDesc indexBufferDesc;
 		indexBufferDesc.Usage 			= DG::USAGE_IMMUTABLE;
 		indexBufferDesc.BindFlags 		= DG::BIND_INDEX_BUFFER;
-		indexBufferDesc.uiSizeInBytes 	= indx_buffer_raw.size();
+		indexBufferDesc.Size 			= indx_buffer_raw.size();
 
 		DG::DrawIndexedAttribs indexedAttribs;
 		indexedAttribs.IndexType 	= DG::VT_UINT32;
@@ -885,7 +876,6 @@ namespace Morpheus {
 		mRasterAspect = RasterizerAspect();
 		mCpuAspect = CpuAspect();
 		mShared = SharedAspect();
-		mExtAspect = ExternalAspect<ExtObjectType::GEOMETRY>();
 
 		mDevice = Device::None();
 	}

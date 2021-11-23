@@ -1398,7 +1398,6 @@ namespace Morpheus {
 	void Texture::AdoptData(Texture&& other) {
 		mRasterAspect = std::move(other.mRasterAspect);
 		mCpuAspect = std::move(other.mCpuAspect);
-		mExtAspect = std::move(other.mExtAspect);
 
 		mIntensity = std::move(other.mIntensity);
 		mSource = std::move(other.mSource);
@@ -1479,7 +1478,6 @@ namespace Morpheus {
 	void Texture::Clear() {
 		mCpuAspect = CpuAspect();
 		mRasterAspect = RasterizerAspect();
-		mExtAspect = ExternalAspect<ExtObjectType::TEXTURE>();
 
 		mDevice = Device::None();
 		mIntensity = 1.0;

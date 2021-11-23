@@ -263,7 +263,7 @@ namespace Morpheus {
 	}
 
 	TaskNode::operator bool() const {
-		return (bool)mNode;
+		return mNode != nullptr;
 	}
 
 	TaskNode& TaskNode::SetPriority(int priority) {

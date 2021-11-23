@@ -220,7 +220,7 @@ namespace Morpheus {
 		DG::BufferDesc desc;
 		desc.Name = "Sprite Batch Buffer";
 		desc.BindFlags = DG::BIND_VERTEX_BUFFER;
-		desc.uiSizeInBytes = mBatchSizeBytes;
+		desc.Size = mBatchSizeBytes;
 		desc.Usage = DG::USAGE_DYNAMIC;
 		desc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;
 
@@ -240,8 +240,8 @@ namespace Morpheus {
 		context->SetPipelineState(mCurrentState.mPipeline);
 
 		DG::IBuffer* buffers[] = { mBuffer };
-		DG::Uint32 offsets[] = { 0 };
-		
+		DG::Uint64 offsets[] = { 0 };
+
 		context->SetVertexBuffers(0, 1, buffers, offsets, 
 			DG::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, 
 			DG::SET_VERTEX_BUFFERS_FLAG_RESET);

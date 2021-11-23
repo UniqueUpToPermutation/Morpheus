@@ -241,9 +241,6 @@ namespace Morpheus {
 			bool bHasIndexBuffer;
 		} mCpuAspect;
 
-		// Stuff resident on an external device
-		ExternalAspect<ExtObjectType::GEOMETRY> mExtAspect;
-
 		struct SharedAspect {
 			DG::DrawIndexedAttribs mIndexedAttribs;
 			DG::DrawAttribs mUnindexedAttribs;
@@ -274,18 +271,6 @@ namespace Morpheus {
 			const GeometryDataSource<I3T, V2T, V3T, V4T>& data);
 
 		GeometryDataFloat Unpack() const;
-
-		// -------------------------------------------------------------
-		// Geometry Aspects
-		// -------------------------------------------------------------
-
-		void CreateExternalAspect(
-			IExternalGraphicsDevice* device, 
-			const Geometry* source);
-
-		inline void CreateExternalAspect(IExternalGraphicsDevice* device) {
-			CreateExternalAspect(device, this);
-		}
 
 		void CreateRasterAspect(
 			DG::IRenderDevice* device, 

@@ -21,7 +21,7 @@ namespace Morpheus {
 		inline void Initialize(DG::IRenderDevice* device, const uint count = 1) {
 			DG::BufferDesc CBDesc;
 			CBDesc.Name           = "Dyanmic Globals Buffer";
-			CBDesc.uiSizeInBytes  = sizeof(T) * count;
+			CBDesc.Size  		  = sizeof(T) * count;
 			CBDesc.Usage          = DG::USAGE_DYNAMIC;
 			CBDesc.BindFlags      = DG::BIND_UNIFORM_BUFFER;
 			CBDesc.CPUAccessFlags = DG::CPU_ACCESS_WRITE;

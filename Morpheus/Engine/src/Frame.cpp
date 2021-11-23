@@ -112,7 +112,7 @@ namespace Morpheus {
 
 		// Copy everything!
 		ForEachCopyableType([&old_to_new, this, &subframe](const CopyableType type) {
-			type->CopyAll(subframe.Registry(), Registry(), old_to_new);
+			type->CopySet(subframe.Registry(), Registry(), old_to_new);
 		});
 	}
 

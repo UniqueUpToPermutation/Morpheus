@@ -300,7 +300,7 @@ namespace Morpheus {
 		BuffDesc.BindFlags         = DG::BIND_UNIFORM_BUFFER | DG::BIND_UNORDERED_ACCESS;
 		BuffDesc.Mode              = DG::BUFFER_MODE_FORMATTED;
 		BuffDesc.ElementByteStride = sizeof(DG::float4);
-		BuffDesc.uiSizeInBytes     = sizeof(DG::float4) * 9;
+		BuffDesc.Size     		   = sizeof(DG::float4) * 9;
 
 		DG::IBuffer* buf = nullptr;
 		device->CreateBuffer(BuffDesc, nullptr, &buf);
